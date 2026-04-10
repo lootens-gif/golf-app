@@ -640,7 +640,7 @@ export default function App() {
   const leaderboard = useMemo(() => {
     return buildLeaderboard(matches, context);
   }, [matches, context]);
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const teamGameResults = useMemo(() => {
     return teamGames.map((game, index) => {
       const { start, end } = getTeamGameRange(teamGames, index);
@@ -805,7 +805,7 @@ export default function App() {
         matches: teamMatches,
       };
     });
-  }, [teamGames, mode, context]);
+  }, [teamGames, mode, context, players]);
 
   function saveSetup() {
     try {
