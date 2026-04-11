@@ -144,23 +144,32 @@ export default function App() {
     return (team || []).filter(Boolean);
   }
 
+function getTeamGameSelection(index) {
+  const game = teamGames[index];
+
+  return sanitizeGameSelection(
+    game?.teams || getDefaultTeamSelection(),
+    mode
+  );
+}
+  
   function getTeamGameSettlement(result, unitAmount = 1) {
-    const wins = result.filter((bet) => bet.score > 0).length;
-    const losses = result.filter((bet) => bet.score < 0).length;
-    const pushes = result.filter((bet) => bet.score === 0).length;
-    const netUnits = wins - losses;
-    const netDollars = netUnits * unitAmount;
+  const wins = result.filter((bet) => bet.score > 0).length;
+  const losses = result.filter((bet) => bet.score < 0).length;
+  const pushes = result.filter((bet) => bet.score === 0).length;
+  const netUnits = wins - losses;
+  const netDollars = netUnits * unitAmount;
 
-    return {
-      wins,
-      losses,
-      pushes,
-      netUnits,
-      netDollars,
-    };
-  }
+  return {
+    wins,
+    losses,
+    pushes,
+    netUnits,
+    netDollars,
+  };
+}
 
-  function applyPreset(preset) {
+function applyPreset(preset) {
   if (preset === "6-6-6") {
     setTeamGames([
       { ...createDefaultTeamGame(1), holes: 6 },
@@ -317,10 +326,7 @@ export default function App() {
     return new Set(keys).size !== keys.length;
   }
 
-  function getTeamGameSelection(index) {
-    const game = teamGames[index];
-    return sanitizeGameSelection(game?.teams || getDefaultTeamSelection(), mode);
-  }
+
 
   function updateTeamGameTeam(index, teamKey, slotIndex, value) {
   const current = getTeamGameSelection(index);
@@ -640,172 +646,170 @@ export default function App() {
   const leaderboard = useMemo(() => {
     return buildLeaderboard(matches, context);
   }, [matches, context]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const teamGameResults = useMemo(() => {
-    return teamGames.map((game, index) => {
-      const { start, end } = getTeamGameRange(teamGames, index);
-      const selected = getTeamGameSelection(index);
-      const trigger = game.pressTrigger ?? 1;
+  
+  const teamGameResults = teamGames.map((game, index) => {
+  const { start, end } = getTeamGameRange(teamGames, index);
+  const selected = getTeamGameSelection(index);
+  const trigger = game.pressTrigger ?? 1;
 
-      if (hasDuplicateSelections(selected, mode)) {
-        return {
-          index,
+  if (hasDuplicateSelections(selected, mode)) {
+    return {
+      index,
+      start,
+      end,
+      duplicateError: true,
+      matches: [],
+    };
+  }
+
+  if (mode === "5p") {
+    const team1 = normalizeTeam(selected.team1 || []);
+    const team2 = normalizeTeam(selected.team2 || []);
+    const team3 = normalizeTeam(selected.team3 || []);
+    const team4 = normalizeTeam(selected.team4 || []);
+
+    const teamMatches = [];
+
+    if (team1.length === 2 && team2.length === 2) {
+      teamMatches.push({
+        label: "Team 1 vs Team 2",
+        result: playPressMatch({
+          teamA: team1,
+          teamB: team2,
           start,
           end,
-          duplicateError: true,
-          matches: [],
-        };
-      }
-
-      if (mode === "5p") {
-        const team1 = normalizeTeam(selected.team1 || []);
-        const team2 = normalizeTeam(selected.team2 || []);
-        const team3 = normalizeTeam(selected.team3 || []);
-        const team4 = normalizeTeam(selected.team4 || []);
-
-        const teamMatches = [];
-
-        if (team1.length === 2 && team2.length === 2) {
-          teamMatches.push({
-            label: "Team 1 vs Team 2",
-            result: playPressMatch({
-              teamA: team1,
-              teamB: team2,
-              start,
-              end,
-              trigger,
-              context,
-            }),
-            birdieSummary: getBirdieSideBetResult({
-              teamA: team1,
-              teamB: team2,
-              start,
-              end,
-              context,
-            }),
-          });
-        }
-
-        if (team1.length === 2 && team3.length === 2) {
-          teamMatches.push({
-            label: "Team 1 vs Team 3",
-            result: playPressMatch({
-              teamA: team1,
-              teamB: team3,
-              start,
-              end,
-              trigger,
-              context,
-            }),
-            birdieSummary: getBirdieSideBetResult({
-              teamA: team1,
-              teamB: team3,
-              start,
-              end,
-              context,
-            }),
-          });
-        }
-
-        if (team1.length === 2 && team4.length === 2) {
-          teamMatches.push({
-            label: "Team 1 vs Team 4",
-            result: playPressMatch({
-              teamA: team1,
-              teamB: team4,
-              start,
-              end,
-              trigger,
-              context,
-            }),
-            birdieSummary: getBirdieSideBetResult({
-              teamA: team1,
-              teamB: team4,
-              start,
-              end,
-              context,
-            }),
-          });
-        }
-
-        return {
-          index,
+          trigger,
+          context,
+        }),
+        birdieSummary: getBirdieSideBetResult({
+          teamA: team1,
+          teamB: team2,
           start,
           end,
-          duplicateError: false,
-          matches: teamMatches,
-        };
-      }
+          context,
+        }),
+      });
+    }
 
-      if (mode === "4p") {
-        const team1 = normalizeTeam(selected.team1 || []);
-        const team2 = normalizeTeam(selected.team2 || []);
-
-        const teamMatches = [];
-        if (team1.length === 2 && team2.length === 2) {
-          teamMatches.push({
-            label: "Team 1 vs Team 2",
-            result: playPressMatch({
-              teamA: team1,
-              teamB: team2,
-              start,
-              end,
-              trigger,
-              context,
-            }),
-            birdieSummary: getBirdieSideBetResult({
-              teamA: team1,
-              teamB: team2,
-              start,
-              end,
-              context,
-            }),
-          });
-        }
-
-        return {
-          index,
+    if (team1.length === 2 && team3.length === 2) {
+      teamMatches.push({
+        label: "Team 1 vs Team 3",
+        result: playPressMatch({
+          teamA: team1,
+          teamB: team3,
           start,
           end,
-          duplicateError: false,
-          matches: teamMatches,
-        };
-      }
+          trigger,
+          context,
+        }),
+        birdieSummary: getBirdieSideBetResult({
+          teamA: team1,
+          teamB: team3,
+          start,
+          end,
+          context,
+        }),
+      });
+    }
 
-      const team1 = normalizeTeam(selected.team1 || []);
-      const team2 = normalizeTeam(selected.team2 || []);
+    if (team1.length === 2 && team4.length === 2) {
+      teamMatches.push({
+        label: "Team 1 vs Team 4",
+        result: playPressMatch({
+          teamA: team1,
+          teamB: team4,
+          start,
+          end,
+          trigger,
+          context,
+        }),
+        birdieSummary: getBirdieSideBetResult({
+          teamA: team1,
+          teamB: team4,
+          start,
+          end,
+          context,
+        }),
+      });
+    }
 
-      const teamMatches = [];
-      if (team1.length === 2 && team2.length === 1) {
-        teamMatches.push({
-          label: "Team 1 vs Team 2",
-          result: playPressMatch({
-            teamA: team1,
-            teamB: team2,
-            start,
-            end,
-            trigger,
-            context,
-          }),
-          birdieSummary: getBirdieSideBetResult({
-            teamA: team1,
-            teamB: team2,
-            start,
-            end,
-            context,
-          }),
-        });
-      }
+    return {
+      index,
+      start,
+      end,
+      duplicateError: false,
+      matches: teamMatches,
+    };
+  }
 
-      return {
-        index,
+  if (mode === "4p") {
+    const team1 = normalizeTeam(selected.team1 || []);
+    const team2 = normalizeTeam(selected.team2 || []);
+
+    const teamMatches = [];
+    if (team1.length === 2 && team2.length === 2) {
+      teamMatches.push({
+        label: "Team 1 vs Team 2",
+        result: playPressMatch({
+          teamA: team1,
+          teamB: team2,
+          start,
+          end,
+          trigger,
+          context,
+        }),
+        birdieSummary: getBirdieSideBetResult({
+          teamA: team1,
+          teamB: team2,
+          start,
+          end,
+          context,
+        }),
+      });
+    }
+
+    return {
+      index,
+      start,
+      end,
+      duplicateError: false,
+      matches: teamMatches,
+    };
+  }
+
+  const team1 = normalizeTeam(selected.team1 || []);
+  const team2 = normalizeTeam(selected.team2 || []);
+
+  const teamMatches = [];
+  if (team1.length === 2 && team2.length === 1) {
+    teamMatches.push({
+      label: "Team 1 vs Team 2",
+      result: playPressMatch({
+        teamA: team1,
+        teamB: team2,
         start,
         end,
-        duplicateError: false,
-        matches: teamMatches,
-      };
+        trigger,
+        context,
+      }),
+      birdieSummary: getBirdieSideBetResult({
+        teamA: team1,
+        teamB: team2,
+        start,
+        end,
+        context,
+      }),
     });
-  }, [teamGames, mode, context, players]);
+  }
+
+  return {
+    index,
+    start,
+    end,
+    duplicateError: false,
+    matches: teamMatches,
+  };
+});
 
   function saveSetup() {
     try {
