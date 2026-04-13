@@ -23,13 +23,18 @@ export function getHandicapBase(player, players, handicapMode) {
     return player.hcp;
   }
 
-  const low = getLowestHandicap(players);
+
+  // ✅ FORCE correct comparison set
+  const validPlayers = players.filter((p) => p && typeof p.hcp === "number");
+
+  const low = Math.min(...validPlayers.map((p) => p.hcp));
+
   return Math.max(0, player.hcp - low);
 }
 
 export function getHandicapStrokes(
   playerId,
-  holeIndex,
+  hole,
   players,
   course,
   handicapMode
@@ -37,13 +42,21 @@ export function getHandicapStrokes(
   const player = getPlayerById(players, playerId);
   if (!player) return 0;
 
-  const handicapValue = getHandicapBase(player, players, handicapMode);
+  const handicapValue = Number(
+    getHandicapBase(player, players, handicapMode) || 0
+  );
   if (handicapValue <= 0) return 0;
 
-  let strokes = Math.floor(handicapValue / 18);
+  const fullRounds = Math.floor(handicapValue / 18);
   const remainder = handicapValue % 18;
 
-  if (remainder > 0 && course.hcp[holeIndex] <= remainder) {
+  const holeHcp = Number(course?.hcp?.[hole - 1]);
+  if (!Number.isFinite(holeHcp)) return fullRounds;
+
+  let strokes = fullRounds;
+
+  // Important: MUST be <= so a 1-stroke difference applies on handicap hole 1.
+  if (remainder > 0 && holeHcp <= remainder) {
     strokes += 1;
   }
 
@@ -68,7 +81,7 @@ export function getNetScore(
 
   const strokes = getHandicapStrokes(
     playerId,
-    hole - 1,
+    hole,
     players,
     course,
     handicapMode
@@ -462,12 +475,16 @@ export function playIndividualMatch(match, context) {
   const holes = [];
   let running = 0;
 
+const p1 = players.find((p) => p.id === match.p1Id);
+const p2 = players.find((p) => p.id === match.p2Id);
+const matchPlayers = [p1, p2].filter(Boolean);
+  
   for (let hole = 1; hole <= 18; hole++) {
     const result = computeHoleResult({
       hole,
       teamA: [match.p1Id],
       teamB: [match.p2Id],
-      players,
+      players: matchPlayers,
       course,
       scores,
       handicapMode,
@@ -597,7 +614,7 @@ const birdieSummary = getBirdieSideBetResult({
         playerId: match.p1Id,
         startHole: seg.start,
         endHole: seg.end,
-        players,
+        players: matchPlayers,
         course,
         scores,
         handicapMode,
@@ -608,7 +625,7 @@ const birdieSummary = getBirdieSideBetResult({
         playerId: match.p2Id,
         startHole: seg.start,
         endHole: seg.end,
-        players,
+        players: matchPlayers,
         course,
         scores,
         handicapMode,
@@ -679,7 +696,7 @@ export function playPressMatch({
       hole,
       teamA,
       teamB,
-      players: context.players,
+      players: context.players.filter(p => [...teamA, ...teamB].includes(p.id)),
       course: context.course,
       scores: context.scores,
       handicapMode: context.handicapMode,
