@@ -1,7 +1,7 @@
 export function getActivePlayers(allPlayers, mode) {
   if (mode === "3p") return allPlayers.slice(0, 3);
   if (mode === "4p") return allPlayers.slice(0, 4);
-  return allPlayers;
+  return allPlayers.slice(0, 5);
 }
 
 export function getLowestHandicap(players) {
