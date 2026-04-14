@@ -713,13 +713,7 @@ function applyPreset(preset) {
     return buildLeaderboard(matches, context);
   }, [matches, context]);
   
-const debugMatchup = useMemo(() => getDebugMatchup(), [
-  mode,
-  debugGameIndex,
-  debugMatchKey,
-  teamGames,
-  players,
-]);
+  const debugMatchup = getDebugMatchup();
 
   const teamGameResults = teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
