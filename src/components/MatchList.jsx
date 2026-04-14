@@ -116,7 +116,7 @@ function renderMatchDetails(match, result) {
       {results.map(({ match, result }) => (
         <div
           key={match.id}
-          style={{ border: "1px solid gray", margin: 6, padding: 6 }}
+          style={{ border: "1px solid gray", margin: 6, padding: 10 }}
         >
           <div
             style={{
@@ -163,28 +163,54 @@ function renderMatchDetails(match, result) {
             <label>
               Match Bet:
               <input
-                type="number"
-                value={match.bet}
-                onChange={(e) =>
-                  onUpdateMatch(match.id, {
-                    bet: Number(e.target.value) || 0,
-                  })
-                }
-                style={{ width: 70, marginLeft: 6 }}
-              />
+                type="text"
+                inputMode="numeric"
+                value={match.bet ?? ""}
+                onFocus={(e) => {
+                    setTimeout(() => {
+                    e.target.setSelectionRange(0, e.target.value.length);
+                    }, 0);
+                }}
+                onChange={(e) => {
+                    const cleaned = e.target.value.replace(/\D/g, "");
+
+                    if (cleaned === "") {
+                    onUpdateMatch(match.id, { bet: "" });
+                    return;
+                    }
+
+                    const num = Math.min(100, Math.max(0, Number(cleaned)));
+
+                    onUpdateMatch(match.id, { bet: num });
+                }}
+                style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
+                />
             </label>
 <label>
   Birdie Bet:
-  <input
-    type="number"
-    value={match.birdieBet ?? 5}
-    onChange={(e) =>
-      onUpdateMatch(match.id, {
-        birdieBet: Number(e.target.value) || 0,
-      })
-    }
-    style={{ width: 70, marginLeft: 6 }}
-  />
+      <input
+            type="text"
+            inputMode="numeric"
+            value={match.birdieBet ?? ""}
+            onFocus={(e) => {
+                setTimeout(() => {
+                e.target.setSelectionRange(0, e.target.value.length);
+                }, 0);
+            }}
+            onChange={(e) => {
+                const cleaned = e.target.value.replace(/\D/g, "");
+
+                if (cleaned === "") {
+                onUpdateMatch(match.id, { birdieBet: "" });
+                return;
+                }
+
+                const num = Math.min(100, Math.max(0, Number(cleaned)));
+
+                onUpdateMatch(match.id, { birdieBet: num });
+            }}
+            style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
+            />
 </label>
             <label>
               <input
