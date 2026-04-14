@@ -1168,26 +1168,48 @@ function deleteNamedRound() {
   }
 
   function updateCoursePar(index, value) {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return;
-
+   if (value === "") {
     setCourse((prev) => {
       const pars = [...prev.pars];
-      pars[index] = num;
+      pars[index] = "";
       return { ...prev, pars };
     });
+    return;
   }
+
+  const num = Number(value);
+  if (!Number.isFinite(num)) return;
+
+  const clamped = Math.min(6, Math.max(3, num));
+
+  setCourse((prev) => {
+    const pars = [...prev.pars];
+    pars[index] = clamped;
+    return { ...prev, pars };
+  });
+}
 
   function updateCourseHcp(index, value) {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return;
-
+   if (value === "") {
     setCourse((prev) => {
       const hcp = [...prev.hcp];
-      hcp[index] = num;
+      hcp[index] = "";
       return { ...prev, hcp };
     });
+    return;
   }
+
+  const num = Number(value);
+  if (!Number.isFinite(num)) return;
+
+  const clamped = Math.min(18, Math.max(1, num));
+
+  setCourse((prev) => {
+    const hcp = [...prev.hcp];
+    hcp[index] = clamped;
+    return { ...prev, hcp };
+  });
+}
 
   function updateCourseName(value) {
     setCourse((prev) => ({
@@ -1305,12 +1327,13 @@ useEffect(() => {
         <div style={{ marginBottom: 10 }}>
           <label>
             Course Name:
-            <input
-              type="text"
-              value={course.name || ""}
-              onChange={(e) => updateCourseName(e.target.value)}
-              style={{ marginLeft: 6 }}
-            />
+         <input
+            type="text"
+            value={course.name || ""}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => updateCourseName(e.target.value)}
+            style={{ marginLeft: 6 }}
+/>   
           </label>
         </div>
 
