@@ -41,10 +41,20 @@ export default function PlayerSetupPanel({
           <label>
             Name:
             <input
-              type="text"
-              value={player.name}
-              onChange={(e) => onPlayerChange(index, "name", e.target.value)}
-              style={{ marginLeft: 6 }}
+                type="text"
+                value={player.name}
+                onFocus={(e) => {
+                    setTimeout(() => {
+                    e.target.setSelectionRange(0, e.target.value.length);
+                    }, 0);
+                }}
+                onClick={(e) => {
+                    setTimeout(() => {
+                    e.target.setSelectionRange(0, e.target.value.length);
+                    }, 0);
+                }}
+                onChange={(e) => onPlayerChange(index, "name", e.target.value)}
+                style={{ marginLeft: 6, fontSize: 16, padding: 6, minWidth: 140  }}
             />
           </label>
 

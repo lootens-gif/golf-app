@@ -65,11 +65,16 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                     border: "1px solid #ccc",
                     padding: 6,
                     background: "#f5f5f5",
-                    minWidth: 70,
+                    minWidth: 58,
                     textAlign: "center",
                   }}
                 >
-                  {player.name}
+                  {player.name
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map((part) => part[0])
+                    .join("")}
                 </th>
               ))}
             </tr>
@@ -110,10 +115,10 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                         handleScoreChange(hole, player.id, e.target.value)
                       }
                       style={{
-                        width: 56,
+                        width: 64,
                         textAlign: "center",
-                        fontSize: 16,
-                        padding: 6,
+                        fontSize: 18,
+                        padding: 8,
                       }}
                     />
                   </td>
