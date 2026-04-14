@@ -1,17 +1,17 @@
-App.jsximport { useEffect, useMemo, useState } from "react";
-import { defaultPlayers } from "./data/defaultPlayers";
+import { useEffect, useMemo, useState } from "react";
+import { defaultPlayers } from "../data/defaultPlayers";
 import {
   getActivePlayers,
   playIndividualMatch,
   buildLeaderboard,
   playPressMatch,
   getBirdieSideBetResult,
-} from "./engine/scoringEngine";
-import SettingsPanel from "./components/SettingsPanel";
-import PlayerSetupPanel from "./components/PlayerSetupPanel";
-import CourseEditor from "./components/CourseEditor";
-import ScoresGrid from "./components/ScoresGrid";
-import MatchList from "./components/MatchList";
+} from "../engine/scoringEngine";
+import SettingsPanel from "../components/SettingsPanel";
+import PlayerSetupPanel from "../components/PlayerSetupPanel";
+import CourseEditor from "../components/CourseEditor";
+import ScoresGrid from "../components/ScoresGrid";
+import MatchList from "../components/MatchList";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 
@@ -27,9 +27,10 @@ function createDefaultAllPlayers() {
   return defaultPlayers.map((player) => ({ ...player }));
 }
 
-function getGameRange(gameGroups, index) {
-  const start = gameGroups.slice(0, index).reduce((a, b) => a + b, 0) + 1;
-  const end = start + gameGroups[index] - 1;
+function getTeamGameRange(teamGames, index) {
+  const start =
+    teamGames.slice(0, index).reduce((sum, game) => sum + game.holes, 0) + 1;
+  const end = start + teamGames[index].holes - 1;
   return { start, end };
 }
 
@@ -49,12 +50,23 @@ export default function App() {
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
 
-  const [gameGroups, setGameGroups] = useState([6, 6, 6]);
-  const [gameTeams, setGameTeams] = useState({});
-  const [pressTrigger, setPressTrigger] = useState({});
+  function createDefaultTeamGame(index = 0) {
+    return {
+      id: `team-game-${Date.now()}-${index}`,
+      holes: 6,
+      pressTrigger: 1,
+      teams: {},
+    };
+  }
+
+  const [teamGames, setTeamGames] = useState([
+    createDefaultTeamGame(1),
+    createDefaultTeamGame(2),
+    createDefaultTeamGame(3),
+  ]);
+
   const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(1);
   const [birdieUnitAmount, setBirdieUnitAmount] = useState(1);
-
   const [setupMessage, setSetupMessage] = useState("");
 
   const players = useMemo(
@@ -91,8 +103,11 @@ export default function App() {
   function resetRoundData() {
     setScores({});
     setMatches([]);
-    setGameTeams({});
-    setPressTrigger({});
+    setTeamGames([
+      createDefaultTeamGame(1),
+      createDefaultTeamGame(2),
+      createDefaultTeamGame(3),
+    ]);
   }
 
   function handleModeChange(nextMode) {
@@ -120,7 +135,9 @@ export default function App() {
       })
     );
 
-    setSetupMessage(field === "hcp" ? "Handicap updated." : "Player name updated.");
+    setSetupMessage(
+      field === "hcp" ? "Handicap updated." : "Player name updated."
+    );
   }
 
   function normalizeTeam(team) {
@@ -143,7 +160,7 @@ export default function App() {
     };
   }
 
-  function getDefaultGameSelection() {
+  function getDefaultTeamSelection() {
     const ids = players.map((p) => p.id);
 
     if (mode === "3p") {
@@ -184,7 +201,7 @@ export default function App() {
   }
 
   function sanitizeGameSelection(selection, currentMode) {
-    const safeSelection = selection || getDefaultGameSelection();
+    const safeSelection = selection || getDefaultTeamSelection();
 
     if (currentMode === "3p") {
       const team1 = dedupePreserveOrder(getTeamValues(safeSelection, "team1", 2));
@@ -282,15 +299,13 @@ export default function App() {
     return new Set(keys).size !== keys.length;
   }
 
-  function getGameSelection(index) {
-    return sanitizeGameSelection(
-      gameTeams[index] || getDefaultGameSelection(),
-      mode
-    );
+  function getTeamGameSelection(index) {
+    const game = teamGames[index];
+    return sanitizeGameSelection(game?.teams || getDefaultTeamSelection(), mode);
   }
 
-  function updateGameTeam(index, teamKey, slotIndex, value) {
-    const current = getGameSelection(index);
+  function updateTeamGameTeam(index, teamKey, slotIndex, value) {
+    const current = getTeamGameSelection(index);
     const nextTeam = [...(current[teamKey] || [])];
     nextTeam[slotIndex] = value;
 
@@ -307,14 +322,15 @@ export default function App() {
       return;
     }
 
-    setGameTeams((prev) => ({
-      ...prev,
-      [index]: nextSelection,
-    }));
+    setTeamGames((prev) =>
+      prev.map((game, i) =>
+        i === index ? { ...game, teams: nextSelection } : game
+      )
+    );
   }
 
   function getAvailablePlayersForTeam(gameIndex, teamKey, slotIndex) {
-    const selection = getGameSelection(gameIndex);
+    const selection = getTeamGameSelection(gameIndex);
 
     if (mode === "3p") {
       if (teamKey === "team1") {
@@ -392,7 +408,7 @@ export default function App() {
   }
 
   function renderPlayerSelect(gameIndex, teamKey, slotIndex) {
-    const selection = getGameSelection(gameIndex);
+    const selection = getTeamGameSelection(gameIndex);
     const value = selection[teamKey]?.[slotIndex] || "";
     const options = getAvailablePlayersForTeam(gameIndex, teamKey, slotIndex);
 
@@ -401,7 +417,7 @@ export default function App() {
         key={`${teamKey}-${slotIndex}`}
         value={value}
         onChange={(e) =>
-          updateGameTeam(gameIndex, teamKey, slotIndex, e.target.value)
+          updateTeamGameTeam(gameIndex, teamKey, slotIndex, e.target.value)
         }
       >
         <option value="">Select</option>
@@ -502,13 +518,6 @@ export default function App() {
     );
   }
 
-  function setGamePressTrigger(index, value) {
-    setPressTrigger((prev) => ({
-      ...prev,
-      [index]: Number(value) || 1,
-    }));
-  }
-
   function addMatch() {
     if (players.length < 2) return;
 
@@ -554,11 +563,10 @@ export default function App() {
   }, [matches, context]);
 
   const teamGameResults = useMemo(() => {
-  
-    return gameGroups.map((_, index) => {
-      const { start, end } = getGameRange(gameGroups, index);
-      const selected = getGameSelection(index);
-      const trigger = pressTrigger[index] ?? 1;
+    return teamGames.map((game, index) => {
+      const { start, end } = getTeamGameRange(teamGames, index);
+      const selected = getTeamGameSelection(index);
+      const trigger = game.pressTrigger ?? 1;
 
       if (hasDuplicateSelections(selected, mode)) {
         return {
@@ -718,7 +726,7 @@ export default function App() {
         matches: teamMatches,
       };
     });
-  }, [gameGroups, gameTeams, pressTrigger, mode, context]);
+  }, [teamGames, mode, context]);
 
   function saveSetup() {
     try {
@@ -731,6 +739,7 @@ export default function App() {
         handicapMode,
         teamGameUnitAmount,
         birdieUnitAmount,
+        teamGames,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(setup));
@@ -764,8 +773,25 @@ export default function App() {
       if (typeof setup.birdieUnitAmount === "number") {
         setBirdieUnitAmount(setup.birdieUnitAmount);
       }
+      if (Array.isArray(setup.teamGames)) {
+        setTeamGames(
+          setup.teamGames.map((game, index) => ({
+            id: game.id || `team-game-${Date.now()}-${index}`,
+            holes: Number(game.holes) || 6,
+            pressTrigger: Number(game.pressTrigger) || 1,
+            teams: game.teams || {},
+          }))
+        );
+      } else {
+        setTeamGames([
+          createDefaultTeamGame(1),
+          createDefaultTeamGame(2),
+          createDefaultTeamGame(3),
+        ]);
+      }
 
-      resetRoundData();
+      setScores({});
+      setMatches([]);
       setSetupMessage("Setup loaded. Round data reset.");
     } catch (error) {
       setSetupMessage("Could not load setup.");
@@ -826,7 +852,11 @@ export default function App() {
       name: value,
     }));
   }
-    const totalHoles = gameGroups.reduce((sum, h) => sum + h, 0);
+
+  const totalHoles = teamGames.reduce(
+    (sum, game) => sum + (Number(game.holes) || 0),
+    0
+  );
 
   useEffect(() => {
     if (!setupMessage) return;
@@ -919,47 +949,40 @@ export default function App() {
       </div>
 
       <h3>Team Game Selector</h3>
+
       <div style={{ marginBottom: 12 }}>
-  <strong>Game Hole Setup</strong>
+        <strong>Game Hole Setup</strong>
 
-  {gameGroups.map((holes, index) => (
-    <div key={index} style={{ marginTop: 6 }}>
-      Game {index + 1} Holes:
-      <input
-        type="number"
-        min={1}
-        max={18}
-        value={holes}
-        onChange={(e) => {
-          const value = Number(e.target.value) || 1;
+        <div style={{ marginTop: 8, marginBottom: 8 }}>
+          <button
+            onClick={() =>
+              setTeamGames((prev) => [
+                ...prev,
+                createDefaultTeamGame(prev.length + 1),
+              ])
+            }
+          >
+            Add Team Game
+          </button>
+        </div>
 
-          setGameGroups((prev) => {
-            const next = [...prev];
-            next[index] = value;
-            return next;
-          });
-        }}
-        style={{ width: 60, marginLeft: 6 }}
-      />
-    </div>
-  ))}
-</div>
+        {totalHoles !== 18 && (
+          <div style={{ color: "red", marginBottom: 10 }}>
+            Total holes must equal 18 (currently {totalHoles})
+          </div>
+        )}
+      </div>
 
-{totalHoles !== 18 && (
-  <div style={{ color: "red", marginBottom: 10 }}>
-    Total holes must equal 18 (currently {totalHoles})
-  </div>
-)}
-      {gameGroups.map((_, index) => {
-        const { start, end } = getGameRange(gameGroups, index);
+      {teamGames.map((game, index) => {
+        const { start, end } = getTeamGameRange(teamGames, index);
         const duplicateError = hasDuplicateSelections(
-          getGameSelection(index),
+          getTeamGameSelection(index),
           mode
         );
 
         return (
           <div
-            key={index}
+            key={game.id}
             style={{ border: "1px solid gray", margin: 6, padding: 10 }}
           >
             <div>
@@ -968,9 +991,66 @@ export default function App() {
               </strong>
             </div>
 
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <label>
+                Holes:
+                <input
+                  type="number"
+                  min={1}
+                  max={18}
+                  value={game.holes ?? 1}
+                  onChange={(e) => {
+                    const value = Number(e.target.value) || 1;
+                    setTeamGames((prev) =>
+                      prev.map((g, i) =>
+                        i === index ? { ...g, holes: value } : g
+                      )
+                    );
+                  }}
+                  style={{ width: 60, marginLeft: 6 }}
+                />
+              </label>
+
+              <label>
+                Press Trigger:
+                <input
+                  type="number"
+                  min={1}
+                  value={game.pressTrigger ?? 1}
+                  onChange={(e) => {
+                    const value = Number(e.target.value) || 1;
+                    setTeamGames((prev) =>
+                      prev.map((g, i) =>
+                        i === index ? { ...g, pressTrigger: value } : g
+                      )
+                    );
+                  }}
+                  style={{ width: 60, marginLeft: 6 }}
+                />
+              </label>
+
+              {teamGames.length > 1 && (
+                <button
+                  onClick={() =>
+                    setTeamGames((prev) => prev.filter((_, i) => i !== index))
+                  }
+                >
+                  Remove Game
+                </button>
+              )}
+            </div>
+
             <div style={{ marginTop: 6 }}>
               {mode === "5p" &&
-                "Select Team 1, Team 2, Team 3, Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
+                "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
               {mode === "4p" &&
                 "Select Team 1 and Team 2. One 2v2 match is played for this game."}
               {mode === "3p" &&
@@ -984,23 +1064,60 @@ export default function App() {
                 Duplicate players in this game are not allowed.
               </div>
             )}
-
-            <div style={{ marginTop: 10 }}>
-              <label>
-                Press Trigger:
-                <input
-                  type="number"
-                  value={pressTrigger[index] ?? 1}
-                  onChange={(e) =>
-                    setGamePressTrigger(index, Number(e.target.value) || 2)
-                  }
-                  style={{ width: 60, marginLeft: 6 }}
-                />
-              </label>
-            </div>
           </div>
         );
       })}
+
+<div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+  <h3 style={{ marginTop: 0 }}>Debug Tools</h3>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={showDebug}
+      onChange={(e) => setShowDebug(e.target.checked)}
+    />
+    Show Debug View
+  </label>
+
+  {showDebug && mode === "5p" && (
+    <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <label>
+        Team Game:
+        <select
+          value={debugGameIndex}
+          onChange={(e) => setDebugGameIndex(Number(e.target.value))}
+          style={{ marginLeft: 6 }}
+        >
+          {teamGames.map((game, index) => (
+            <option key={game.id} value={index}>
+              Game {index + 1}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Matchup:
+        <select
+          value={debugMatchKey}
+          onChange={(e) => setDebugMatchKey(e.target.value)}
+          style={{ marginLeft: 6 }}
+        >
+          <option value="team2">Team 1 vs Team 2</option>
+          <option value="team3">Team 1 vs Team 3</option>
+          <option value="team4">Team 1 vs Team 4</option>
+        </select>
+      </label>
+    </div>
+  )}
+
+  {showDebug && mode !== "5p" && (
+    <div style={{ marginTop: 10 }}>
+      Debug view currently supports the 5-player team game path.
+    </div>
+  )}
+</div>
 
       <h3>Team Game Results</h3>
       {teamGameResults.map((game) => (
@@ -1041,7 +1158,7 @@ export default function App() {
                   </div>
 
                   <div style={{ marginBottom: 4 }}>
-                    Trigger: {pressTrigger[game.index] ?? 2} downs
+                    Trigger: {teamGames[game.index]?.pressTrigger ?? 1} downs
                   </div>
 
                   {match.result.map((bet, betIndex) => (
@@ -1076,11 +1193,11 @@ export default function App() {
                         paddingTop: 8,
                       }}
                     >
-                    <div>
-                         <strong>Birdie Side Bet</strong>
-                    </div>
-                    <div>Net Birdie Units: {match.birdieSummary.units}</div>
-                    <div>Birdie Payout: ${match.birdieSummary.dollars}</div>
+                      <div>
+                        <strong>Birdie Side Bet</strong>
+                      </div>
+                      <div>Net Birdie Units: {match.birdieSummary.units}</div>
+                      <div>Birdie Payout: ${match.birdieSummary.dollars}</div>
                     </div>
                   )}
                 </div>

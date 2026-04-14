@@ -12,8 +12,11 @@ import PlayerSetupPanel from "./components/PlayerSetupPanel";
 import CourseEditor from "./components/CourseEditor";
 import ScoresGrid from "./components/ScoresGrid";
 import MatchList from "./components/MatchList";
+import DebugPanel from "./components/DebugPanel";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
+const LAST_ROUND_KEY = "golf-betting-last-round-v1";
+const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 
 function createDefaultCourse() {
   return {
@@ -49,6 +52,12 @@ export default function App() {
   const [grossBirdieAdvantage, setGrossBirdieAdvantage] = useState(false);
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugGameIndex, setDebugGameIndex] = useState(0);
+  const [debugMatchKey, setDebugMatchKey] = useState("team2");
+  const [savedRoundName, setSavedRoundName] = useState("");
+  const [savedRounds, setSavedRounds] = useState([]);
+  const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
 
   function createDefaultTeamGame(index = 0) {
     return {
@@ -153,6 +162,63 @@ function getTeamGameSelection(index) {
   );
 }
   
+function getDebugMatchup() {
+  if (mode !== "5p") {
+    return null;
+  }
+
+  const selected = getTeamGameSelection(debugGameIndex);
+  if (!selected) return null;
+
+  const team1 = normalizeTeam(selected.team1 || []);
+  const team2 = normalizeTeam(selected.team2 || []);
+  const team3 = normalizeTeam(selected.team3 || []);
+  const team4 = normalizeTeam(selected.team4 || []);
+
+  const game = teamGames[debugGameIndex];
+  if (!game) return null;
+
+  const { start, end } = getTeamGameRange(teamGames, debugGameIndex);
+
+  if (debugMatchKey === "team2") {
+    return {
+      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 2`,
+      teamA: team1,
+      teamB: team2,
+      teamALabel: "Team 1",
+      teamBLabel: "Team 2",
+      start,
+      end,
+    };
+  }
+
+  if (debugMatchKey === "team3") {
+    return {
+      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 3`,
+      teamA: team1,
+      teamB: team3,
+      teamALabel: "Team 1",
+      teamBLabel: "Team 3",
+      start,
+      end,
+    };
+  }
+
+  if (debugMatchKey === "team4") {
+    return {
+      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 4`,
+      teamA: team1,
+      teamB: team4,
+      teamALabel: "Team 1",
+      teamBLabel: "Team 4",
+      start,
+      end,
+    };
+  }
+
+  return null;
+}
+
   function getTeamGameSettlement(result, unitAmount = 1) {
   const wins = result.filter((bet) => bet.score > 0).length;
   const losses = result.filter((bet) => bet.score < 0).length;
@@ -647,6 +713,14 @@ function applyPreset(preset) {
     return buildLeaderboard(matches, context);
   }, [matches, context]);
   
+const debugMatchup = useMemo(() => getDebugMatchup(), [
+  mode,
+  debugGameIndex,
+  debugMatchKey,
+  teamGames,
+  players,
+]);
+
   const teamGameResults = teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
   const selected = getTeamGameSelection(index);
@@ -881,6 +955,191 @@ function applyPreset(preset) {
     }
   }
 
+function loadLastRound() {
+  try {
+    const raw = localStorage.getItem(LAST_ROUND_KEY);
+    if (!raw) {
+      setSetupMessage("No saved round found.");
+      return;
+    }
+
+    const round = JSON.parse(raw);
+
+    console.log("LOAD LAST ROUND scores =", round.scores);
+
+    if (round.mode) setMode(round.mode);
+    if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
+    if (round.course) setCourse(round.course);
+    if (round.scores) setScores(round.scores);
+    if (round.birdieMode) setBirdieMode(round.birdieMode);
+    if (typeof round.grossBirdieAdvantage === "boolean") {
+      setGrossBirdieAdvantage(round.grossBirdieAdvantage);
+    }
+    if (round.handicapMode) setHandicapMode(round.handicapMode);
+    if (typeof round.teamGameUnitAmount === "number") {
+      setTeamGameUnitAmount(round.teamGameUnitAmount);
+    }
+    if (typeof round.birdieUnitAmount === "number") {
+      setBirdieUnitAmount(round.birdieUnitAmount);
+    }
+    if (Array.isArray(round.teamGames)) {
+      setTeamGames(
+        round.teamGames.map((game, index) => ({
+          id: game.id || `team-game-${Date.now()}-${index}`,
+          holes: Number(game.holes) || 6,
+          pressTrigger: Number(game.pressTrigger) || 1,
+          teams: game.teams || {},
+        }))
+      );
+    }
+    if (Array.isArray(round.matches)) {
+      setMatches(round.matches);
+    }
+
+    setSetupMessage("Last round loaded.");
+  } catch (error) {
+    setSetupMessage("Could not load last round.");
+  }
+}
+
+function saveLastRound() {
+  try {
+    const round = {
+      mode,
+      allPlayers,
+      course,
+      scores,
+      birdieMode,
+      grossBirdieAdvantage,
+      handicapMode,
+      teamGameUnitAmount,
+      birdieUnitAmount,
+      teamGames,
+      matches,
+    };
+
+    localStorage.setItem(LAST_ROUND_KEY, JSON.stringify(round));
+    setSetupMessage("Last round saved.");
+  } catch (error) {
+    setSetupMessage("Could not save last round.");
+  }
+}
+
+ function buildCurrentRoundSnapshot() {
+  return {
+    mode,
+    allPlayers,
+    course,
+    scores,
+    birdieMode,
+    grossBirdieAdvantage,
+    handicapMode,
+    teamGameUnitAmount,
+    birdieUnitAmount,
+    teamGames,
+    matches,
+  };
+}
+
+function saveNamedRound() {
+  const trimmedName = savedRoundName.trim();
+
+  if (!trimmedName) {
+    setSetupMessage("Enter a round name first.");
+    return;
+  }
+
+  try {
+    const round = {
+      id: crypto.randomUUID(),
+      name: trimmedName,
+      savedAt: new Date().toISOString(),
+      data: buildCurrentRoundSnapshot(),
+    };
+
+    const nextRounds = [round, ...savedRounds];
+    setSavedRounds(nextRounds);
+    localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(nextRounds));
+    setSelectedSavedRoundId(round.id);
+    setSetupMessage("Named round saved.");
+  } catch (error) {
+    setSetupMessage("Could not save named round.");
+  }
+}
+
+function loadNamedRound() {
+  if (!selectedSavedRoundId) {
+    setSetupMessage("Select a saved round first.");
+    return;
+  }
+
+  const selectedRound = savedRounds.find(
+    (round) => round.id === selectedSavedRoundId
+  );
+
+  if (!selectedRound || !selectedRound.data) {
+    setSetupMessage("Saved round not found.");
+    return;
+  }
+
+  const round = selectedRound.data;
+
+  try {
+    if (round.mode) setMode(round.mode);
+    if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
+    if (round.course) setCourse(round.course);
+    if (round.scores) setScores(round.scores);
+    if (round.birdieMode) setBirdieMode(round.birdieMode);
+    if (typeof round.grossBirdieAdvantage === "boolean") {
+      setGrossBirdieAdvantage(round.grossBirdieAdvantage);
+    }
+    if (round.handicapMode) setHandicapMode(round.handicapMode);
+    if (typeof round.teamGameUnitAmount === "number") {
+      setTeamGameUnitAmount(round.teamGameUnitAmount);
+    }
+    if (typeof round.birdieUnitAmount === "number") {
+      setBirdieUnitAmount(round.birdieUnitAmount);
+    }
+    if (Array.isArray(round.teamGames)) {
+      setTeamGames(
+        round.teamGames.map((game, index) => ({
+          id: game.id || `team-game-${Date.now()}-${index}`,
+          holes: Number(game.holes) || 6,
+          pressTrigger: Number(game.pressTrigger) || 1,
+          teams: game.teams || {},
+        }))
+      );
+    }
+    if (Array.isArray(round.matches)) {
+      setMatches(round.matches);
+    }
+
+    setSetupMessage("Named round loaded.");
+  } catch (error) {
+    setSetupMessage("Could not load named round.");
+  }
+}
+
+function deleteNamedRound() {
+  if (!selectedSavedRoundId) {
+    setSetupMessage("Select a saved round first.");
+    return;
+  }
+
+  try {
+    const nextRounds = savedRounds.filter(
+      (round) => round.id !== selectedSavedRoundId
+    );
+
+    setSavedRounds(nextRounds);
+    localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(nextRounds));
+    setSelectedSavedRoundId("");
+    setSetupMessage("Named round deleted.");
+  } catch (error) {
+    setSetupMessage("Could not delete named round.");
+  }
+}
+
   function resetSetup() {
     setMode("5p");
     setAllPlayers(createDefaultAllPlayers());
@@ -941,15 +1200,29 @@ function applyPreset(preset) {
     0
   );
 
-  useEffect(() => {
-    if (!setupMessage) return;
+useEffect(() => {
+  if (!setupMessage) return;
 
-    const timer = setTimeout(() => {
-      setSetupMessage("");
-    }, 2500);
+  const timer = setTimeout(() => {
+    setSetupMessage("");
+  }, 2500);
 
-    return () => clearTimeout(timer);
-  }, [setupMessage]);
+  return () => clearTimeout(timer);
+}, [setupMessage]);
+
+useEffect(() => {
+  try {
+    const raw = localStorage.getItem(SAVED_ROUNDS_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      setSavedRounds(parsed);
+    }
+  } catch (error) {
+    // ignore load failures
+  }
+}, []);
 
   return (
     <div style={{ padding: 12 }}>
@@ -974,6 +1247,50 @@ function applyPreset(preset) {
         onLoadSetup={loadSetup}
         onResetSetup={resetSetup}
       />
+
+<div style={{ marginBottom: 12 }}>
+  <button onClick={saveLastRound} style={{ marginRight: 8 }}>
+    Save Last Round
+  </button>
+
+  <button onClick={loadLastRound}>
+    Load Last Round
+  </button>
+</div>
+
+<div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+  <h3 style={{ marginTop: 0 }}>Saved Test Rounds</h3>
+
+  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+    <input
+      type="text"
+      value={savedRoundName}
+      onChange={(e) => setSavedRoundName(e.target.value)}
+      placeholder="Enter round name"
+      style={{ minWidth: 220 }}
+    />
+
+    <button onClick={saveNamedRound}>Save Named Round</button>
+  </div>
+
+  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+    <select
+      value={selectedSavedRoundId}
+      onChange={(e) => setSelectedSavedRoundId(e.target.value)}
+      style={{ minWidth: 260 }}
+    >
+      <option value="">Select saved round</option>
+      {savedRounds.map((round) => (
+        <option key={round.id} value={round.id}>
+          {round.name}
+        </option>
+      ))}
+    </select>
+
+    <button onClick={loadNamedRound}>Load Named Round</button>
+    <button onClick={deleteNamedRound}>Delete Named Round</button>
+  </div>
+</div>
 
       {setupMessage && (
         <div style={{ marginBottom: 12, color: "green" }}>
@@ -1165,6 +1482,67 @@ function applyPreset(preset) {
           </div>
         );
       })}
+
+{showDebug && mode === "5p" && debugMatchup && (
+  <DebugPanel
+    players={players}
+    course={course}
+    scores={scores}
+    handicapMode={handicapMode}
+    teamA={debugMatchup.teamA}
+    teamB={debugMatchup.teamB}
+    startHole={debugMatchup.start}
+    endHole={debugMatchup.end}
+    title={debugMatchup.title}
+    teamALabel={debugMatchup.teamALabel}
+    teamBLabel={debugMatchup.teamBLabel}
+  />
+)}
+
+<div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+  <h3 style={{ marginTop: 0 }}>Debug Tools</h3>
+
+  <label>
+    <input
+      type="checkbox"
+      checked={showDebug}
+      onChange={(e) => setShowDebug(e.target.checked)}
+    />
+    Show Debug View
+  </label>
+
+  {showDebug && mode === "5p" && (
+    <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <label>
+        Team Game:
+        <select
+          value={debugGameIndex}
+          onChange={(e) => setDebugGameIndex(Number(e.target.value))}
+          style={{ marginLeft: 6 }}
+        >
+          {teamGames.map((game, index) => (
+            <option key={game.id} value={index}>
+              Game {index + 1}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Matchup:
+        <select
+          value={debugMatchKey}
+          onChange={(e) => setDebugMatchKey(e.target.value)}
+          style={{ marginLeft: 6 }}
+        >
+          <option value="team2">Team 1 vs Team 2</option>
+          <option value="team3">Team 1 vs Team 3</option>
+          <option value="team4">Team 1 vs Team 4</option>
+        </select>
+      </label>
+    </div>
+  )}
+</div>
 
       <h3>Team Game Results</h3>
       {teamGameResults.map((game) => (

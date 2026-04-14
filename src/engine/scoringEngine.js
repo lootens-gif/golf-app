@@ -696,7 +696,11 @@ export function playPressMatch({
       hole,
       teamA,
       teamB,
-      players: context.players.filter(p => [...teamA, ...teamB].includes(p.id)),
+      // IMPORTANT:
+// Team games (5p 6/6/6) use full player pool for handicap baseline,
+// NOT just the 4 players in the current match.
+// Do not filter players here.
+      players: context.players,
       course: context.course,
       scores: context.scores,
       handicapMode: context.handicapMode,
