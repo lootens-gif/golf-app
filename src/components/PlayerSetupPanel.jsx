@@ -6,6 +6,17 @@ export default function PlayerSetupPanel({
   onLoadSetup,
   onResetSetup,
 }) {
+  function handleHandicapChange(index, rawValue) {
+    const cleaned = rawValue.replace(/\D/g, "");
+
+    if (cleaned === "") {
+      onPlayerChange(index, "hcp", "");
+      return;
+    }
+
+    onPlayerChange(index, "hcp", cleaned);
+  }
+
   return (
     <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
       <h3>Player Setup</h3>
@@ -40,10 +51,12 @@ export default function PlayerSetupPanel({
           <label>
             HCP:
             <input
-              type="number"
-              value={player.hcp}
-              onChange={(e) => onPlayerChange(index, "hcp", e.target.value)}
-              style={{ width: 70, marginLeft: 6 }}
+              type="text"
+              inputMode="numeric"
+              value={player.hcp ?? ""}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => handleHandicapChange(index, e.target.value)}
+              style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
             />
           </label>
         </div>

@@ -130,12 +130,19 @@ export default function App() {
         if (i !== index) return player;
 
         if (field === "hcp") {
-          const num = Number(value);
-          return {
-            ...player,
-            hcp: Number.isFinite(num) ? num : 0,
-          };
-        }
+            if (value === "") {
+                return {
+                    ...player,
+                    hcp: "",
+    };
+  }
+
+            const num = Number(value);
+            return {
+                ...player,
+                hcp: Number.isFinite(num) ? num : "",
+  };
+}
 
         return {
           ...player,

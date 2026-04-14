@@ -1,4 +1,41 @@
 export default function ScoresGrid({ players, scores, onSetScore }) {
+  function focusNextScoreField(currentHole, currentPlayerId) {
+    const playerIndex = players.findIndex((p) => p.id === currentPlayerId);
+    if (playerIndex === -1) return;
+
+    let nextHole = currentHole;
+    let nextPlayerIndex = playerIndex + 1;
+
+    if (nextPlayerIndex >= players.length) {
+      nextPlayerIndex = 0;
+      nextHole = currentHole + 1;
+    }
+
+    if (nextHole > 18) return;
+
+    const nextPlayerId = players[nextPlayerIndex]?.id;
+    if (!nextPlayerId) return;
+
+    const nextInput = document.getElementById(
+      `score-${nextHole}-${nextPlayerId}`
+    );
+
+    if (nextInput) {
+      nextInput.focus();
+      nextInput.select?.();
+    }
+  }
+
+  function handleScoreChange(hole, playerId, rawValue) {
+    const cleaned = rawValue.replace(/\D/g, "").slice(0, 1);
+
+    onSetScore(hole, playerId, cleaned);
+
+    if (cleaned !== "") {
+      focusNextScoreField(hole, playerId);
+    }
+  }
+
   return (
     <div>
       <h3>Scores</h3>
@@ -62,13 +99,21 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                     }}
                   >
                     <input
-                      type="number"
+                      id={`score-${hole}-${player.id}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
                       placeholder={player.name}
                       value={scores[hole]?.[player.id] ?? ""}
-                      onChange={(e) => onSetScore(hole, player.id, e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) =>
+                        handleScoreChange(hole, player.id, e.target.value)
+                      }
                       style={{
                         width: 56,
                         textAlign: "center",
+                        fontSize: 16,
+                        padding: 6,
                       }}
                     />
                   </td>
