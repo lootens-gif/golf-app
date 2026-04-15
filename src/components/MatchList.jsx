@@ -8,105 +8,213 @@ export default function MatchList({
   onUpdateMatch,
   onRemoveMatch,
 }) {
-function renderBirdieSummary(result) {
-  if (!result.birdieSummary || !result.birdieSummary.enabled) {
-    return null;
+  function getHoleStats(holes) {
+    const wins = holes.filter((h) => h > 0).length;
+    const losses = holes.filter((h) => h < 0).length;
+    const pushes = holes.filter((h) => h === 0).length;
+    const net = wins - losses;
+
+    return { wins, losses, pushes, net };
   }
 
-  return (
-    <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
-      <div>
-        <strong>Birdie Side Bet</strong>
-      </div>
-      <div>Net Birdie Units: {result.birdieSummary.units}</div>
-      <div>Birdie Payout: ${result.birdieSummary.dollars}</div>
-    </div>
-  );
-}
+  function getBirdieHoleLists(result) {
+    const holes = result?.birdieSummary?.holes || [];
+    const p1BirdieHoles = [];
+    const p2BirdieHoles = [];
 
-function renderMatchDetails(match, result) {
-  if (result.type === "standard") {
+    holes.forEach((entry) => {
+      if ((entry.countA || 0) > (entry.countB || 0)) {
+        p1BirdieHoles.push(entry.hole);
+      } else if ((entry.countB || 0) > (entry.countA || 0)) {
+        p2BirdieHoles.push(entry.hole);
+      } else if ((entry.countA || 0) > 0 && (entry.countB || 0) > 0) {
+        p1BirdieHoles.push(entry.hole);
+        p2BirdieHoles.push(entry.hole);
+      }
+    });
+
+    return { p1BirdieHoles, p2BirdieHoles };
+  }
+
+  function renderBirdieSummary(result, match) {
+    if (!result.birdieSummary || !result.birdieSummary.enabled) {
+      return null;
+    }
+
+    const { p1BirdieHoles, p2BirdieHoles } = getBirdieHoleLists(result);
+    const p1Name = getPlayerName(players, match.p1Id) || "P1";
+    const p2Name = getPlayerName(players, match.p2Id) || "P2";
+
+    return (
+      <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+        <div>
+          <strong>Birdie Side Bet</strong>
+        </div>
+        <div>Net Birdie Units: {result.birdieSummary.units}</div>
+        <div>Birdie Payout: ${result.birdieSummary.dollars}</div>
+        <div>
+          {p1Name} Birdie Holes:{" "}
+          {p1BirdieHoles.length ? p1BirdieHoles.join(", ") : "-"}
+        </div>
+        <div>
+          {p2Name} Birdie Holes:{" "}
+          {p2BirdieHoles.length ? p2BirdieHoles.join(", ") : "-"}
+        </div>
+      </div>
+    );
+  }
+
+  function renderHoleRows(holes) {
+    const front = holes.slice(0, 9);
+    const back = holes.slice(9, 18);
+
     return (
       <div style={{ marginTop: 8 }}>
-        <div>Match Result: {result.label}</div>
-        {result.decidedOn ? <div>Decided on Hole: {result.decidedOn}</div> : null}
-        <div>Match Bet: ${match.bet}</div>
+        {[front, back].map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            style={{
+              display: "flex",
+              gap: 4,
+              marginBottom: 4,
+              flexWrap: "nowrap",
+            }}
+          >
+            {row.map((h, idx) => {
+              const actualIndex = rowIndex * 9 + idx;
+
+              return (
+                <div
+                  key={actualIndex}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    lineHeight: "24px",
+                    textAlign: "center",
+                    background:
+                      h === null
+                        ? "#eee"
+                        : h > 0
+                        ? "green"
+                        : h < 0
+                        ? "red"
+                        : "#ccc",
+                    color: "#000",
+                    fontSize: 12,
+                    border: "1px solid #bbb",
+                  }}
+                >
+                  {h ?? "-"}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderHoleStats(holeStats) {
+    return (
+      <div style={{ marginTop: 8 }}>
+        <div>Hole Wins: {holeStats.wins}</div>
+        <div>Hole Losses: {holeStats.losses}</div>
+        <div>Pushes: {holeStats.pushes}</div>
+        <div>Net Holes Won: {holeStats.net}</div>
+      </div>
+    );
+  }
+
+  function renderMatchDetails(match, result) {
+    const holeStats = getHoleStats(result.holes || []);
+
+    if (result.type === "standard") {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <div>Match Result: {result.label}</div>
+          {result.decidedOn ? <div>Decided on Hole: {result.decidedOn}</div> : null}
+          <div>Match Bet: ${match.bet}</div>
+          <div>
+            <strong>Payout: ${result.total}</strong>
+          </div>
+          {renderHoleStats(holeStats)}
+          {renderBirdieSummary(result, match)}
+        </div>
+      );
+    }
+
+    if (result.type === "longshort") {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <div>Long Result: {result.longLabel}</div>
+          <div>Long Bet: ${match.bet}</div>
+          <div>Long Decided on Hole: {result.longDecidedOn ?? "-"}</div>
+
+          <div style={{ marginTop: 6 }}>Short Result: {result.shortLabel}</div>
+          <div>Short Bet: ${match.bet / 2}</div>
+          <div>Short Decided on Hole: {result.shortDecidedOn ?? "-"}</div>
+
+          <div style={{ marginTop: 6 }}>
+            <strong>Total Payout: ${result.total}</strong>
+          </div>
+          {renderHoleStats(holeStats)}
+          {renderBirdieSummary(result, match)}
+        </div>
+      );
+    }
+
+    if (result.type === "match_fbt") {
+      return (
+        <div style={{ marginTop: 8 }}>
+          {result.segments.map((seg) => (
+            <div key={seg.key}>
+              {seg.label}: {seg.resultLabel} | Bet: ${match.bet} | Payout: $
+              {seg.dollars}
+              {seg.decidedOn ? ` | Decided on Hole: ${seg.decidedOn}` : ""}
+            </div>
+          ))}
+          <div style={{ marginTop: 6 }}>
+            <strong>Net Payout: ${result.total}</strong>
+          </div>
+          {renderHoleStats(holeStats)}
+          {renderBirdieSummary(result, match)}
+        </div>
+      );
+    }
+
+    if (result.type === "stroke") {
+      return (
+        <div style={{ marginTop: 8 }}>
+          <div>
+            Stroke Mode: {result.strokeScoring} / {result.strokePayoutMode}
+          </div>
+
+          {result.segments.map((seg) => (
+            <div key={seg.key}>
+              {seg.label}: {seg.aTotal ?? "-"} vs {seg.bTotal ?? "-"} | Units:{" "}
+              {seg.units} | Payout: ${seg.dollars}
+            </div>
+          ))}
+
+          <div style={{ marginTop: 6 }}>
+            <strong>Net Payout: ${result.total}</strong>
+          </div>
+          {renderHoleStats(holeStats)}
+          {renderBirdieSummary(result, match)}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ marginTop: 8 }}>
         <div>
           <strong>Payout: ${result.total}</strong>
         </div>
-        {renderBirdieSummary(result)}
+        {renderHoleStats(holeStats)}
+        {renderBirdieSummary(result, match)}
       </div>
     );
   }
-
-  if (result.type === "longshort") {
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div>Long Result: {result.longLabel}</div>
-        <div>Long Bet: ${match.bet}</div>
-        <div>Long Decided on Hole: {result.longDecidedOn ?? "-"}</div>
-
-        <div style={{ marginTop: 6 }}>Short Result: {result.shortLabel}</div>
-        <div>Short Bet: ${match.bet / 2}</div>
-        <div>Short Decided on Hole: {result.shortDecidedOn ?? "-"}</div>
-
-        <div style={{ marginTop: 6 }}>
-          <strong>Total Payout: ${result.total}</strong>
-        </div>
-        {renderBirdieSummary(result)}
-      </div>
-    );
-  }
-
-  if (result.type === "match_fbt") {
-    return (
-      <div style={{ marginTop: 8 }}>
-        {result.segments.map((seg) => (
-          <div key={seg.key}>
-            {seg.label}: {seg.resultLabel} | Bet: ${match.bet} | Payout: $
-            {seg.dollars}
-            {seg.decidedOn ? ` | Decided on Hole: ${seg.decidedOn}` : ""}
-          </div>
-        ))}
-        <div style={{ marginTop: 6 }}>
-          <strong>Net Payout: ${result.total}</strong>
-        </div>
-        {renderBirdieSummary(result)}
-      </div>
-    );
-  }
-
-  if (result.type === "stroke") {
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div>
-          Stroke Mode: {result.strokeScoring} / {result.strokePayoutMode}
-        </div>
-
-        {result.segments.map((seg) => (
-          <div key={seg.key}>
-            {seg.label}: {seg.aTotal ?? "-"} vs {seg.bTotal ?? "-"} | Units:{" "}
-            {seg.units} | Payout: ${seg.dollars}
-          </div>
-        ))}
-
-        <div style={{ marginTop: 6 }}>
-          <strong>Net Payout: ${result.total}</strong>
-        </div>
-        {renderBirdieSummary(result)}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ marginTop: 8 }}>
-      <div>
-        <strong>Payout: ${result.total}</strong>
-      </div>
-      {renderBirdieSummary(result)}
-    </div>
-  );
-}
 
   return (
     <div>
@@ -167,51 +275,53 @@ function renderMatchDetails(match, result) {
                 inputMode="numeric"
                 value={match.bet ?? ""}
                 onFocus={(e) => {
-                    setTimeout(() => {
+                  setTimeout(() => {
                     e.target.setSelectionRange(0, e.target.value.length);
-                    }, 0);
+                  }, 0);
                 }}
                 onChange={(e) => {
-                    const cleaned = e.target.value.replace(/\D/g, "");
+                  const cleaned = e.target.value.replace(/\D/g, "");
 
-                    if (cleaned === "") {
+                  if (cleaned === "") {
                     onUpdateMatch(match.id, { bet: "" });
                     return;
-                    }
+                  }
 
-                    const num = Math.min(100, Math.max(0, Number(cleaned)));
+                  const num = Math.min(100, Math.max(0, Number(cleaned)));
 
-                    onUpdateMatch(match.id, { bet: num });
+                  onUpdateMatch(match.id, { bet: num });
                 }}
                 style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
-                />
+              />
             </label>
-<label>
-  Birdie Bet:
-      <input
-            type="text"
-            inputMode="numeric"
-            value={match.birdieBet ?? ""}
-            onFocus={(e) => {
-                setTimeout(() => {
-                e.target.setSelectionRange(0, e.target.value.length);
-                }, 0);
-            }}
-            onChange={(e) => {
-                const cleaned = e.target.value.replace(/\D/g, "");
 
-                if (cleaned === "") {
-                onUpdateMatch(match.id, { birdieBet: "" });
-                return;
-                }
+            <label>
+              Birdie Bet:
+              <input
+                type="text"
+                inputMode="numeric"
+                value={match.birdieBet ?? ""}
+                onFocus={(e) => {
+                  setTimeout(() => {
+                    e.target.setSelectionRange(0, e.target.value.length);
+                  }, 0);
+                }}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/\D/g, "");
 
-                const num = Math.min(100, Math.max(0, Number(cleaned)));
+                  if (cleaned === "") {
+                    onUpdateMatch(match.id, { birdieBet: "" });
+                    return;
+                  }
 
-                onUpdateMatch(match.id, { birdieBet: num });
-            }}
-            style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
-            />
-</label>
+                  const num = Math.min(100, Math.max(0, Number(cleaned)));
+
+                  onUpdateMatch(match.id, { birdieBet: num });
+                }}
+                style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
+              />
+            </label>
+
             <label>
               <input
                 type="checkbox"
@@ -329,34 +439,7 @@ function renderMatchDetails(match, result) {
             {getPlayerName(players, match.p2Id)}
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 4,
-              marginTop: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            {result.holes.map((h, idx) => (
-              <div
-                key={idx}
-                style={{
-                  width: 20,
-                  textAlign: "center",
-                  background:
-                    h === null
-                      ? "#eee"
-                      : h > 0
-                      ? "green"
-                      : h < 0
-                      ? "red"
-                      : "#ccc",
-                }}
-              >
-                {h ?? "-"}
-              </div>
-            ))}
-          </div>
+          {renderHoleRows(result.holes || [])}
 
           {renderMatchDetails(match, result)}
         </div>

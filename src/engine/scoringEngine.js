@@ -1,3 +1,6 @@
+import { getRunningStrokeDiffs } from "../scoring/getRunningStrokeDiffs";
+
+
 export function getActivePlayers(allPlayers, mode) {
   if (mode === "3p") return allPlayers.slice(0, 3);
   if (mode === "4p") return allPlayers.slice(0, 4);
@@ -224,7 +227,7 @@ function decideMatchPlaySegment(holes, startHole, endHole) {
   };
 }
 
-function getStrokeValueForHole(
+export function getStrokeValueForHole(
   playerId,
   hole,
   players,
@@ -603,6 +606,19 @@ const birdieSummary = getBirdieSideBetResult({
     const strokeScoring = match.strokeScoring || "net";
     const strokePayoutMode = match.strokePayoutMode || "winloss";
 
+    const runningHoleDiffs = getRunningStrokeDiffs({
+    p1Id: match.p1Id,
+    p2Id: match.p2Id,
+    players: matchPlayers,
+    course,
+    scores,
+    handicapMode,
+    strokeScoring,
+    getStrokeValueForHole,
+    });
+
+console.log("STROKE runningHoleDiffs", runningHoleDiffs);
+
     const segmentDefs = [
       { key: "front", label: "Front 9", start: 1, end: 9, enabled: !!match.strokeFront },
       { key: "back", label: "Back 9", start: 10, end: 18, enabled: !!match.strokeBack },
@@ -652,14 +668,14 @@ const birdieSummary = getBirdieSideBetResult({
     });
 
     return {
-      type: "stroke",
-      holes,
-      strokeScoring,
-      strokePayoutMode,
-      segments,
-      total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
-      birdieSummary,
-    };
+  type: "stroke",
+  holes: runningHoleDiffs,
+  strokeScoring,
+  strokePayoutMode,
+  segments,
+  total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
+  birdieSummary,
+};
   }
 
   return {
