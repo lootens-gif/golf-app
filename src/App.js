@@ -261,7 +261,16 @@ export default function App() {
       ))}
 
       {/* MATCHES */}
-      <button onClick={addMatch}>Add Match</button>
+      <div style={{ marginBottom: 12 }}>
+  <button onClick={addMatch}>Add Match</button>
+
+  <button
+    onClick={() => setMatches([])}
+    style={{ marginLeft: 8, background: "red", color: "white" }}
+  >
+    CLEAR MATCHES TEST
+  </button>
+</div>
 
       {matches.map((m, i) => {
         const res = playIndividual(m);

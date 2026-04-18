@@ -1,4 +1,10 @@
-import { getPlayerName } from "../engine/scoringEngine";
+import { useState } from "react";
+import {
+  getPlayerName,
+  
+} from "../engine/scoringEngine";
+import { getBirdieHoleLists } from "./matchlist/getBirdieHoleLists";
+import { getTeamBirdiePlayerHoles } from "./matchlist/getTeamBirdiePlayerHoles";
 
 export default function MatchList({
   players,
@@ -8,6 +14,11 @@ export default function MatchList({
   onUpdateMatch,
   onRemoveMatch,
 }) {
+  const [expandedNinePointIds, setExpandedNinePointIds] = useState({});
+  const playersById = Object.fromEntries(
+    (players || []).map((player) => [player.id, player])
+  );
+
   function getHoleStats(holes) {
     const wins = holes.filter((h) => h > 0).length;
     const losses = holes.filter((h) => h < 0).length;
@@ -17,24 +28,162 @@ export default function MatchList({
     return { wins, losses, pushes, net };
   }
 
-  function getBirdieHoleLists(result) {
-    const holes = result?.birdieSummary?.holes || [];
-    const p1BirdieHoles = [];
-    const p2BirdieHoles = [];
+  function renderNinePointResult(result, match, isExpanded) {
+    const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
 
-    holes.forEach((entry) => {
-      if ((entry.countA || 0) > (entry.countB || 0)) {
-        p1BirdieHoles.push(entry.hole);
-      } else if ((entry.countB || 0) > (entry.countA || 0)) {
-        p2BirdieHoles.push(entry.hole);
-      } else if ((entry.countA || 0) > 0 && (entry.countB || 0) > 0) {
-        p1BirdieHoles.push(entry.hole);
-        p2BirdieHoles.push(entry.hole);
+    return (
+      
+  <div
+    style={{
+      marginTop: 8,
+      padding: 10,
+      border: "1px solid #ddd",
+      borderRadius: 8,
+      background: "#fafafa",
+    }}
+  >
+       <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  }}
+>
+  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+    9 Point
+  </div>
+
+  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+    <div style={{ fontSize: 12, color: "#666" }}>
+      {match.blitzEnabled ? "Blitz On" : "Blitz Off"}
+    </div>
+
+    <button
+      type="button"
+      onClick={() =>
+        setExpandedNinePointIds((prev) => ({
+          ...prev,
+          [match.id]: !prev[match.id],
+        }))
       }
-    });
+      style={{ fontSize: 12 }}
+    >
+      {isExpanded ? "Hide Hole Details" : "Show Hole Details"}
+    </button>
+  </div>
+</div>
 
-    return { p1BirdieHoles, p2BirdieHoles };
+        <div
+  style={{
+    marginBottom: 10,
+    display: "grid",
+    gap: 6,
+  }}
+>
+          {playerIds.map((playerId) => {
+            const name = getPlayerName(players, playerId) || playerId;
+            const total = result.totalsByPlayerId?.[playerId] ?? 0;
+            const balance = result.payout?.balancesByPlayerId?.[playerId] ?? 0;
+
+            return (
+              <div key={playerId}>
+                {name}: {total} pts{" "}
+                <span style={{ color: "#666" }}>
+                  ({balance > 0 ? "+" : ""}${balance.toFixed(2)})
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {isExpanded && (
+  <div style={{ marginTop: 8 }}>
+    <div style={{ fontWeight: "bold", marginBottom: 6 }}>Hole Points</div>
+
+    {result.holes.map((holeObj) => (
+      <div
+        key={holeObj.hole}
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 6,
+          padding: "4px 0",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+        <div style={{ width: 36 }}>
+          <strong>{holeObj.hole}</strong>
+        </div>
+
+        {playerIds.map((playerId) => {
+          const name = getPlayerName(players, playerId) || playerId;
+          const points = holeObj.pointsByPlayerId?.[playerId];
+          const running = holeObj.runningTotalsByPlayerId?.[playerId];
+          const net = holeObj.netScoresByPlayerId?.[playerId];
+
+          return (
+            <div key={playerId} style={{ minWidth: 120 }}>
+              <div style={{ fontSize: 12, fontWeight: "bold" }}>{name}</div>
+              {holeObj.status === "complete" ? (
+                <div style={{ fontSize: 12 }}>
+                  Net {net} • {points} pts • {running} total
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#777" }}>Pending</div>
+              )}
+            </div>
+          );
+        })}
+
+        {holeObj.mode === "blitz" ? (
+          <div style={{ fontSize: 12, fontWeight: "bold", color: "#b45309" }}>
+            Blitz
+          </div>
+        ) : null}
+      </div>
+    ))}
+  </div>
+)}
+
+{result.birdieSummary?.enabled ? (
+  <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+    <div>
+      <strong>Birdie Side Bet</strong>
+    </div>
+
+    {playerIds.map((playerId) => {
+      const name = getPlayerName(players, playerId) || playerId;
+      const count = result.birdieSummary.countsByPlayerId?.[playerId] ?? 0;
+      const holes = result.birdieSummary.birdieHolesByPlayerId?.[playerId] ?? [];
+      const balance =
+        result.birdieSummary.payout?.balancesByPlayerId?.[playerId] ?? 0;
+
+      return (
+        <div key={playerId} style={{ marginTop: 4 }}>
+          {name}: {count} birdies{" "}
+          <span style={{ color: "#666" }}>
+            ({balance > 0 ? "+" : ""}${balance.toFixed(2)})
+          </span>
+          <div style={{ fontSize: 12, color: "#666" }}>
+            Holes: {holes.length ? holes.join(", ") : "-"}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+) : null}
+
+        {result.payout?.status === "tie" ? (
+          <div style={{ marginTop: 8, color: "#666" }}>
+            Round tied — settle manually
+          </div>
+        ) : null}
+      </div>
+    );
   }
+
 
   function renderBirdieSummary(result, match) {
     if (!result.birdieSummary || !result.birdieSummary.enabled) {
@@ -63,6 +212,55 @@ export default function MatchList({
       </div>
     );
   }
+
+    function renderTeamBirdieSummary(result) {
+  if (!result?.birdieSummary || !result.birdieSummary.enabled) {
+    return null;
+  }
+
+  const { teamA, teamB } = getTeamBirdiePlayerHoles({
+    birdieSummary: result.birdieSummary,
+    playersById,
+  });
+
+
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
+      <div>
+        <strong>Birdie Side Bet</strong>
+      </div>
+      <div>Net Birdie Units: {result.birdieSummary.units}</div>
+      <div>Birdie Payout: ${result.birdieSummary.dollars}</div>
+
+      <div style={{ marginTop: 8 }}>
+        <strong>Team A Birdies</strong>
+        {Object.keys(teamA).length ? (
+          Object.entries(teamA).map(([name, holes]) => (
+            <div key={name}>
+              {name}: {holes.join(", ")}
+            </div>
+          ))
+        ) : (
+          <div>-</div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 8 }}>
+        <strong>Team B Birdies</strong>
+        {Object.keys(teamB).length ? (
+          Object.entries(teamB).map(([name, holes]) => (
+            <div key={name}>
+              {name}: {holes.join(", ")}
+            </div>
+          ))
+        ) : (
+          <div>-</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
   function renderHoleRows(holes) {
     const front = holes.slice(0, 9);
@@ -126,6 +324,9 @@ export default function MatchList({
   }
 
   function renderMatchDetails(match, result) {
+    if (result?.gameType === "ninePoint") {
+  return null;
+}
     const holeStats = getHoleStats(result.holes || []);
 
     if (result.type === "standard") {
@@ -205,27 +406,32 @@ export default function MatchList({
       );
     }
 
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div>
-          <strong>Payout: ${result.total}</strong>
-        </div>
-        {renderHoleStats(holeStats)}
-        {renderBirdieSummary(result, match)}
-      </div>
-    );
+   return (
+  <div style={{ marginTop: 8 }}>
+    <div>
+      <strong>Payout: ${result.total}</strong>
+    </div>
+    {renderHoleStats(holeStats)}
+    {renderTeamBirdieSummary(result)}
+  </div>
+);
   }
 
   return (
     <div>
       <h3>Matches</h3>
-      <button onClick={onAddMatch}>Add Match</button>
+      
 
       {results.map(({ match, result }) => (
-        <div
-          key={match.id}
-          style={{ border: "1px solid gray", margin: 6, padding: 10 }}
-        >
+  <div
+    key={match.id}
+    style={{ border: "1px solid gray", margin: 6, padding: 10 }}
+  >
+    {match.gameType === "ninePoint" && (
+      <div style={{ fontSize: 12, fontWeight: "bold", color: "#555", marginBottom: 4 }}>
+        9 POINT GAME
+      </div>
+    )}
           <div
             style={{
               display: "flex",
@@ -234,39 +440,98 @@ export default function MatchList({
               flexWrap: "wrap",
             }}
           >
-            <select
-              value={match.p1Id}
-              onChange={(e) => onUpdateMatch(match.id, { p1Id: e.target.value })}
-            >
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+           {match.gameType === "ninePoint" ? (
+  <>
+    <select
+      value={match.p1Id || ""}
+      onChange={(e) => onUpdateMatch(match.id, { p1Id: e.target.value })}
+    >
+      {players.map((p) => (
+        <option
+          key={p.id}
+          value={p.id}
+          disabled={p.id === match.p2Id || p.id === match.p3Id}
+        >
+          {p.name}
+        </option>
+      ))}
+    </select>
+
+    <span>vs</span>
+
+    <select
+      value={match.p2Id || ""}
+      onChange={(e) => onUpdateMatch(match.id, { p2Id: e.target.value })}
+    >
+      {players.map((p) => (
+        <option
+          key={p.id}
+          value={p.id}
+          disabled={p.id === match.p1Id || p.id === match.p3Id}
+        >
+          {p.name}
+        </option>
+      ))}
+    </select>
+
+    <span>vs</span>
+
+    <select
+      value={match.p3Id || ""}
+      onChange={(e) => onUpdateMatch(match.id, { p3Id: e.target.value })}
+    >
+      {players.map((p) => (
+        <option
+          key={p.id}
+          value={p.id}
+          disabled={p.id === match.p1Id || p.id === match.p2Id}
+        >
+          {p.name}
+        </option>
+      ))}
+    </select>
+  </>
+) : (
+  <>
+    <select
+      value={match.p1Id}
+      onChange={(e) => onUpdateMatch(match.id, { p1Id: e.target.value })}
+    >
+      {players.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </select>
+
+    <span>vs</span>
+
+    <select
+      value={match.p2Id}
+      onChange={(e) => onUpdateMatch(match.id, { p2Id: e.target.value })}
+    >
+      {players.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </select>
+  </>
+)}
 
             <span>vs</span>
 
-            <select
-              value={match.p2Id}
-              onChange={(e) => onUpdateMatch(match.id, { p2Id: e.target.value })}
-            >
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={match.type}
-              onChange={(e) => onUpdateMatch(match.id, { type: e.target.value })}
-            >
-              <option value="standard">Standard Match Play</option>
-              <option value="longshort">Long / Short Match Play</option>
-              <option value="match_fbt">Front / Back / Total Match Play</option>
-              <option value="stroke">Stroke Play</option>
-            </select>
+           {match.gameType !== "ninePoint" && (
+  <select
+    value={match.type}
+    onChange={(e) => onUpdateMatch(match.id, { type: e.target.value })}
+  >
+    <option value="standard">Standard</option>
+    <option value="longshort">Long/Short</option>
+    <option value="match_fbt">FBT</option>
+    <option value="stroke">Stroke</option>
+  </select>
+)}
 
             <label>
               Match Bet:
@@ -294,6 +559,19 @@ export default function MatchList({
                 style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
               />
             </label>
+
+              {match.gameType === "ninePoint" && (
+                <label style={{ marginLeft: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!match.blitzEnabled}
+                    onChange={(e) =>
+                      onUpdateMatch(match.id, { blitzEnabled: e.target.checked })
+                    }
+                  />
+                  Blitz
+                </label>
+              )}
 
             <label>
               Birdie Bet:
@@ -434,12 +712,15 @@ export default function MatchList({
             </div>
           )}
 
-          <div style={{ marginTop: 8 }}>
-            {getPlayerName(players, match.p1Id)} vs{" "}
-            {getPlayerName(players, match.p2Id)}
-          </div>
+         <div style={{ marginTop: 8 }}>
+  {match.gameType === "ninePoint"
+    ? `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)} vs ${getPlayerName(players, match.p3Id)}`
+    : `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)}`}
+</div>
 
-          {renderHoleRows(result.holes || [])}
+          {result?.gameType === "ninePoint"
+  ? renderNinePointResult(result, match, !!expandedNinePointIds[match.id])
+  : renderHoleRows(result.holes || [])}
 
           {renderMatchDetails(match, result)}
         </div>

@@ -128,6 +128,245 @@ export function getTeamNetScore(
   return Math.min(...netScores);
 }
 
+export function getNinePointHoleStatus(
+  playerIds,
+  hole,
+  scores
+) {
+  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+    return "invalid";
+  }
+
+  const allPresent = playerIds.every((playerId) => getRawScore(scores, hole, playerId) !== null);
+  return allPresent ? "complete" : "incomplete";
+}
+
+export function scoreNinePointHole(
+  playerIds,
+  hole,
+  players,
+  course,
+  scores,
+  handicapMode,
+  blitzEnabled = false
+) {
+  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+    return {
+      status: "invalid",
+      reason: "ninePoint requires exactly 3 players",
+      mode: null,
+      pointsByPlayerId: {},
+      netScoresByPlayerId: {},
+    };
+  }
+
+  const status = getNinePointHoleStatus(playerIds, hole, scores);
+
+  if (status !== "complete") {
+    return {
+      status,
+      reason: status === "invalid" ? "invalid player count" : "missing score",
+      mode: null,
+      pointsByPlayerId: Object.fromEntries(playerIds.map((playerId) => [playerId, 0])),
+      netScoresByPlayerId: Object.fromEntries(playerIds.map((playerId) => [playerId, null])),
+    };
+  }
+
+  const scoredPlayers = playerIds.map((playerId) => ({
+    playerId,
+    netScore: getNetScore(playerId, hole, players, course, scores, handicapMode),
+  }));
+
+  const sorted = [...scoredPlayers].sort((a, b) => a.netScore - b.netScore);
+  const [first, second, third] = sorted;
+
+  const pointsByPlayerId = Object.fromEntries(
+    playerIds.map((playerId) => [playerId, 0])
+  );
+
+  const netScoresByPlayerId = Object.fromEntries(
+    scoredPlayers.map((entry) => [entry.playerId, entry.netScore])
+  );
+
+  const uniqueWinner = first.netScore < second.netScore;
+  const blitzApplies =
+    blitzEnabled &&
+    uniqueWinner &&
+    second.netScore - first.netScore >= 2 &&
+    third.netScore - first.netScore >= 2;
+
+  if (blitzApplies) {
+    pointsByPlayerId[first.playerId] = 9;
+    pointsByPlayerId[second.playerId] = 0;
+    pointsByPlayerId[third.playerId] = 0;
+
+    return {
+      status: "complete",
+      mode: "blitz",
+      pointsByPlayerId,
+      netScoresByPlayerId,
+    };
+  }
+
+  if (first.netScore === second.netScore && second.netScore === third.netScore) {
+    pointsByPlayerId[first.playerId] = 3;
+    pointsByPlayerId[second.playerId] = 3;
+    pointsByPlayerId[third.playerId] = 3;
+  } else if (first.netScore === second.netScore) {
+    pointsByPlayerId[first.playerId] = 4;
+    pointsByPlayerId[second.playerId] = 4;
+    pointsByPlayerId[third.playerId] = 1;
+  } else if (second.netScore === third.netScore) {
+    pointsByPlayerId[first.playerId] = 5;
+    pointsByPlayerId[second.playerId] = 2;
+    pointsByPlayerId[third.playerId] = 2;
+  } else {
+    pointsByPlayerId[first.playerId] = 5;
+    pointsByPlayerId[second.playerId] = 3;
+    pointsByPlayerId[third.playerId] = 1;
+  }
+
+  return {
+    status: "complete",
+    mode: "standard",
+    pointsByPlayerId,
+    netScoresByPlayerId,
+  };
+}
+
+export function getNinePointPayout(totalsByPlayerId, dollarsPerPoint = 1) {
+  const ranked = Object.entries(totalsByPlayerId)
+    .map(([playerId, points]) => ({
+      playerId,
+      points: Number(points || 0),
+    }))
+    .sort((a, b) => b.points - a.points);
+
+  if (ranked.length !== 3) {
+    return {
+      status: "invalid",
+      ranking: ranked,
+      balancesByPlayerId: {},
+      transactions: [],
+    };
+  }
+
+  const [first, second, third] = ranked;
+
+  if (
+    first.points === second.points ||
+    second.points === third.points ||
+    first.points === third.points
+  ) {
+    return {
+      status: "tie",
+      ranking: ranked,
+      balancesByPlayerId: Object.fromEntries(ranked.map((r) => [r.playerId, 0])),
+      transactions: [],
+    };
+  }
+
+  const transactions = [
+    {
+      fromPlayerId: third.playerId,
+      toPlayerId: first.playerId,
+      points: first.points - third.points,
+      amount: (first.points - third.points) * dollarsPerPoint,
+    },
+    {
+      fromPlayerId: third.playerId,
+      toPlayerId: second.playerId,
+      points: second.points - third.points,
+      amount: (second.points - third.points) * dollarsPerPoint,
+    },
+    {
+      fromPlayerId: second.playerId,
+      toPlayerId: first.playerId,
+      points: first.points - second.points,
+      amount: (first.points - second.points) * dollarsPerPoint,
+    },
+  ];
+
+  const balancesByPlayerId = Object.fromEntries(
+    ranked.map((r) => [r.playerId, 0])
+  );
+
+  transactions.forEach((tx) => {
+    balancesByPlayerId[tx.fromPlayerId] -= tx.amount;
+    balancesByPlayerId[tx.toPlayerId] += tx.amount;
+  });
+
+  return {
+    status: "complete",
+    ranking: ranked,
+    balancesByPlayerId,
+    transactions,
+  };
+}
+
+export function getNinePointMatchSummary(
+  playerIds,
+  players,
+  course,
+  scores,
+  handicapMode,
+  blitzEnabled = false,
+  dollarsPerPoint = 1,
+  holeCount = 18
+) {
+  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+    return {
+      gameType: "ninePoint",
+      status: "invalid",
+      holes: [],
+      totalsByPlayerId: {},
+      payout: {
+        status: "invalid",
+        balancesByPlayerId: {},
+        transactions: [],
+      },
+    };
+  }
+
+  const runningTotals = Object.fromEntries(
+    playerIds.map((playerId) => [playerId, 0])
+  );
+
+  const holes = [];
+
+  for (let hole = 1; hole <= holeCount; hole += 1) {
+    const holeResult = scoreNinePointHole(
+      playerIds,
+      hole,
+      players,
+      course,
+      scores,
+      handicapMode,
+      blitzEnabled
+    );
+
+    if (holeResult.status === "complete") {
+      playerIds.forEach((playerId) => {
+        runningTotals[playerId] += holeResult.pointsByPlayerId[playerId] || 0;
+      });
+    }
+
+    holes.push({
+      hole,
+      ...holeResult,
+      runningTotalsByPlayerId: { ...runningTotals },
+    });
+  }
+
+  return {
+    gameType: "ninePoint",
+    status: "complete",
+    holes,
+    totalsByPlayerId: { ...runningTotals },
+    payout: getNinePointPayout(runningTotals, dollarsPerPoint),
+  };
+}
+
 export function computeHoleResult({
   hole,
   teamA,
@@ -364,11 +603,10 @@ export function getBirdieSideBetResult({
     scores,
     handicapMode,
     grossBirdieAdvantage,
-    birdieMode,
     birdieUnitAmount,
   } = context;
 
-  if (!birdieEnabled || birdieMode === "off") {
+  if (!birdieEnabled) {
     return {
       enabled: false,
       units: 0,
@@ -410,41 +648,67 @@ export function getBirdieSideBetResult({
 
     let countA = 0;
     let countB = 0;
+    let teamAPlayers = [];
+    let teamBPlayers = [];
 
     if (countType === "any") {
-      countA = teamA.reduce((sum, playerId) => {
-        const qualifies =
+      teamAPlayers = teamA.filter((playerId) => {
+        return (
           isGrossBirdie(playerId, hole, course, scores) ||
-          isNetBirdie(playerId, hole, players, course, scores, handicapMode);
-        return sum + (qualifies ? 1 : 0);
-      }, 0);
+          isNetBirdie(playerId, hole, players, course, scores, handicapMode)
+        );
+      });
 
-      countB = teamB.reduce((sum, playerId) => {
-        const qualifies =
+      teamBPlayers = teamB.filter((playerId) => {
+        return (
           isGrossBirdie(playerId, hole, course, scores) ||
-          isNetBirdie(playerId, hole, players, course, scores, handicapMode);
-        return sum + (qualifies ? 1 : 0);
-      }, 0);
+          isNetBirdie(playerId, hole, players, course, scores, handicapMode)
+        );
+      });
+
+      countA = teamAPlayers.length;
+      countB = teamBPlayers.length;
     } else {
-      countA = countBirdiesForTeam({
-        team: teamA,
-        hole,
-        players,
-        course,
-        scores,
-        handicapMode,
-        countType,
+      teamAPlayers = teamA.filter((playerId) => {
+        if (countType === "gross") {
+          return isGrossBirdie(playerId, hole, course, scores);
+        }
+
+        if (countType === "net") {
+          return isNetBirdie(
+            playerId,
+            hole,
+            players,
+            course,
+            scores,
+            handicapMode
+          );
+        }
+
+        return false;
       });
 
-      countB = countBirdiesForTeam({
-        team: teamB,
-        hole,
-        players,
-        course,
-        scores,
-        handicapMode,
-        countType,
+      teamBPlayers = teamB.filter((playerId) => {
+        if (countType === "gross") {
+          return isGrossBirdie(playerId, hole, course, scores);
+        }
+
+        if (countType === "net") {
+          return isNetBirdie(
+            playerId,
+            hole,
+            players,
+            course,
+            scores,
+            handicapMode
+          );
+        }
+
+        return false;
       });
+
+      countA = teamAPlayers.length;
+      countB = teamBPlayers.length;
     }
 
     const net = countA - countB;
@@ -456,6 +720,8 @@ export function getBirdieSideBetResult({
       countB,
       net,
       countType,
+      teamAPlayers,
+      teamBPlayers,
     });
   }
 
@@ -467,6 +733,50 @@ export function getBirdieSideBetResult({
   };
 }
 
+export function getNinePointBirdieSummary(
+  playerIds,
+  players,
+  course,
+  scores,
+  handicapMode,
+  birdieEnabled,
+  birdieUnitAmount = 1
+) {
+  if (!birdieEnabled || !Array.isArray(playerIds) || playerIds.length !== 3) {
+    return {
+      enabled: !!birdieEnabled,
+      countsByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, 0])),
+      birdieHolesByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, []])),
+      payout: {
+        status: "inactive",
+        balancesByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, 0])),
+        transactions: [],
+      },
+    };
+  }
+
+  const countsByPlayerId = Object.fromEntries(playerIds.map((id) => [id, 0]));
+  const birdieHolesByPlayerId = Object.fromEntries(playerIds.map((id) => [id, []]));
+
+  for (let hole = 1; hole <= 18; hole += 1) {
+    playerIds.forEach((playerId) => {
+      if (isNetBirdie(playerId, hole, players, course, scores, handicapMode)) {
+        countsByPlayerId[playerId] += 1;
+        birdieHolesByPlayerId[playerId].push(hole);
+      }
+    });
+  }
+
+  const payout = getNinePointPayout(countsByPlayerId, birdieUnitAmount);
+
+  return {
+    enabled: true,
+    countsByPlayerId,
+    birdieHolesByPlayerId,
+    payout,
+  };
+}
+
 export function playIndividualMatch(match, context) {
   const {
     players,
@@ -474,6 +784,39 @@ export function playIndividualMatch(match, context) {
     scores,
     handicapMode,
   } = context;
+
+// -----------------------------
+// 9 POINT MODE (3-player)
+// -----------------------------
+if (match.gameType === "ninePoint") {
+  const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+
+  const result = getNinePointMatchSummary(
+    playerIds,
+    players,
+    course,
+    scores,
+    handicapMode,
+    Boolean(match.blitzEnabled),
+    Number(match.bet || 1),
+    18
+  );
+
+  const birdieSummary = getNinePointBirdieSummary(
+    playerIds,
+    players,
+    course,
+    scores,
+    handicapMode,
+    !!match.birdieEnabled,
+    Number(match.birdieBet || 1)
+  );
+
+  return {
+    ...result,
+    birdieSummary,
+  };
+}
 
   const holes = [];
   let running = 0;
@@ -616,8 +959,6 @@ const birdieSummary = getBirdieSideBetResult({
     strokeScoring,
     getStrokeValueForHole,
     });
-
-console.log("STROKE runningHoleDiffs", runningHoleDiffs);
 
     const segmentDefs = [
       { key: "front", label: "Front 9", start: 1, end: 9, enabled: !!match.strokeFront },

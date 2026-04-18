@@ -17,6 +17,7 @@ import DebugPanel from "./components/DebugPanel";
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
+const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
 
 function createDefaultCourse() {
   return {
@@ -676,34 +677,86 @@ function applyPreset(preset) {
     );
   }
 
-  function addMatch() {
-    if (players.length < 2) return;
+function addMatch() {
+  if (players.length < 2) return;
 
-    setMatches((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        p1Id: players[0].id,
-        p2Id: players[1].id,
-        type: "standard",
-        bet: 10,
-        birdieEnabled: false,
-        matchGrossBirdieAdvantage: grossBirdieAdvantage,
-        birdieBet: 5,
-        strokeScoring: "net",
-        strokePayoutMode: "winloss",
-        strokeFront: true,
-        strokeBack: true,
-        strokeTotal: true,
-      },
-    ]);
+  setMatches((prev) => [
+    ...prev,
+    {
+      id: crypto.randomUUID(),
+      p1Id: players[0].id,
+      p2Id: players[1].id,
+      type: "standard",
+      bet: 10,
+      birdieEnabled: false,
+      matchGrossBirdieAdvantage: grossBirdieAdvantage,
+      birdieBet: 5,
+      strokeScoring: "net",
+      strokePayoutMode: "winloss",
+      strokeFront: true,
+      strokeBack: true,
+      strokeTotal: true,
+    },
+  ]);
+}
+
+function addNinePointMatch() {
+  if (players.length < 3) return;
+
+  let defaultIds = [players[0]?.id, players[1]?.id, players[2]?.id].filter(Boolean);
+
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(LAST_NINE_POINT_PLAYERS_KEY) || "null"
+    );
+
+    if (
+      Array.isArray(saved) &&
+      saved.length === 3 &&
+      saved.every((id) => players.some((p) => p.id === id))
+    ) {
+      defaultIds = saved;
+    }
+  } catch {
+    // ignore localStorage issues
   }
+
+  setMatches((prev) => [
+    ...prev,
+    {
+      id: crypto.randomUUID(),
+      gameType: "ninePoint",
+      p1Id: defaultIds[0],
+      p2Id: defaultIds[1],
+      p3Id: defaultIds[2],
+      blitzEnabled: true,
+      bet: 1,
+      birdieEnabled: false,
+      birdieBet: 1,
+    },
+  ]);
+}
 
   function updateMatch(id, patch) {
-    setMatches((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...patch } : m))
-    );
-  }
+  setMatches((prev) => {
+    const next = prev.map((m) => (m.id === id ? { ...m, ...patch } : m));
+
+    const updated = next.find((m) => m.id === id);
+
+    if (updated?.gameType === "ninePoint") {
+      const trio = [updated.p1Id, updated.p2Id, updated.p3Id];
+
+      if (trio.every(Boolean) && new Set(trio).size === 3) {
+        localStorage.setItem(
+          LAST_NINE_POINT_PLAYERS_KEY,
+          JSON.stringify(trio)
+        );
+      }
+    }
+
+    return next;
+  });
+}
 
   function removeMatch(id) {
     setMatches((prev) => prev.filter((m) => m.id !== id));
@@ -715,6 +768,9 @@ function applyPreset(preset) {
       result: playIndividualMatch(match, context),
     }));
   }, [matches, context]);
+
+console.log("matches", matches);
+console.log("matchResults", matchResults);
 
   const leaderboard = useMemo(() => {
     return buildLeaderboard(matches, context);
@@ -966,7 +1022,6 @@ function loadLastRound() {
 
     const round = JSON.parse(raw);
 
-    console.log("LOAD LAST ROUND scores =", round.scores);
 
     if (round.mode) setMode(round.mode);
     if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
@@ -1635,26 +1690,87 @@ useEffect(() => {
                   </div>
 
                   {match.birdieSummary?.enabled && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        borderTop: "1px solid #ddd",
-                        paddingTop: 8,
-                      }}
-                    >
-                      <div>
-                        <strong>Birdie Side Bet</strong>
-                      </div>
-                      <div>Net Birdie Units: {match.birdieSummary.units}</div>
-                      <div>Birdie Payout: ${match.birdieSummary.dollars}</div>
-                    </div>
-                  )}
+  <div
+    style={{
+      marginTop: 8,
+      borderTop: "1px solid #ddd",
+      paddingTop: 8,
+    }}
+  >
+    <div>
+      <strong>Birdie Side Bet</strong>
+    </div>
+    <div>Net Birdie Units: {match.birdieSummary.units}</div>
+    <div>Birdie Payout: ${match.birdieSummary.dollars}</div>
+
+    <div style={{ marginTop: 8 }}>
+      <strong>Team A Birdies</strong>
+      {match.birdieSummary.holes?.some(
+        (entry) => (entry.teamAPlayers || []).length > 0
+      ) ? (
+        Object.entries(
+          (match.birdieSummary.holes || []).reduce((acc, entry) => {
+            (entry.teamAPlayers || []).forEach((playerId) => {
+              const player = players.find((p) => p.id === playerId);
+              const name = player?.name || playerId;
+              if (!acc[name]) acc[name] = [];
+              acc[name].push(entry.hole);
+            });
+            return acc;
+          }, {})
+        ).map(([name, holes]) => (
+          <div key={name}>
+            {name}: {holes.join(", ")}
+          </div>
+        ))
+      ) : (
+        <div>-</div>
+      )}
+    </div>
+
+    <div style={{ marginTop: 8 }}>
+      <strong>Team B Birdies</strong>
+      {match.birdieSummary.holes?.some(
+        (entry) => (entry.teamBPlayers || []).length > 0
+      ) ? (
+        Object.entries(
+          (match.birdieSummary.holes || []).reduce((acc, entry) => {
+            (entry.teamBPlayers || []).forEach((playerId) => {
+              const player = players.find((p) => p.id === playerId);
+              const name = player?.name || playerId;
+              if (!acc[name]) acc[name] = [];
+              acc[name].push(entry.hole);
+            });
+            return acc;
+          }, {})
+        ).map(([name, holes]) => (
+          <div key={name}>
+            {name}: {holes.join(", ")}
+          </div>
+        ))
+      ) : (
+        <div>-</div>
+      )}
+    </div>
+  </div>
+)}
                 </div>
               );
             })
           )}
         </div>
       ))}
+
+<div style={{ marginBottom: 12 }}>
+  <button onClick={addMatch}>Add Match</button>
+
+  <button
+    onClick={addNinePointMatch}
+    style={{ marginLeft: 8 }}
+  >
+    Add 9 Point Match
+  </button>
+</div>
 
       <MatchList
         players={players}
