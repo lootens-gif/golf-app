@@ -547,24 +547,7 @@ function settleStrokeSegment(aTotal, bTotal, payoutMode, bet) {
   };
 }
 
-function countBirdiesForTeam({
-  team,
-  hole,
-  players,
-  course,
-  scores,
-  handicapMode,
-  countType,
-}) {
-  return team.reduce((sum, playerId) => {
-    const qualifies =
-      countType === "gross"
-        ? isGrossBirdie(playerId, hole, course, scores)
-        : isNetBirdie(playerId, hole, players, course, scores, handicapMode);
 
-    return sum + (qualifies ? 1 : 0);
-  }, 0);
-}
 
 function getBirdieCountType({
   teamA,
