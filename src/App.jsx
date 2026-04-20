@@ -6,6 +6,7 @@ import {
   buildLeaderboard,
   playPressMatch,
   getBirdieSideBetResult,
+  scoreRound,
 } from "./engine/scoringEngine";
 import SettingsPanel from "./components/SettingsPanel";
 import PlayerSetupPanel from "./components/PlayerSetupPanel";
@@ -13,6 +14,7 @@ import CourseEditor from "./components/CourseEditor";
 import ScoresGrid from "./components/ScoresGrid";
 import MatchList from "./components/MatchList";
 import DebugPanel from "./components/DebugPanel";
+import SettlementSection from "./components/SettlementSection";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -44,13 +46,30 @@ function formatBetScore(score) {
   return `${Math.abs(score)} down`;
 }
 
+function createEmptyRound() {
+  return {
+    id: crypto.randomUUID(),
+    date: new Date().toISOString(),
+    players: [],
+    mainGame: null,
+    sideMatches: [],
+    holeScores: {},
+    results: {
+      mainGameResult: null,
+      sideMatchResults: [],
+      sideBetResults: [],
+      playerLedger: [],
+      tabs: [],
+    },
+  };
+}
+
 export default function App() {
   const [mode, setMode] = useState("5p");
   const [allPlayers, setAllPlayers] = useState(createDefaultAllPlayers());
   const [course, setCourse] = useState(createDefaultCourse());
   const [scores, setScores] = useState({});
   const [birdieMode, setBirdieMode] = useState("off");
-  const [grossBirdieAdvantage, setGrossBirdieAdvantage] = useState(false);
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
   const [showDebug, setShowDebug] = useState(false);
@@ -59,6 +78,7 @@ export default function App() {
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
+  const [round, setRound] = useState(createEmptyRound());
 
   function createDefaultTeamGame(index = 0) {
     return {
@@ -83,6 +103,8 @@ export default function App() {
     () => getActivePlayers(allPlayers, mode),
     [allPlayers, mode]
   );
+  
+  
 
   const activePlayerIds = useMemo(
     () => new Set(players.map((p) => p.id)),
@@ -95,7 +117,7 @@ export default function App() {
       course,
       scores,
       birdieMode,
-      grossBirdieAdvantage,
+      
       handicapMode,
       birdieUnitAmount,
     }),
@@ -104,7 +126,6 @@ export default function App() {
       course,
       scores,
       birdieMode,
-      grossBirdieAdvantage,
       handicapMode,
       birdieUnitAmount,
     ]
@@ -171,7 +192,7 @@ function getTeamGameSelection(index) {
 }
   
 function getDebugMatchup() {
-  if (mode !== "5p") {
+  if (!["4p", "5p"].includes(mode)) {
     return null;
   }
 
@@ -689,7 +710,6 @@ function addMatch() {
       type: "standard",
       bet: 10,
       birdieEnabled: false,
-      matchGrossBirdieAdvantage: grossBirdieAdvantage,
       birdieBet: 5,
       strokeScoring: "net",
       strokePayoutMode: "winloss",
@@ -769,13 +789,13 @@ function addNinePointMatch() {
     }));
   }, [matches, context]);
 
-console.log("matches", matches);
-console.log("matchResults", matchResults);
 
   const leaderboard = useMemo(() => {
     return buildLeaderboard(matches, context);
   }, [matches, context]);
   
+  
+
   const debugMatchup = getDebugMatchup();
 
   const teamGameResults = teamGames.map((game, index) => {
@@ -942,6 +962,45 @@ console.log("matchResults", matchResults);
   };
 });
 
+console.log("teamGameResults sample", teamGameResults?.[0]);
+console.log("teamGameResults first match", teamGameResults?.[0]?.matches?.[0]);
+console.log(
+  "teamGameResults first match result[0]",
+  teamGameResults?.[0]?.matches?.[0]?.result?.[0]
+);
+
+console.log(
+  "teamGameResults first match birdieSummary",
+  teamGameResults?.[0]?.matches?.[0]?.birdieSummary
+);
+console.log("teamGame selection 0", getTeamGameSelection(0));
+console.log(
+  "teamGame selection 0 full",
+  JSON.stringify(getTeamGameSelection(0), null, 2)
+);
+
+console.log(
+  "teamGame first match full JSON",
+  JSON.stringify(teamGameResults?.[0]?.matches?.[0], null, 2)
+);
+
+console.log(
+  "teamGame first game full JSON",
+  JSON.stringify(teamGameResults?.[0], null, 2)
+);
+const computedResults = scoreRound(round, {
+  players,
+  scores,
+  course,
+  matches,
+  matchResults,
+  teamGames,
+  teamGameResults,
+  teamGameUnitAmount,
+  getTeamGameSelection,
+  mode,
+});
+
   function saveSetup() {
     try {
       const setup = {
@@ -949,7 +1008,6 @@ console.log("matchResults", matchResults);
         allPlayers,
         course,
         birdieMode,
-        grossBirdieAdvantage,
         handicapMode,
         teamGameUnitAmount,
         birdieUnitAmount,
@@ -977,9 +1035,7 @@ console.log("matchResults", matchResults);
       if (Array.isArray(setup.allPlayers)) setAllPlayers(setup.allPlayers);
       if (setup.course) setCourse(setup.course);
       if (setup.birdieMode) setBirdieMode(setup.birdieMode);
-      if (typeof setup.grossBirdieAdvantage === "boolean") {
-        setGrossBirdieAdvantage(setup.grossBirdieAdvantage);
-      }
+      
       if (setup.handicapMode) setHandicapMode(setup.handicapMode);
       if (typeof setup.teamGameUnitAmount === "number") {
         setTeamGameUnitAmount(setup.teamGameUnitAmount);
@@ -1028,9 +1084,7 @@ function loadLastRound() {
     if (round.course) setCourse(round.course);
     if (round.scores) setScores(round.scores);
     if (round.birdieMode) setBirdieMode(round.birdieMode);
-    if (typeof round.grossBirdieAdvantage === "boolean") {
-      setGrossBirdieAdvantage(round.grossBirdieAdvantage);
-    }
+    
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (typeof round.teamGameUnitAmount === "number") {
       setTeamGameUnitAmount(round.teamGameUnitAmount);
@@ -1066,7 +1120,6 @@ function saveLastRound() {
       course,
       scores,
       birdieMode,
-      grossBirdieAdvantage,
       handicapMode,
       teamGameUnitAmount,
       birdieUnitAmount,
@@ -1088,7 +1141,6 @@ function saveLastRound() {
     course,
     scores,
     birdieMode,
-    grossBirdieAdvantage,
     handicapMode,
     teamGameUnitAmount,
     birdieUnitAmount,
@@ -1146,9 +1198,7 @@ function loadNamedRound() {
     if (round.course) setCourse(round.course);
     if (round.scores) setScores(round.scores);
     if (round.birdieMode) setBirdieMode(round.birdieMode);
-    if (typeof round.grossBirdieAdvantage === "boolean") {
-      setGrossBirdieAdvantage(round.grossBirdieAdvantage);
-    }
+  
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (typeof round.teamGameUnitAmount === "number") {
       setTeamGameUnitAmount(round.teamGameUnitAmount);
@@ -1201,7 +1251,6 @@ function deleteNamedRound() {
     setAllPlayers(createDefaultAllPlayers());
     setCourse(createDefaultCourse());
     setBirdieMode("off");
-    setGrossBirdieAdvantage(false);
     setHandicapMode("relative");
     setTeamGameUnitAmount(1);
     setBirdieUnitAmount(1);
@@ -1311,8 +1360,6 @@ useEffect(() => {
         setMode={handleModeChange}
         birdieMode={birdieMode}
         setBirdieMode={setBirdieMode}
-        grossBirdieAdvantage={grossBirdieAdvantage}
-        setGrossBirdieAdvantage={setGrossBirdieAdvantage}
         handicapMode={handicapMode}
         setHandicapMode={setHandicapMode}
       />
@@ -1562,19 +1609,25 @@ useEffect(() => {
         );
       })}
 
-{showDebug && mode === "5p" && debugMatchup && (
+{showDebug && (
+
+
+
   <DebugPanel
     players={players}
     course={course}
     scores={scores}
     handicapMode={handicapMode}
-    teamA={debugMatchup.teamA}
-    teamB={debugMatchup.teamB}
-    startHole={debugMatchup.start}
-    endHole={debugMatchup.end}
-    title={debugMatchup.title}
-    teamALabel={debugMatchup.teamALabel}
-    teamBLabel={debugMatchup.teamBLabel}
+    teamA={debugMatchup?.teamA || []}
+    teamB={debugMatchup?.teamB || []}
+    startHole={debugMatchup?.start || 1}
+    endHole={debugMatchup?.end || 18}
+    title={debugMatchup?.title || "Debug View"}
+    teamALabel={debugMatchup?.teamALabel || "Team A"}
+    teamBLabel={debugMatchup?.teamBLabel || "Team B"}
+    computedResults={computedResults}
+    teamGameResults={teamGameResults}
+    getTeamGameSelection={getTeamGameSelection}
   />
 )}
 
@@ -1590,7 +1643,7 @@ useEffect(() => {
     Show Debug View
   </label>
 
-  {showDebug && mode === "5p" && (
+  {showDebug && (
     <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
       <label>
         Team Game:
@@ -1791,6 +1844,11 @@ useEffect(() => {
           </div>
         ))}
       </div>
+      <SettlementSection
+  playerLedger={computedResults.playerLedger}
+  tabs={computedResults.tabs}
+  players={players}
+/>
     </div>
   );
 }

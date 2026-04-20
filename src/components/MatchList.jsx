@@ -6,6 +6,13 @@ import {
 import { getBirdieHoleLists } from "./matchlist/getBirdieHoleLists";
 import { getTeamBirdiePlayerHoles } from "./matchlist/getTeamBirdiePlayerHoles";
 
+const MATCH_TYPE_LABELS = {
+  standard: "Net Holes",
+  longshort: "Long / Short",
+  match_fbt: "Front / Back / Total",
+  stroke: "Stroke",
+};
+
 export default function MatchList({
   players,
   matches,
@@ -526,7 +533,7 @@ export default function MatchList({
     value={match.type}
     onChange={(e) => onUpdateMatch(match.id, { type: e.target.value })}
   >
-    <option value="standard">Standard</option>
+    <option value="standard">Net Holes</option>
     <option value="longshort">Long/Short</option>
     <option value="match_fbt">FBT</option>
     <option value="stroke">Stroke</option>
@@ -615,28 +622,16 @@ export default function MatchList({
           </div>
 
           {match.birdieEnabled && (
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!match.matchGrossBirdieAdvantage}
-                  onChange={(e) =>
-                    onUpdateMatch(match.id, {
-                      matchGrossBirdieAdvantage: e.target.checked,
-                    })
-                  }
-                />
-                Gross Birdie Wins
-              </label>
-            </div>
-          )}
+  <div
+    style={{
+      marginTop: 8,
+      fontSize: 12,
+      color: "#666",
+    }}
+  >
+    Gross birdies only.
+  </div>
+)}
 
           {match.type === "stroke" && (
             <div

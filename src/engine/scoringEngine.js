@@ -557,9 +557,8 @@ function getBirdieCountType({
   course,
   scores,
   handicapMode,
-  grossBirdieAdvantage,
 }) {
-  if (!grossBirdieAdvantage) {
+  if (false) {
     return "any";
   }
 
@@ -577,7 +576,6 @@ export function getBirdieSideBetResult({
   end,
   context,
   birdieEnabled = true,
-  grossBirdieAdvantageOverride = null,
   birdieUnitAmountOverride = null,
 }) {
   const {
@@ -585,7 +583,6 @@ export function getBirdieSideBetResult({
     course,
     scores,
     handicapMode,
-    grossBirdieAdvantage,
     birdieUnitAmount,
   } = context;
 
@@ -598,10 +595,7 @@ export function getBirdieSideBetResult({
     };
   }
 
-  const effectiveGrossBirdieAdvantage =
-    grossBirdieAdvantageOverride === null
-      ? grossBirdieAdvantage
-      : grossBirdieAdvantageOverride;
+  const effectiveGrossBirdieAdvantage = true;
 
   const holes = [];
   let totalUnits = 0;
@@ -626,7 +620,6 @@ export function getBirdieSideBetResult({
       course,
       scores,
       handicapMode,
-      grossBirdieAdvantage: effectiveGrossBirdieAdvantage,
     });
 
     let countA = 0;
@@ -830,26 +823,22 @@ const birdieSummary = getBirdieSideBetResult({
   end: 18,
   context,
   birdieEnabled: !!match.birdieEnabled,
-  grossBirdieAdvantageOverride:
-    typeof match.matchGrossBirdieAdvantage === "boolean"
-      ? match.matchGrossBirdieAdvantage
-      : null,
   birdieUnitAmountOverride: match.birdieBet,
 });
 
   if (match.type === "standard") {
-    const segment = decideMatchPlaySegment(holes, 1, 18);
+  const segment = decideMatchPlaySegment(holes, 1, 18);
 
-    return {
-      type: "standard",
-      holes,
-      units: segment.units,
-      total: segment.units * match.bet,
-      label: segment.label,
-      decidedOn: segment.decidedOn,
-      birdieSummary,
-    };
-  }
+  return {
+    type: "standard",
+    holes,
+    units: running,
+    total: running * match.bet,
+    label: segment.label,
+    decidedOn: segment.decidedOn,
+    birdieSummary,
+  };
+}
 
   if (match.type === "longshort") {
     const longSegment = decideMatchPlaySegment(holes, 1, 18);
@@ -1088,4 +1077,168 @@ export function buildLeaderboard(matches, context) {
   }
 
   return board;
+}
+export function scoreRound(round, context = {}) {
+    const {
+  players = [],
+  matches = [],
+  matchResults = [],
+  teamGameResults = [],
+  teamGameUnitAmount = 1,
+} = context;
+
+  const ledgerMap = {};
+
+  players.forEach((player) => {
+    ledgerMap[player.id] = {
+      playerId: player.id,
+      mainGame: 0,
+      sideMatches: 0,
+      birdies: 0,
+      total: 0,
+    };
+  });
+
+  for (const entry of matchResults) {
+    const match = entry.match;
+    const result = entry.result;
+
+    if (!match || !result) continue;
+
+    // 9-point main-game settlement
+    const isNinePoint =
+      match.gameType === "ninePoint" ||
+      match.gameType === "9_point" ||
+      match.type === "ninePoint" ||
+      match.type === "9_point";
+
+    if (isNinePoint) {
+      const balances = result?.payout?.balancesByPlayerId || {};
+
+      Object.entries(balances).forEach(([playerId, amount]) => {
+        if (!ledgerMap[playerId] || typeof amount !== "number") return;
+
+        ledgerMap[playerId].mainGame += amount;
+        ledgerMap[playerId].total += amount;
+      });
+
+      continue;
+    }
+
+    // Standard 1v1 totals
+    if (match.p1Id && match.p2Id && typeof result.total === "number") {
+  if (ledgerMap[match.p1Id]) {
+    ledgerMap[match.p1Id].sideMatches += result.total;
+    ledgerMap[match.p1Id].total += result.total;
+  }
+
+  if (ledgerMap[match.p2Id]) {
+    ledgerMap[match.p2Id].sideMatches -= result.total;
+    ledgerMap[match.p2Id].total -= result.total;
+  }
+}
+}
+
+// TEAM GAME SETTLEMENT
+for (const game of teamGameResults) {
+  if (game.duplicateError) continue;
+
+  const selection = context.getTeamGameSelection?.(game.index);
+  if (!selection) continue;
+
+  for (const matchup of game.matches || []) {
+    const parts = matchup.label.split(" ");
+    const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+    const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+    const teamAPlayers = selection[teamAKey] || [];
+    const teamBPlayers = selection[teamBKey] || [];
+
+    // sum all scores (base + presses, pay each as a separate unit) to determine total units won/lost for the matchup
+    const totalScore = (matchup.result || []).reduce((sum, item) => {
+    const score = item.score || 0;
+    if (score > 0) return sum + 1;
+    if (score < 0) return sum - 1;
+    return sum;
+  }, 0);
+
+    const dollars = totalScore * teamGameUnitAmount;
+
+    ;
+    // pay each player on the winning team, charge each player on the losing team
+    teamAPlayers.forEach((playerId) => {
+      if (!ledgerMap[playerId]) return;
+      ledgerMap[playerId].mainGame += dollars;
+      ledgerMap[playerId].total += dollars;
+    });
+
+    teamBPlayers.forEach((playerId) => {
+      if (!ledgerMap[playerId]) return;
+      ledgerMap[playerId].mainGame -= dollars;
+      ledgerMap[playerId].total -= dollars;
+});
+  }
+}
+
+  const playerLedger = Object.values(ledgerMap);
+  const tabs = buildTabsFromLedger(playerLedger);
+
+
+
+  const hasMainGameMoney = playerLedger.some((row) => row.mainGame !== 0);
+
+    return {
+    mainGameResult: hasMainGameMoney ? playerLedger : null,
+    matchResults,
+    sideBetResults: [],
+    playerLedger,
+    tabs,
+  };
+}
+
+
+function buildTabsFromLedger(playerLedger = []) {
+  const creditors = playerLedger
+    .filter((player) => player.total > 0)
+    .map((player) => ({
+      playerId: player.playerId,
+      remaining: player.total,
+    }))
+    .sort((a, b) => b.remaining - a.remaining); // 👈 important
+
+  const debtors = playerLedger
+    .filter((player) => player.total < 0)
+    .map((player) => ({
+      playerId: player.playerId,
+      remaining: Math.abs(player.total),
+    }))
+    .sort((a, b) => b.remaining - a.remaining); // 👈 important
+
+  const tabs = [];
+
+  let i = 0;
+  let j = 0;
+
+  while (i < debtors.length && j < creditors.length) {
+    const debtor = debtors[i];
+    const creditor = creditors[j];
+
+    const amount = Math.min(debtor.remaining, creditor.remaining);
+
+    if (amount > 0) {
+      tabs.push({
+        fromPlayerId: debtor.playerId,
+        toPlayerId: creditor.playerId,
+        amount,
+      });
+    }
+
+    debtor.remaining -= amount;
+    creditor.remaining -= amount;
+
+    if (debtor.remaining === 0) i++;
+    if (creditor.remaining === 0) j++;
+  }
+
+  return tabs;
 }
