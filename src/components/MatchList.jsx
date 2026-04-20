@@ -6,12 +6,7 @@ import {
 import { getBirdieHoleLists } from "./matchlist/getBirdieHoleLists";
 import { getTeamBirdiePlayerHoles } from "./matchlist/getTeamBirdiePlayerHoles";
 
-const MATCH_TYPE_LABELS = {
-  standard: "Net Holes",
-  longshort: "Long / Short",
-  match_fbt: "Front / Back / Total",
-  stroke: "Stroke",
-};
+
 
 export default function MatchList({
   players,

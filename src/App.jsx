@@ -78,8 +78,7 @@ export default function App() {
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
-  const [round, setRound] = useState(createEmptyRound());
-
+  const [round] = useState(createEmptyRound());
   function createDefaultTeamGame(index = 0) {
     return {
       id: `team-game-${Date.now()}-${index}`,

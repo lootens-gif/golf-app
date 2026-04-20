@@ -595,8 +595,6 @@ export function getBirdieSideBetResult({
     };
   }
 
-  const effectiveGrossBirdieAdvantage = true;
-
   const holes = [];
   let totalUnits = 0;
 
@@ -1081,7 +1079,6 @@ export function buildLeaderboard(matches, context) {
 export function scoreRound(round, context = {}) {
     const {
   players = [],
-  matches = [],
   matchResults = [],
   teamGameResults = [],
   teamGameUnitAmount = 1,
