@@ -199,3 +199,96 @@ test('nine_point_birdie_respects_game_toggle', () => {
 
   expect(disabledResults).toEqual([]);
 });
+
+// Test 4
+
+test('team_game_birdie_ignores_player_with_no_score_on_hole', () => {
+  const results = buildBirdieResults({
+    matches: [],
+    matchResults: [],
+    teamGames: [
+      {
+        birdieEnabled: true,
+        birdieBet: 2,
+      },
+    ],
+    teamGameResults: [
+      {
+        index: 0,
+        start: 1,
+        end: 1,
+        matches: [
+          {
+            label: 'Team 1 vs Team 2',
+          },
+        ],
+      },
+    ],
+    scores: {
+      1: {
+        A: 3, // birdie
+        B: 4,
+        C: 4,
+        // D intentionally missing
+      },
+    },
+    course: {
+      pars: [4],
+      hcp: [1],
+    },
+    getTeamGameSelection: () => ({
+      team1: ['A', 'B'],
+      team2: ['C', 'D'],
+    }),
+  });
+
+  expect(results).toEqual([
+    { playerId: 'A', amount: 2 },
+    { playerId: 'B', amount: 2 },
+    { playerId: 'C', amount: -2 },
+  ]);
+});
+
+// Test 5
+
+
+test('nine_point_multiple_birdies_same_hole', () => {
+  const results = buildBirdieResults({
+    matches: [],
+    matchResults: [
+      {
+        match: {
+          gameType: 'ninePoint',
+          p1Id: 'A',
+          p2Id: 'B',
+          p3Id: 'C',
+          birdieEnabled: true,
+          birdieBet: 3,
+          startHole: 1,
+          endHole: 1,
+        },
+      },
+    ],
+    teamGames: [],
+    teamGameResults: [],
+    scores: {
+      1: {
+        A: 3, // birdie
+        B: 3, // birdie
+        C: 4,
+      },
+    },
+    course: {
+      pars: [4],
+      hcp: [1],
+    },
+    getTeamGameSelection: () => null,
+  });
+
+  expect(results).toEqual([
+    { playerId: 'A', amount: 3 },
+    { playerId: 'C', amount: -3 },
+    { playerId: 'B', amount: 3 },
+    { playerId: 'C', amount: -3 },
+  ]);
+});

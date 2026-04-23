@@ -283,3 +283,42 @@ test('22_team_game_settlement_exact_payout', () => {
 
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
+
+// Test 7 
+
+
+// Test 8
+
+test('23_1v1_birdie_disabled_match_still_settles', () => {
+  const result = scoreRound({}, {
+    players: [
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+    ],
+    matchResults: [
+      {
+        match: {
+          p1Id: 'A',
+          p2Id: 'B',
+          gameType: 'match',
+          birdieEnabled: false,
+          birdieBet: 5,
+          bet: 5,
+        },
+        result: {
+          total: 5,
+        },
+      },
+    ],
+    birdieResults: [],
+    teamGameResults: [],
+    teamGameUnitAmount: 1,
+  });
+
+  expect(simplifiedLedger(result.playerLedger)).toEqual({
+    A: { mainGame: 0, sideMatches: 5, birdies: 0, total: 5 },
+    B: { mainGame: 0, sideMatches: -5, birdies: 0, total: -5 },
+  });
+
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});

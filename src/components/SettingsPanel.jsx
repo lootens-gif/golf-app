@@ -1,10 +1,6 @@
 export default function SettingsPanel({
   mode,
   setMode,
-  birdieMode,
-  setBirdieMode,
-  birdieAmount,
-  setBirdieAmount,
   handicapMode,
   setHandicapMode,
 }) {
@@ -21,35 +17,6 @@ export default function SettingsPanel({
         </select>
       </label>
 
-            <label style={{ marginLeft: 12 }}>
-        Birdie Side Bet:
-        <input
-          type="checkbox"
-          checked={birdieMode}
-          onChange={(e) => setBirdieMode(e.target.checked)}
-          style={{ marginLeft: 6 }}
-        />
-      </label>
-
-      {birdieMode && (
-        <label style={{ marginLeft: 12 }}>
-          Birdie Amount:
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={birdieAmount}
-            onChange={(e) => setBirdieAmount(Number(e.target.value) || 0)}
-            style={{ marginLeft: 6, width: 70 }}
-          />
-        </label>
-      )}
-
-      {birdieMode && (
-        <div style={{ marginLeft: 12, marginTop: 4, fontSize: 12, color: "#666" }}>
-          Gross birdies only.
-        </div>
-      )}
 
       <label style={{ marginLeft: 12 }}>
         Handicap Mode:

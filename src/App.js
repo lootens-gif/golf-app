@@ -43,9 +43,6 @@ export default function App() {
   // SETTINGS
   // ======================
   const [bet, setBet] = useState(1);
-  const [birdieMode, setBirdieMode] = useState("off");
-  const [grossBirdieAdvantage, setGrossBirdieAdvantage] = useState(false);
-
   // ======================
   // NET SCORING
   // ======================
@@ -66,10 +63,7 @@ export default function App() {
     return score && score < par;
   };
 
-  const getBirdies = (team, hole) => {
-    if (birdieMode === "off") return 0;
-    return team.reduce((sum, p) => sum + (isBirdie(p, hole) ? 1 : 0), 0);
-  };
+
 
   // ======================
   // WHEEL
@@ -95,17 +89,6 @@ export default function App() {
       if (a < b) hole = 1;
       if (b < a) hole = -1;
 
-      // gross birdie override
-      if (grossBirdieAdvantage) {
-        const gA = A.some(p => isBirdie(p, h));
-        const gB = B.some(p => isBirdie(p, h));
-        if (gA && !gB) hole = 1;
-        if (gB && !gA) hole = -1;
-      }
-
-      // birdies
-      hole += getBirdies(A, h);
-      hole -= getBirdies(B, h);
 
       bets.forEach(bet => {
         bet.score += hole;
@@ -147,16 +130,6 @@ export default function App() {
       let res = 0;
       if (a < b) res = 1;
       if (b < a) res = -1;
-
-      if (grossBirdieAdvantage) {
-        const gA = isBirdie(m.p1, h);
-        const gB = isBirdie(m.p2, h);
-        if (gA && !gB) res = 1;
-        if (gB && !gA) res = -1;
-      }
-
-      res += getBirdies([m.p1], h);
-      res -= getBirdies([m.p2], h);
 
       holes.push(res);
       running += res;
@@ -224,19 +197,7 @@ export default function App() {
 
       <h2>Golf Betting App</h2>
 
-      {/* SETTINGS */}
-      <div>
-        Birdies:
-        <select onChange={e => setBirdieMode(e.target.value)}>
-          <option value="off">Off</option>
-          <option value="team">Team</option>
-          <option value="individual">Individual</option>
-        </select>
-
-        Gross Birdie Wins:
-        <input type="checkbox"
-          onChange={e => setGrossBirdieAdvantage(e.target.checked)} />
-      </div>
+    
 
       {/* COURSE INPUT */}
       <h3>Course</h3>

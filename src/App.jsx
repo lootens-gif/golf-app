@@ -5,8 +5,8 @@ import {
   playIndividualMatch,
   buildLeaderboard,
   playPressMatch,
-  getBirdieSideBetResult,
   scoreRound,
+  buildBirdieResults,
 } from "./engine/scoringEngine";
 import SettingsPanel from "./components/SettingsPanel";
 import PlayerSetupPanel from "./components/PlayerSetupPanel";
@@ -40,6 +40,13 @@ function getTeamGameRange(teamGames, index) {
   return { start, end };
 }
 
+function formatTeamNames(teamIds = [], players = []) {
+  return (teamIds || [])
+    .map((id) => players.find((p) => p.id === id)?.name || id)
+    .filter(Boolean)
+    .join(" / ");
+}
+
 function formatBetScore(score) {
   if (score === 0) return "Tie";
   if (score > 0) return `${score} up`;
@@ -69,7 +76,6 @@ export default function App() {
   const [allPlayers, setAllPlayers] = useState(createDefaultAllPlayers());
   const [course, setCourse] = useState(createDefaultCourse());
   const [scores, setScores] = useState({});
-  const [birdieMode, setBirdieMode] = useState("off");
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
   const [showDebug, setShowDebug] = useState(false);
@@ -80,13 +86,15 @@ export default function App() {
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
   const [round] = useState(createEmptyRound());
   function createDefaultTeamGame(index = 0) {
-    return {
-      id: `team-game-${Date.now()}-${index}`,
-      holes: 6,
-      pressTrigger: 1,
-      teams: {},
-    };
-  }
+  return {
+    id: `team-game-${Date.now()}-${index}`,
+    holes: 6,
+    pressTrigger: 1,
+    birdieEnabled: false,
+    birdieBet: 0,
+    teams: {},
+  };
+}
 
   const [teamGames, setTeamGames] = useState([
     createDefaultTeamGame(1),
@@ -95,7 +103,6 @@ export default function App() {
   ]);
 
   const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(1);
-  const [birdieUnitAmount, setBirdieUnitAmount] = useState(1);
   const [setupMessage, setSetupMessage] = useState("");
 
   const players = useMemo(
@@ -114,19 +121,14 @@ export default function App() {
     () => ({
       players,
       course,
-      scores,
-      birdieMode,
-      
+      scores,      
       handicapMode,
-      birdieUnitAmount,
     }),
     [
       players,
       course,
       scores,
-      birdieMode,
       handicapMode,
-      birdieUnitAmount,
     ]
   );
 
@@ -789,11 +791,6 @@ function addNinePointMatch() {
   }, [matches, context]);
 
 
-  const leaderboard = useMemo(() => {
-    return buildLeaderboard(matches, context);
-  }, [matches, context]);
-  
-  
 
   const debugMatchup = getDebugMatchup();
 
@@ -831,13 +828,7 @@ function addNinePointMatch() {
           trigger,
           context,
         }),
-        birdieSummary: getBirdieSideBetResult({
-          teamA: team1,
-          teamB: team2,
-          start,
-          end,
-          context,
-        }),
+        
       });
     }
 
@@ -852,13 +843,7 @@ function addNinePointMatch() {
           trigger,
           context,
         }),
-        birdieSummary: getBirdieSideBetResult({
-          teamA: team1,
-          teamB: team3,
-          start,
-          end,
-          context,
-        }),
+        
       });
     }
 
@@ -871,13 +856,6 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          context,
-        }),
-        birdieSummary: getBirdieSideBetResult({
-          teamA: team1,
-          teamB: team4,
-          start,
-          end,
           context,
         }),
       });
@@ -908,13 +886,6 @@ function addNinePointMatch() {
           trigger,
           context,
         }),
-        birdieSummary: getBirdieSideBetResult({
-          teamA: team1,
-          teamB: team2,
-          start,
-          end,
-          context,
-        }),
       });
     }
 
@@ -942,13 +913,6 @@ function addNinePointMatch() {
         trigger,
         context,
       }),
-      birdieSummary: getBirdieSideBetResult({
-        teamA: team1,
-        teamB: team2,
-        start,
-        end,
-        context,
-      }),
     });
   }
 
@@ -961,6 +925,41 @@ function addNinePointMatch() {
   };
 });
 
+function getActiveTeamMatchupForHole(
+  holeNumber,
+  teamGameResults = [],
+  teamGames = [],
+  getTeamGameSelection
+) {
+  for (const game of teamGameResults || []) {
+    if (game.duplicateError) continue;
+    if (holeNumber < game.start || holeNumber > game.end) continue;
+
+    const selection = getTeamGameSelection?.(game.index);
+    if (!selection) continue;
+
+    for (const match of game.matches || []) {
+      const parts = (match.label || "").split(" ");
+      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+      const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
+      const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
+
+      if (teamAPlayers.length && teamBPlayers.length) {
+        return {
+          teamAPlayers,
+          teamBPlayers,
+          label: match.label,
+          gameIndex: game.index,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 console.log("teamGameResults sample", teamGameResults?.[0]);
 console.log("teamGameResults first match", teamGameResults?.[0]?.matches?.[0]);
 console.log(
@@ -968,10 +967,7 @@ console.log(
   teamGameResults?.[0]?.matches?.[0]?.result?.[0]
 );
 
-console.log(
-  "teamGameResults first match birdieSummary",
-  teamGameResults?.[0]?.matches?.[0]?.birdieSummary
-);
+
 console.log("teamGame selection 0", getTeamGameSelection(0));
 console.log(
   "teamGame selection 0 full",
@@ -987,6 +983,33 @@ console.log(
   "teamGame first game full JSON",
   JSON.stringify(teamGameResults?.[0], null, 2)
 );
+
+
+
+console.log("scores full JSON", JSON.stringify(scores, null, 2));
+console.log("score keys", Object.keys(scores || {}));
+
+const firstScoreKey = Object.keys(scores || {})[0];
+console.log("first score key", firstScoreKey);
+console.log(
+  "first score entry",
+  JSON.stringify(firstScoreKey ? scores[firstScoreKey] : null, null, 2)
+);
+console.log("course shape sample", JSON.stringify(course?.holes?.[0] || course, null, 2));
+console.log("mode", mode);
+
+const birdieResults = buildBirdieResults({
+  matches,
+  matchResults,
+  teamGames,
+  teamGameResults,
+  scores,
+  course,
+  getTeamGameSelection,
+});
+
+console.log("BIRDIE RESULTS DEBUG", birdieResults);
+
 const computedResults = scoreRound(round, {
   players,
   scores,
@@ -998,7 +1021,12 @@ const computedResults = scoreRound(round, {
   teamGameUnitAmount,
   getTeamGameSelection,
   mode,
+  birdieResults,
 });
+
+const leaderboard = useMemo(() => {
+  return buildLeaderboard(computedResults.playerLedger, { players });
+}, [computedResults, players]);
 
   function saveSetup() {
     try {
@@ -1006,10 +1034,8 @@ const computedResults = scoreRound(round, {
         mode,
         allPlayers,
         course,
-        birdieMode,
         handicapMode,
         teamGameUnitAmount,
-        birdieUnitAmount,
         teamGames,
       };
 
@@ -1032,25 +1058,22 @@ const computedResults = scoreRound(round, {
 
       if (setup.mode) setMode(setup.mode);
       if (Array.isArray(setup.allPlayers)) setAllPlayers(setup.allPlayers);
-      if (setup.course) setCourse(setup.course);
-      if (setup.birdieMode) setBirdieMode(setup.birdieMode);
-      
+      if (setup.course) setCourse(setup.course);      
       if (setup.handicapMode) setHandicapMode(setup.handicapMode);
       if (typeof setup.teamGameUnitAmount === "number") {
         setTeamGameUnitAmount(setup.teamGameUnitAmount);
       }
-      if (typeof setup.birdieUnitAmount === "number") {
-        setBirdieUnitAmount(setup.birdieUnitAmount);
-      }
       if (Array.isArray(setup.teamGames)) {
         setTeamGames(
-          setup.teamGames.map((game, index) => ({
-            id: game.id || `team-game-${Date.now()}-${index}`,
-            holes: Number(game.holes) || 6,
-            pressTrigger: Number(game.pressTrigger) || 1,
-            teams: game.teams || {},
-          }))
-        );
+  setup.teamGames.map((game, index) => ({
+    id: game.id || `team-game-${Date.now()}-${index}`,
+    holes: Number(game.holes) || 6,
+    pressTrigger: Number(game.pressTrigger) || 1,
+    birdieEnabled: !!game.birdieEnabled,
+    birdieBet: Number(game.birdieBet) || 0,
+    teams: game.teams || {},
+  }))
+);
       } else {
         setTeamGames([
           createDefaultTeamGame(1),
@@ -1081,16 +1104,12 @@ function loadLastRound() {
     if (round.mode) setMode(round.mode);
     if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
     if (round.course) setCourse(round.course);
-    if (round.scores) setScores(round.scores);
-    if (round.birdieMode) setBirdieMode(round.birdieMode);
-    
+    if (round.scores) setScores(round.scores);    
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (typeof round.teamGameUnitAmount === "number") {
       setTeamGameUnitAmount(round.teamGameUnitAmount);
     }
-    if (typeof round.birdieUnitAmount === "number") {
-      setBirdieUnitAmount(round.birdieUnitAmount);
-    }
+    
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
         round.teamGames.map((game, index) => ({
@@ -1118,10 +1137,8 @@ function saveLastRound() {
       allPlayers,
       course,
       scores,
-      birdieMode,
       handicapMode,
       teamGameUnitAmount,
-      birdieUnitAmount,
       teamGames,
       matches,
     };
@@ -1139,10 +1156,8 @@ function saveLastRound() {
     allPlayers,
     course,
     scores,
-    birdieMode,
     handicapMode,
     teamGameUnitAmount,
-    birdieUnitAmount,
     teamGames,
     matches,
   };
@@ -1195,15 +1210,10 @@ function loadNamedRound() {
     if (round.mode) setMode(round.mode);
     if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
     if (round.course) setCourse(round.course);
-    if (round.scores) setScores(round.scores);
-    if (round.birdieMode) setBirdieMode(round.birdieMode);
-  
+    if (round.scores) setScores(round.scores);  
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (typeof round.teamGameUnitAmount === "number") {
       setTeamGameUnitAmount(round.teamGameUnitAmount);
-    }
-    if (typeof round.birdieUnitAmount === "number") {
-      setBirdieUnitAmount(round.birdieUnitAmount);
     }
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1249,10 +1259,8 @@ function deleteNamedRound() {
     setMode("5p");
     setAllPlayers(createDefaultAllPlayers());
     setCourse(createDefaultCourse());
-    setBirdieMode("off");
     setHandicapMode("relative");
     setTeamGameUnitAmount(1);
-    setBirdieUnitAmount(1);
     resetRoundData();
     setSetupMessage("Setup reset.");
   }
@@ -1355,13 +1363,12 @@ useEffect(() => {
       <h2>Golf Betting App</h2>
 
       <SettingsPanel
-        mode={mode}
-        setMode={handleModeChange}
-        birdieMode={birdieMode}
-        setBirdieMode={setBirdieMode}
-        handicapMode={handicapMode}
-        setHandicapMode={setHandicapMode}
-      />
+  mode={mode}
+  setMode={handleModeChange}
+
+  handicapMode={handicapMode}
+  setHandicapMode={setHandicapMode}
+/>
 
       <PlayerSetupPanel
         mode={mode}
@@ -1461,15 +1468,7 @@ useEffect(() => {
         </div>
 
         <div>
-          <label>
-            Team Game Birdie Unit Amount:
-            <input
-              type="number"
-              value={birdieUnitAmount}
-              onChange={(e) => setBirdieUnitAmount(Number(e.target.value) || 1)}
-              style={{ width: 80, marginLeft: 6 }}
-            />
-          </label>
+        
         </div>
       </div>
 
@@ -1559,23 +1558,76 @@ useEffect(() => {
                 />
               </label>
 
-              <label>
-                Press Trigger:
-                <input
-                  type="number"
-                  min={1}
-                  value={game.pressTrigger ?? 1}
-                  onChange={(e) => {
-                    const value = Number(e.target.value) || 1;
-                    setTeamGames((prev) =>
-                      prev.map((g, i) =>
-                        i === index ? { ...g, pressTrigger: value } : g
-                      )
-                    );
-                  }}
-                  style={{ width: 60, marginLeft: 6 }}
-                />
-              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+  <label>
+    Press Trigger:
+    <input
+      type="number"
+      min={1}
+      value={game.pressTrigger ?? 1}
+      onChange={(e) => {
+        const value = Number(e.target.value) || 1;
+        setTeamGames((prev) =>
+          prev.map((g, i) =>
+            i === index ? { ...g, pressTrigger: value } : g
+          )
+        );
+      }}
+      style={{ width: 60, marginLeft: 6 }}
+    />
+  </label>
+
+  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <input
+      type="checkbox"
+      checked={!!game.birdieEnabled}
+      onChange={(e) => {
+        const checked = e.target.checked;
+
+        setTeamGames((prev) =>
+          prev.map((g, i) =>
+            i === index
+              ? {
+                  ...g,
+                  birdieEnabled: checked,
+                  birdieBet: checked
+                    ? Number(g.birdieBet || 1)
+                    : 0,
+                }
+              : g
+          )
+        );
+      }}
+    />
+    Birdies
+  </label>
+
+  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    Birdie Bet:
+    <input
+      type="number"
+      min="0"
+      step="1"
+      value={game.birdieBet ?? 0}
+      disabled={!game.birdieEnabled}
+      onChange={(e) => {
+        const value = Number(e.target.value || 0);
+
+        setTeamGames((prev) =>
+          prev.map((g, i) =>
+            i === index
+              ? {
+                  ...g,
+                  birdieBet: value,
+                }
+              : g
+          )
+        );
+      }}
+      style={{ width: 70 }}
+    />
+  </label>
+</div>
 
               {teamGames.length > 1 && (
                 <button
@@ -1696,11 +1748,25 @@ useEffect(() => {
           ) : (
             game.matches.map((match, idx) => {
               const settlement = getTeamGameSettlement(
-                match.result,
-                teamGameUnitAmount
-              );
+  match.result,
+  teamGameUnitAmount
+);
 
-              return (
+const selection = getTeamGameSelection(game.index);
+
+const parts = (match.label || "").split(" ");
+const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+const teamALabel = formatTeamNames(selection?.[teamAKey] || [], players);
+const teamBLabel = formatTeamNames(selection?.[teamBKey] || [], players);
+
+const displayLabel =
+  teamALabel && teamBLabel
+    ? `${teamALabel} v ${teamBLabel}`
+    : match.label;
+
+return (
                 <div
                   key={idx}
                   style={{
@@ -1710,7 +1776,7 @@ useEffect(() => {
                   }}
                 >
                   <div style={{ marginBottom: 6 }}>
-                    <strong>{match.label}</strong>
+                    <strong>{displayLabel}</strong>
                   </div>
 
                   <div style={{ marginBottom: 4 }}>
@@ -1741,71 +1807,7 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  {match.birdieSummary?.enabled && (
-  <div
-    style={{
-      marginTop: 8,
-      borderTop: "1px solid #ddd",
-      paddingTop: 8,
-    }}
-  >
-    <div>
-      <strong>Birdie Side Bet</strong>
-    </div>
-    <div>Net Birdie Units: {match.birdieSummary.units}</div>
-    <div>Birdie Payout: ${match.birdieSummary.dollars}</div>
 
-    <div style={{ marginTop: 8 }}>
-      <strong>Team A Birdies</strong>
-      {match.birdieSummary.holes?.some(
-        (entry) => (entry.teamAPlayers || []).length > 0
-      ) ? (
-        Object.entries(
-          (match.birdieSummary.holes || []).reduce((acc, entry) => {
-            (entry.teamAPlayers || []).forEach((playerId) => {
-              const player = players.find((p) => p.id === playerId);
-              const name = player?.name || playerId;
-              if (!acc[name]) acc[name] = [];
-              acc[name].push(entry.hole);
-            });
-            return acc;
-          }, {})
-        ).map(([name, holes]) => (
-          <div key={name}>
-            {name}: {holes.join(", ")}
-          </div>
-        ))
-      ) : (
-        <div>-</div>
-      )}
-    </div>
-
-    <div style={{ marginTop: 8 }}>
-      <strong>Team B Birdies</strong>
-      {match.birdieSummary.holes?.some(
-        (entry) => (entry.teamBPlayers || []).length > 0
-      ) ? (
-        Object.entries(
-          (match.birdieSummary.holes || []).reduce((acc, entry) => {
-            (entry.teamBPlayers || []).forEach((playerId) => {
-              const player = players.find((p) => p.id === playerId);
-              const name = player?.name || playerId;
-              if (!acc[name]) acc[name] = [];
-              acc[name].push(entry.hole);
-            });
-            return acc;
-          }, {})
-        ).map(([name, holes]) => (
-          <div key={name}>
-            {name}: {holes.join(", ")}
-          </div>
-        ))
-      ) : (
-        <div>-</div>
-      )}
-    </div>
-  </div>
-)}
                 </div>
               );
             })

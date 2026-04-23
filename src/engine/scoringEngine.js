@@ -93,12 +93,7 @@ export function getNetScore(
   return raw - strokes;
 }
 
-export function isGrossBirdie(playerId, hole, course, scores) {
-  const raw = getRawScore(scores, hole, playerId);
-  if (raw === null) return false;
-  const par = course.pars[hole - 1];
-  return raw < par;
-}
+
 
 export function isNetBirdie(playerId, hole, players, course, scores, handicapMode) {
   const net = getNetScore(playerId, hole, players, course, scores, handicapMode);
@@ -234,7 +229,8 @@ export function scoreNinePointHole(
   };
 }
 
-export function getNinePointPayout(totalsByPlayerId, dollarsPerPoint = 1) {
+export function getNinePointPayout(totalsByPlayerId, dollarsPerPoint = 0) {
+const rate = Math.max(0, Number(dollarsPerPoint ?? 0));
   const ranked = Object.entries(totalsByPlayerId)
     .map(([playerId, points]) => ({
       playerId,
@@ -254,38 +250,34 @@ export function getNinePointPayout(totalsByPlayerId, dollarsPerPoint = 1) {
   const [first, second, third] = ranked;
 
   if (
-    first.points === second.points ||
-    second.points === third.points ||
-    first.points === third.points
-  ) {
-    return {
-      status: "tie",
-      ranking: ranked,
-      balancesByPlayerId: Object.fromEntries(ranked.map((r) => [r.playerId, 0])),
-      transactions: [],
-    };
-  }
+  first.points === second.points &&
+  second.points === third.points
+) {
+  return {
+    status: "tie",
+    ranking: ranked,
+    balancesByPlayerId: Object.fromEntries(ranked.map((r) => [r.playerId, 0])),
+    transactions: [],
+  };
+}
 
-  const transactions = [
-    {
-      fromPlayerId: third.playerId,
-      toPlayerId: first.playerId,
-      points: first.points - third.points,
-      amount: (first.points - third.points) * dollarsPerPoint,
-    },
-    {
-      fromPlayerId: third.playerId,
-      toPlayerId: second.playerId,
-      points: second.points - third.points,
-      amount: (second.points - third.points) * dollarsPerPoint,
-    },
-    {
-      fromPlayerId: second.playerId,
-      toPlayerId: first.playerId,
-      points: first.points - second.points,
-      amount: (first.points - second.points) * dollarsPerPoint,
-    },
-  ];
+const transactions = [
+  {
+    fromPlayerId: third.playerId,
+    toPlayerId: first.playerId,
+    amount: (first.points - third.points) * rate,
+  },
+  {
+    fromPlayerId: third.playerId,
+    toPlayerId: second.playerId,
+    amount: (second.points - third.points) * rate,
+  },
+  {
+    fromPlayerId: second.playerId,
+    toPlayerId: first.playerId,
+    amount: (first.points - second.points) * rate,
+  },
+];
 
   const balancesByPlayerId = Object.fromEntries(
     ranked.map((r) => [r.playerId, 0])
@@ -311,7 +303,7 @@ export function getNinePointMatchSummary(
   scores,
   handicapMode,
   blitzEnabled = false,
-  dollarsPerPoint = 1,
+  dollarsPerPoint = 0,
   holeCount = 18
 ) {
   if (!Array.isArray(playerIds) || playerIds.length !== 3) {
@@ -563,193 +555,14 @@ function getBirdieCountType({
   }
 
   const anyGross = [...teamA, ...teamB].some((playerId) =>
-    isGrossBirdie(playerId, hole, course, scores)
-  );
+  isGrossBirdie(scores, course, hole, playerId)
+);
 
   return anyGross ? "gross" : "net";
 }
 
-export function getBirdieSideBetResult({
-  teamA,
-  teamB,
-  start,
-  end,
-  context,
-  birdieEnabled = true,
-  birdieUnitAmountOverride = null,
-}) {
-  const {
-    players,
-    course,
-    scores,
-    handicapMode,
-    birdieUnitAmount,
-  } = context;
 
-  if (!birdieEnabled) {
-    return {
-      enabled: false,
-      units: 0,
-      dollars: 0,
-      holes: [],
-    };
-  }
 
-  const holes = [];
-  let totalUnits = 0;
-
-  for (let hole = start; hole <= end; hole++) {
-    const rawReadyA = teamA.every(
-      (playerId) => getRawScore(scores, hole, playerId) !== null
-    );
-    const rawReadyB = teamB.every(
-      (playerId) => getRawScore(scores, hole, playerId) !== null
-    );
-
-    if (!rawReadyA || !rawReadyB) {
-      continue;
-    }
-
-    const countType = getBirdieCountType({
-      teamA,
-      teamB,
-      hole,
-      players,
-      course,
-      scores,
-      handicapMode,
-    });
-
-    let countA = 0;
-    let countB = 0;
-    let teamAPlayers = [];
-    let teamBPlayers = [];
-
-    if (countType === "any") {
-      teamAPlayers = teamA.filter((playerId) => {
-        return (
-          isGrossBirdie(playerId, hole, course, scores) ||
-          isNetBirdie(playerId, hole, players, course, scores, handicapMode)
-        );
-      });
-
-      teamBPlayers = teamB.filter((playerId) => {
-        return (
-          isGrossBirdie(playerId, hole, course, scores) ||
-          isNetBirdie(playerId, hole, players, course, scores, handicapMode)
-        );
-      });
-
-      countA = teamAPlayers.length;
-      countB = teamBPlayers.length;
-    } else {
-      teamAPlayers = teamA.filter((playerId) => {
-        if (countType === "gross") {
-          return isGrossBirdie(playerId, hole, course, scores);
-        }
-
-        if (countType === "net") {
-          return isNetBirdie(
-            playerId,
-            hole,
-            players,
-            course,
-            scores,
-            handicapMode
-          );
-        }
-
-        return false;
-      });
-
-      teamBPlayers = teamB.filter((playerId) => {
-        if (countType === "gross") {
-          return isGrossBirdie(playerId, hole, course, scores);
-        }
-
-        if (countType === "net") {
-          return isNetBirdie(
-            playerId,
-            hole,
-            players,
-            course,
-            scores,
-            handicapMode
-          );
-        }
-
-        return false;
-      });
-
-      countA = teamAPlayers.length;
-      countB = teamBPlayers.length;
-    }
-
-    const net = countA - countB;
-    totalUnits += net;
-
-    holes.push({
-      hole,
-      countA,
-      countB,
-      net,
-      countType,
-      teamAPlayers,
-      teamBPlayers,
-    });
-  }
-
-  return {
-    enabled: true,
-    units: totalUnits,
-    dollars: totalUnits * (birdieUnitAmountOverride ?? birdieUnitAmount ?? 0),
-    holes,
-  };
-}
-
-export function getNinePointBirdieSummary(
-  playerIds,
-  players,
-  course,
-  scores,
-  handicapMode,
-  birdieEnabled,
-  birdieUnitAmount = 1
-) {
-  if (!birdieEnabled || !Array.isArray(playerIds) || playerIds.length !== 3) {
-    return {
-      enabled: !!birdieEnabled,
-      countsByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, 0])),
-      birdieHolesByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, []])),
-      payout: {
-        status: "inactive",
-        balancesByPlayerId: Object.fromEntries((playerIds || []).map((id) => [id, 0])),
-        transactions: [],
-      },
-    };
-  }
-
-  const countsByPlayerId = Object.fromEntries(playerIds.map((id) => [id, 0]));
-  const birdieHolesByPlayerId = Object.fromEntries(playerIds.map((id) => [id, []]));
-
-  for (let hole = 1; hole <= 18; hole += 1) {
-    playerIds.forEach((playerId) => {
-      if (isNetBirdie(playerId, hole, players, course, scores, handicapMode)) {
-        countsByPlayerId[playerId] += 1;
-        birdieHolesByPlayerId[playerId].push(hole);
-      }
-    });
-  }
-
-  const payout = getNinePointPayout(countsByPlayerId, birdieUnitAmount);
-
-  return {
-    enabled: true,
-    countsByPlayerId,
-    birdieHolesByPlayerId,
-    payout,
-  };
-}
 
 export function playIndividualMatch(match, context) {
   const {
@@ -772,24 +585,12 @@ if (match.gameType === "ninePoint") {
     scores,
     handicapMode,
     Boolean(match.blitzEnabled),
-    Number(match.bet || 1),
+    Number(match.bet ?? 0),
     18
   );
 
-  const birdieSummary = getNinePointBirdieSummary(
-    playerIds,
-    players,
-    course,
-    scores,
-    handicapMode,
-    !!match.birdieEnabled,
-    Number(match.birdieBet || 1)
-  );
 
-  return {
-    ...result,
-    birdieSummary,
-  };
+return result;
 }
 
   const holes = [];
@@ -814,15 +615,6 @@ const matchPlayers = [p1, p2].filter(Boolean);
     if (result !== null) running += result;
   }
 
-const birdieSummary = getBirdieSideBetResult({
-  teamA: [match.p1Id],
-  teamB: [match.p2Id],
-  start: 1,
-  end: 18,
-  context,
-  birdieEnabled: !!match.birdieEnabled,
-  birdieUnitAmountOverride: match.birdieBet,
-});
 
   if (match.type === "standard") {
   const segment = decideMatchPlaySegment(holes, 1, 18);
@@ -834,7 +626,6 @@ const birdieSummary = getBirdieSideBetResult({
     total: running * match.bet,
     label: segment.label,
     decidedOn: segment.decidedOn,
-    birdieSummary,
   };
 }
 
@@ -870,7 +661,6 @@ const birdieSummary = getBirdieSideBetResult({
       shortLabel: shortSegment.label,
       longDecidedOn: longSegment.decidedOn,
       shortDecidedOn: shortSegment.decidedOn,
-      birdieSummary,
     };
   }
 
@@ -911,7 +701,6 @@ const birdieSummary = getBirdieSideBetResult({
       holes,
       segments,
       total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
-      birdieSummary,
     };
   }
 
@@ -985,7 +774,6 @@ const birdieSummary = getBirdieSideBetResult({
   strokePayoutMode,
   segments,
   total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
-  birdieSummary,
 };
   }
 
@@ -993,7 +781,6 @@ const birdieSummary = getBirdieSideBetResult({
     type: match.type,
     holes,
     total: running * match.bet,
-    birdieSummary,
   };
 }
 
@@ -1062,26 +849,269 @@ export function playPressMatch({
   }));
 }
 
-export function buildLeaderboard(matches, context) {
+export function buildLeaderboard(ledger = [], context = {}) {
   const board = {};
-  context.players.forEach((p) => {
-    board[p.id] = 0;
-  });
+  const players = context.players || [];
 
-  for (const match of matches) {
-    const result = playIndividualMatch(match, context);
-    board[match.p1Id] -= result.total / 2;
-    board[match.p2Id] += result.total / 2;
-  }
+  players.forEach((p) => {
+    const entry = ledger.find((item) => item.playerId === p.id);
+    board[p.id] = Number(entry?.total || 0);
+  });
 
   return board;
 }
+
+export function getHoleGrossScore(scores, holeNumber, playerId) {
+  return Number(scores?.[String(holeNumber)]?.[playerId] || 0);
+}
+
+export function isGrossBirdie(scores, course, holeNumber, playerId) {
+  const gross = getHoleGrossScore(scores, holeNumber, playerId);
+  const par = Number(course?.pars?.[holeNumber - 1] || 0);
+
+  return gross > 0 && par > 0 && gross <= par - 1;
+}
+
+function hasValidHoleScore(scores, holeNumber, playerId) {
+  return getHoleGrossScore(scores, holeNumber, playerId) > 0;
+}
+
+function getScoredPlayers(playerIds, scores, holeNumber) {
+  return (playerIds || []).filter(
+    (playerId) => hasValidHoleScore(scores, holeNumber, playerId)
+  );
+}
+
+function getMatchParticipants(match, scores, holeNumber) {
+  return getScoredPlayers([match?.p1Id, match?.p2Id], scores, holeNumber);
+}
+
+function getNinePointParticipants(match, scores, holeNumber) {
+  return getScoredPlayers(
+    [match?.p1Id, match?.p2Id, match?.p3Id],
+    scores,
+    holeNumber
+  );
+}
+
+function getTeamParticipants(selection, teamAKey, teamBKey, scores, holeNumber) {
+  const teamAPlayers = getScoredPlayers(selection?.[teamAKey] || [], scores, holeNumber);
+  const teamBPlayers = getScoredPlayers(selection?.[teamBKey] || [], scores, holeNumber);
+
+  return {
+    teamAPlayers,
+    teamBPlayers,
+  };
+}
+
+export function buildMatchBirdieResults(matches, scores, course) {
+  const results = [];
+
+  for (const match of matches || []) {
+    const isNinePoint =
+      match?.gameType === "ninePoint" ||
+      match?.gameType === "9_point" ||
+      match?.type === "ninePoint" ||
+      match?.type === "9_point";
+
+    if (isNinePoint) continue;
+    if (!match?.birdieEnabled) continue;
+    if (!match?.p1Id || !match?.p2Id) continue;
+
+    const amount = Number(match?.birdieBet || 0);
+    if (!amount || amount <= 0) continue;
+
+    const start = Number(match.startHole || 1);
+    const end = Number(match.endHole || 18);
+
+    for (let holeNumber = start; holeNumber <= end; holeNumber += 1) {
+      const participants = getMatchParticipants(match, scores, holeNumber);
+
+      if (participants.length !== 2) continue;
+
+      const [p1Id, p2Id] = participants;
+
+      const p1Birdie = isGrossBirdie(scores, course, holeNumber, p1Id);
+      const p2Birdie = isGrossBirdie(scores, course, holeNumber, p2Id);
+
+      if (p1Birdie && !p2Birdie) {
+        results.push({ playerId: p1Id, amount });
+        results.push({ playerId: p2Id, amount: -amount });
+      } else if (p2Birdie && !p1Birdie) {
+        results.push({ playerId: p2Id, amount });
+        results.push({ playerId: p1Id, amount: -amount });
+      }
+    }
+  }
+
+  return results;
+}
+
+export function buildNinePointBirdieResults(matchResults, scores, course) {
+  const results = [];
+
+  for (const entry of matchResults || []) {
+    const match = entry?.match;
+    if (!match) continue;
+    if (!match?.birdieEnabled) continue;
+
+    const amount = Number(match?.birdieBet || 0);
+    if (!amount || amount <= 0) continue;
+
+    const isNinePoint =
+      match.gameType === "ninePoint" ||
+      match.gameType === "9_point" ||
+      match.type === "ninePoint" ||
+      match.type === "9_point";
+
+    if (!isNinePoint) continue;
+
+    const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+    if (playerIds.length !== 3) continue;
+
+    const start = Number(match.startHole || 1);
+    const end = Number(match.endHole || 18);
+
+    for (let holeNumber = start; holeNumber <= end; holeNumber += 1) {
+      const scoredPlayerIds = getNinePointParticipants(match, scores, holeNumber);
+      if (scoredPlayerIds.length !== 3) continue;
+
+      const birdiePlayers = scoredPlayerIds.filter((playerId) =>
+        isGrossBirdie(scores, course, holeNumber, playerId)
+      );
+
+      if (birdiePlayers.length === 0) continue;
+
+      const losers = scoredPlayerIds.filter((id) => !birdiePlayers.includes(id));
+
+      birdiePlayers.forEach((winnerId) => {
+        losers.forEach((loserId) => {
+          results.push({ playerId: winnerId, amount });
+          results.push({ playerId: loserId, amount: -amount });
+        });
+      });
+    }
+  }
+
+  return results;
+}
+
+export function buildTeamBirdieResults(
+  teamGames,
+  teamGameResults,
+  scores,
+  course,
+  getTeamGameSelection
+) {
+  const results = [];
+
+  for (const game of teamGameResults || []) {
+    if (game?.duplicateError) continue;
+
+    const teamGameConfig = teamGames?.[game.index];
+    if (!teamGameConfig?.birdieEnabled) continue;
+
+    const amount = Number(teamGameConfig?.birdieBet || 0);
+    if (!amount || amount <= 0) continue;
+
+    const selection = getTeamGameSelection?.(game.index);
+    if (!selection) continue;
+
+    for (const match of game.matches || []) {
+      const parts = (match.label || "").split(" ");
+      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+      const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
+      const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
+
+      if (!teamAPlayers.length || !teamBPlayers.length) continue;
+
+      for (let holeNumber = game.start; holeNumber <= game.end; holeNumber += 1) {
+        const { teamAPlayers: teamAActive, teamBPlayers: teamBActive } =
+          getTeamParticipants(selection, teamAKey, teamBKey, scores, holeNumber);
+
+        if (!teamAActive.length || !teamBActive.length) continue;
+
+        const teamABirdies = teamAActive.filter((playerId) =>
+          isGrossBirdie(scores, course, holeNumber, playerId)
+        ).length;
+
+        const teamBBirdies = teamBActive.filter((playerId) =>
+          isGrossBirdie(scores, course, holeNumber, playerId)
+        ).length;
+
+        if (teamABirdies > teamBBirdies) {
+          const diff = teamABirdies - teamBBirdies;
+
+          teamAActive.forEach((playerId) => {
+            results.push({ playerId, amount: diff * amount });
+          });
+
+          teamBActive.forEach((playerId) => {
+            results.push({ playerId, amount: -diff * amount });
+          });
+        } else if (teamBBirdies > teamABirdies) {
+          const diff = teamBBirdies - teamABirdies;
+
+          teamBActive.forEach((playerId) => {
+            results.push({ playerId, amount: diff * amount });
+          });
+
+          teamAActive.forEach((playerId) => {
+            results.push({ playerId, amount: -diff * amount });
+          });
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+export function buildBirdieResults({
+  matches,
+  matchResults,
+  teamGames,
+  teamGameResults,
+  scores,
+  course,
+  getTeamGameSelection,
+}) {
+  if (!scores || !course) {
+    return [];
+  }
+
+  const matchBirdies = buildMatchBirdieResults(
+    matches,
+    scores,
+    course
+  );
+
+  const teamBirdies = buildTeamBirdieResults(
+    teamGames,
+    teamGameResults,
+    scores,
+    course,
+    getTeamGameSelection
+  );
+
+  const ninePointBirdies = buildNinePointBirdieResults(
+    matchResults,
+    scores,
+    course
+  );
+
+  return [...matchBirdies, ...teamBirdies, ...ninePointBirdies];
+}
+
 export function scoreRound(round, context = {}) {
     const {
   players = [],
   matchResults = [],
   teamGameResults = [],
   teamGameUnitAmount = 1,
+  birdieResults = [],
 } = context;
 
   const ledgerMap = {};
@@ -1095,6 +1125,25 @@ export function scoreRound(round, context = {}) {
       total: 0,
     };
   });
+
+console.log("SCORE ROUND BIRDIE RESULTS", birdieResults);
+
+for (const entry of birdieResults) {
+  if (!entry) continue;
+
+  const playerId = entry.playerId;
+  const amount = Number(entry.amount || 0);
+
+  if (!playerId || !ledgerMap[playerId] || amount === 0) continue;
+
+  console.log("APPLYING BIRDIE ENTRY", entry);
+
+  ledgerMap[playerId].birdies += amount;
+  ledgerMap[playerId].total += amount;
+
+  console.log("UPDATED LEDGER ROW", ledgerMap[playerId]);
+}
+
 
   for (const entry of matchResults) {
     const match = entry.match;

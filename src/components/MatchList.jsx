@@ -3,7 +3,6 @@ import {
   getPlayerName,
   
 } from "../engine/scoringEngine";
-import { getBirdieHoleLists } from "./matchlist/getBirdieHoleLists";
 import { getTeamBirdiePlayerHoles } from "./matchlist/getTeamBirdiePlayerHoles";
 
 
@@ -149,33 +148,6 @@ export default function MatchList({
   </div>
 )}
 
-{result.birdieSummary?.enabled ? (
-  <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
-    <div>
-      <strong>Birdie Side Bet</strong>
-    </div>
-
-    {playerIds.map((playerId) => {
-      const name = getPlayerName(players, playerId) || playerId;
-      const count = result.birdieSummary.countsByPlayerId?.[playerId] ?? 0;
-      const holes = result.birdieSummary.birdieHolesByPlayerId?.[playerId] ?? [];
-      const balance =
-        result.birdieSummary.payout?.balancesByPlayerId?.[playerId] ?? 0;
-
-      return (
-        <div key={playerId} style={{ marginTop: 4 }}>
-          {name}: {count} birdies{" "}
-          <span style={{ color: "#666" }}>
-            ({balance > 0 ? "+" : ""}${balance.toFixed(2)})
-          </span>
-          <div style={{ fontSize: 12, color: "#666" }}>
-            Holes: {holes.length ? holes.join(", ") : "-"}
-          </div>
-        </div>
-      );
-    })}
-  </div>
-) : null}
 
         {result.payout?.status === "tie" ? (
           <div style={{ marginTop: 8, color: "#666" }}>
@@ -186,82 +158,6 @@ export default function MatchList({
     );
   }
 
-
-  function renderBirdieSummary(result, match) {
-    if (!result.birdieSummary || !result.birdieSummary.enabled) {
-      return null;
-    }
-
-    const { p1BirdieHoles, p2BirdieHoles } = getBirdieHoleLists(result);
-    const p1Name = getPlayerName(players, match.p1Id) || "P1";
-    const p2Name = getPlayerName(players, match.p2Id) || "P2";
-
-    return (
-      <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
-        <div>
-          <strong>Birdie Side Bet</strong>
-        </div>
-        <div>Net Birdie Units: {result.birdieSummary.units}</div>
-        <div>Birdie Payout: ${result.birdieSummary.dollars}</div>
-        <div>
-          {p1Name} Birdie Holes:{" "}
-          {p1BirdieHoles.length ? p1BirdieHoles.join(", ") : "-"}
-        </div>
-        <div>
-          {p2Name} Birdie Holes:{" "}
-          {p2BirdieHoles.length ? p2BirdieHoles.join(", ") : "-"}
-        </div>
-      </div>
-    );
-  }
-
-    function renderTeamBirdieSummary(result) {
-  if (!result?.birdieSummary || !result.birdieSummary.enabled) {
-    return null;
-  }
-
-  const { teamA, teamB } = getTeamBirdiePlayerHoles({
-    birdieSummary: result.birdieSummary,
-    playersById,
-  });
-
-
-  return (
-    <div style={{ marginTop: 8, borderTop: "1px solid #ddd", paddingTop: 8 }}>
-      <div>
-        <strong>Birdie Side Bet</strong>
-      </div>
-      <div>Net Birdie Units: {result.birdieSummary.units}</div>
-      <div>Birdie Payout: ${result.birdieSummary.dollars}</div>
-
-      <div style={{ marginTop: 8 }}>
-        <strong>Team A Birdies</strong>
-        {Object.keys(teamA).length ? (
-          Object.entries(teamA).map(([name, holes]) => (
-            <div key={name}>
-              {name}: {holes.join(", ")}
-            </div>
-          ))
-        ) : (
-          <div>-</div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 8 }}>
-        <strong>Team B Birdies</strong>
-        {Object.keys(teamB).length ? (
-          Object.entries(teamB).map(([name, holes]) => (
-            <div key={name}>
-              {name}: {holes.join(", ")}
-            </div>
-          ))
-        ) : (
-          <div>-</div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
   function renderHoleRows(holes) {
@@ -341,7 +237,6 @@ export default function MatchList({
             <strong>Payout: ${result.total}</strong>
           </div>
           {renderHoleStats(holeStats)}
-          {renderBirdieSummary(result, match)}
         </div>
       );
     }
@@ -361,7 +256,6 @@ export default function MatchList({
             <strong>Total Payout: ${result.total}</strong>
           </div>
           {renderHoleStats(holeStats)}
-          {renderBirdieSummary(result, match)}
         </div>
       );
     }
@@ -380,7 +274,6 @@ export default function MatchList({
             <strong>Net Payout: ${result.total}</strong>
           </div>
           {renderHoleStats(holeStats)}
-          {renderBirdieSummary(result, match)}
         </div>
       );
     }
@@ -403,7 +296,6 @@ export default function MatchList({
             <strong>Net Payout: ${result.total}</strong>
           </div>
           {renderHoleStats(holeStats)}
-          {renderBirdieSummary(result, match)}
         </div>
       );
     }
@@ -414,7 +306,6 @@ export default function MatchList({
       <strong>Payout: ${result.total}</strong>
     </div>
     {renderHoleStats(holeStats)}
-    {renderTeamBirdieSummary(result)}
   </div>
 );
   }

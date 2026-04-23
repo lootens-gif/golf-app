@@ -97,7 +97,6 @@ export default function DebugPanel({
 
   const ninePointHoles = ninePointMatchEntry?.result?.holes || [];
   const ninePointTransactions = ninePointMatchEntry?.result?.payout?.transactions || [];
-  const ninePointBirdieSummary = ninePointMatchEntry?.result?.birdieSummary || null;
   return (
     <div style={{ border: "2px solid #666", padding: 12, marginTop: 12 }}>
       <h3 style={{ marginTop: 0 }}>{title}</h3>
@@ -441,51 +440,6 @@ export default function DebugPanel({
                 </div>
               );
             })}
-            <div style={{ marginTop: 16, marginBottom: 8 }}>
-              <strong>Birdie Summary</strong>
-            </div>
-
-            {ninePointBirdieSummary ? (
-              <div
-                style={{
-                  padding: 8,
-                  background: "#fff",
-                  border: "1px solid #ddd",
-                }}
-              >
-                <div>
-                  Enabled: <strong>{ninePointBirdieSummary.enabled ? "Yes" : "No"}</strong>
-                </div>
-
-                <div style={{ marginTop: 8 }}>
-                  {players.map((p) => (
-                    <div key={`${p.id}-birdies`}>
-                      {p.name}:{" "}
-                      {ninePointBirdieSummary.countsByPlayerId?.[p.id] ?? 0} birdies
-                      {Array.isArray(
-                        ninePointBirdieSummary.birdieHolesByPlayerId?.[p.id]
-                      ) &&
-                      ninePointBirdieSummary.birdieHolesByPlayerId[p.id].length > 0
-                        ? ` (holes ${ninePointBirdieSummary.birdieHolesByPlayerId[p.id].join(", ")})`
-                        : ""}
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ marginTop: 8 }}>
-                  <strong>Birdie Payout</strong>
-                </div>
-
-                {players.map((p) => (
-                  <div key={`${p.id}-birdie-payout`}>
-                    {p.name}:{" "}
-                    {ninePointBirdieSummary.payout?.balancesByPlayerId?.[p.id] ?? 0}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div>-</div>
-            )}
 
             <details style={{ marginTop: 12 }}>
               <summary style={{ cursor: "pointer" }}>Show computedResults JSON</summary>
