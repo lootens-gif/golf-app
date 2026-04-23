@@ -925,40 +925,6 @@ function addNinePointMatch() {
   };
 });
 
-function getActiveTeamMatchupForHole(
-  holeNumber,
-  teamGameResults = [],
-  teamGames = [],
-  getTeamGameSelection
-) {
-  for (const game of teamGameResults || []) {
-    if (game.duplicateError) continue;
-    if (holeNumber < game.start || holeNumber > game.end) continue;
-
-    const selection = getTeamGameSelection?.(game.index);
-    if (!selection) continue;
-
-    for (const match of game.matches || []) {
-      const parts = (match.label || "").split(" ");
-      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-
-      const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
-      const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
-
-      if (teamAPlayers.length && teamBPlayers.length) {
-        return {
-          teamAPlayers,
-          teamBPlayers,
-          label: match.label,
-          gameIndex: game.index,
-        };
-      }
-    }
-  }
-
-  return null;
-}
 
 console.log("teamGameResults sample", teamGameResults?.[0]);
 console.log("teamGameResults first match", teamGameResults?.[0]?.matches?.[0]);

@@ -3,7 +3,6 @@ import {
   getPlayerName,
   
 } from "../engine/scoringEngine";
-import { getTeamBirdiePlayerHoles } from "./matchlist/getTeamBirdiePlayerHoles";
 
 
 
@@ -16,9 +15,7 @@ export default function MatchList({
   onRemoveMatch,
 }) {
   const [expandedNinePointIds, setExpandedNinePointIds] = useState({});
-  const playersById = Object.fromEntries(
-    (players || []).map((player) => [player.id, player])
-  );
+ 
 
   function getHoleStats(holes) {
     const wins = holes.filter((h) => h > 0).length;

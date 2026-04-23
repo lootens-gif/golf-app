@@ -541,27 +541,6 @@ function settleStrokeSegment(aTotal, bTotal, payoutMode, bet) {
 
 
 
-function getBirdieCountType({
-  teamA,
-  teamB,
-  hole,
-  players,
-  course,
-  scores,
-  handicapMode,
-}) {
-  if (false) {
-    return "any";
-  }
-
-  const anyGross = [...teamA, ...teamB].some((playerId) =>
-  isGrossBirdie(scores, course, hole, playerId)
-);
-
-  return anyGross ? "gross" : "net";
-}
-
-
 
 
 export function playIndividualMatch(match, context) {
