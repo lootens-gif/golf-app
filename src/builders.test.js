@@ -1,5 +1,7 @@
 import { buildBirdieResults } from './engine/scoringEngine';
 
+// Test 1 Builder should return correct entries when match birdie enabled
+
 test('birdie_builder_returns_entries_when_match_birdie_enabled', () => {
   const results = buildBirdieResults({
     matches: [
@@ -123,7 +125,7 @@ test('team_game_birdie_respects_toggle', () => {
   expect(disabledResults).toEqual([]);
 });
 
-// Test 3
+// Test 3 Builder should handle multiple matches with birdie enabled on same hole
 
 test('nine_point_birdie_respects_game_toggle', () => {
   const enabledResults = buildBirdieResults({
@@ -200,7 +202,7 @@ test('nine_point_birdie_respects_game_toggle', () => {
   expect(disabledResults).toEqual([]);
 });
 
-// Test 4
+// Test 4 Builder should ignore players with no score on hole for team game birdie results
 
 test('team_game_birdie_ignores_player_with_no_score_on_hole', () => {
   const results = buildBirdieResults({

@@ -22,6 +22,8 @@ function sumTotals(playerLedger) {
   return playerLedger.reduce((sum, row) => sum + row.total, 0);
 }
 
+// Test 1 9pt 5-2-2 bet with 3 players
+
 test('03_9pt_522_bet5', () => {
   const result = scoreRound({}, {
     players: [
@@ -60,7 +62,7 @@ test('03_9pt_522_bet5', () => {
   
 });
 
-//Test 2
+//Test 2 9pt with birdie enabled but no birdies hit should return empty birdie results
 
 test('06_9pt_single_birdie', () => {
   const result = scoreRound({}, {
@@ -107,7 +109,7 @@ test('06_9pt_single_birdie', () => {
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
 
-//Test 3
+//Test 3 9pt with birdie enabled on same hole for multiple players should apply birdie results correctly
 
 test('14_1v1_net_lowest_tie_on_net', () => {
   const result = scoreRound({}, {
@@ -142,7 +144,7 @@ test('14_1v1_net_lowest_tie_on_net', () => {
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
 
-//Test 4
+//Test 4 Team game with birdie enabled but no birdies hit should return empty birdie results
 
 test('20_gross_vs_net_birdie_conflict', () => {
   const result = scoreRound({}, {
@@ -180,7 +182,7 @@ test('20_gross_vs_net_birdie_conflict', () => {
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
 
-// Test 5
+// Test 5 Multiple matches with birdie enabled on same hole should apply birdie results correctly without conflict with main game settlement
 
 test('21_multi_game_birdie_conflict', () => {
   const result = scoreRound({}, {
@@ -239,7 +241,7 @@ test('21_multi_game_birdie_conflict', () => {
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
 
-// Test 6 Team Game Settlement
+// Test 6 Team Game Settlement with exact payout should settle correctly without rounding issues
 
 test('22_team_game_settlement_exact_payout', () => {
   const result = scoreRound({}, {
@@ -284,10 +286,7 @@ test('22_team_game_settlement_exact_payout', () => {
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
 
-// Test 7 
-
-
-// Test 8
+// Test 7  Match with birdie disabled should settle main game correctly and return empty birdie results without affecting settlement
 
 test('23_1v1_birdie_disabled_match_still_settles', () => {
   const result = scoreRound({}, {
