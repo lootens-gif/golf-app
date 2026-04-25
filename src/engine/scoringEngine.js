@@ -1094,6 +1094,7 @@ export function scoreRound(round, context = {}) {
 } = context;
 
   const ledgerMap = {};
+  const eventLedger = [];
 
   players.forEach((player) => {
     ledgerMap[player.id] = {
@@ -1120,6 +1121,14 @@ for (const entry of birdieResults) {
   ledgerMap[playerId].birdies += amount;
   ledgerMap[playerId].total += amount;
 
+eventLedger.push({
+  holeNumber: null,  
+  playerId,
+  amount,
+  gameType: "main",
+  label: "9-Point",
+});
+  
   console.log("UPDATED LEDGER ROW", ledgerMap[playerId]);
 }
 
@@ -1155,11 +1164,27 @@ for (const entry of birdieResults) {
   if (ledgerMap[match.p1Id]) {
     ledgerMap[match.p1Id].sideMatches += result.total;
     ledgerMap[match.p1Id].total += result.total;
+  
+  eventLedger.push({
+  holeNumber: result?.holeNumber ?? result?.hole ?? null,
+  playerId: match.p1Id,
+  amount: result.total,
+  gameType: "side",
+  label: "Side Match",
+});
   }
 
   if (ledgerMap[match.p2Id]) {
     ledgerMap[match.p2Id].sideMatches -= result.total;
     ledgerMap[match.p2Id].total -= result.total;
+
+    eventLedger.push({
+    holeNumber: result?.holeNumber ?? result?.hole ?? null,
+    playerId: match.p2Id,
+    amount: -result.total,
+    gameType: "side",
+    label: "Side Match",
+});
   }
 }
 }
@@ -1187,21 +1212,37 @@ for (const game of teamGameResults) {
     return sum;
   }, 0);
 
-    const dollars = totalScore * teamGameUnitAmount;
-
+const dollars = totalScore * teamGameUnitAmount;
     ;
     // pay each player on the winning team, charge each player on the losing team
     teamAPlayers.forEach((playerId) => {
       if (!ledgerMap[playerId]) return;
       ledgerMap[playerId].mainGame += dollars;
       ledgerMap[playerId].total += dollars;
+
+      eventLedger.push({
+        holeNumber: game.start ?? null,
+        playerId,
+        amount: dollars,
+        gameType: "main",
+        label: `Team Game ${game.index + 1}`,
+      });
+
     });
 
     teamBPlayers.forEach((playerId) => {
       if (!ledgerMap[playerId]) return;
       ledgerMap[playerId].mainGame -= dollars;
       ledgerMap[playerId].total -= dollars;
-});
+
+      eventLedger.push({
+      holeNumber: game.start ?? null,
+      playerId,
+      amount: -dollars,
+      gameType: "main",
+      label: `Team Game ${game.index + 1}`,
+    });
+    });
   }
 }
 
@@ -1213,12 +1254,13 @@ for (const game of teamGameResults) {
   const hasMainGameMoney = playerLedger.some((row) => row.mainGame !== 0);
 
     return {
-    mainGameResult: hasMainGameMoney ? playerLedger : null,
-    matchResults,
-    sideBetResults: [],
-    playerLedger,
-    tabs,
-  };
+  mainGameResult: hasMainGameMoney ? playerLedger : null,
+  matchResults,
+  sideBetResults: [],
+  playerLedger,
+  eventLedger,
+  tabs,
+};
 }
 
 

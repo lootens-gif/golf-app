@@ -1,0 +1,377 @@
+import SettingsPanel from "../components/SettingsPanel";
+import PlayerSetupPanel from "../components/PlayerSetupPanel";
+import CourseEditor from "../components/CourseEditor";
+import MatchList from "../components/MatchList";
+import { useEffect, useRef } from "react";
+export default function SetupScreen({
+  mode,
+  handleModeChange,
+  handicapMode,
+  setHandicapMode,
+  players,
+  handlePlayerChange,
+  saveSetup,
+  loadSetup,
+  resetSetup,
+  saveLastRound,
+  loadLastRound,
+  savedRoundName,
+  setSavedRoundName,
+  saveNamedRound,
+  savedRounds,
+  selectedSavedRoundId,
+  setSelectedSavedRoundId,
+  loadNamedRound,
+  deleteNamedRound,
+  setupMessage,
+  course,
+  updateCourseName,
+  updateCoursePar,
+  updateCourseHcp,
+  teamGameUnitAmount,
+  setTeamGameUnitAmount,
+  applyPreset,
+  setTeamGames,
+  teamGames,
+  totalHoles,
+  getTeamGameRange,
+  hasDuplicateSelections,
+  getTeamGameSelection,
+  renderTeamSelectors,
+  modeText,
+  addMatch,
+  addNinePointMatch,
+  matches,
+  matchResults,
+  updateMatch,
+  removeMatch,
+  startRound,
+  createDefaultTeamGame,
+  focusGameIndex,
+}) {
+    const teamGameRefs = useRef({});
+
+    useEffect(() => {
+  if (focusGameIndex == null) return;
+
+  const el = teamGameRefs.current[focusGameIndex];
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    const firstSelector = el.querySelector("select");
+firstSelector?.focus();
+  }
+}, [focusGameIndex]);
+  return (
+    <>
+
+        <SettingsPanel
+          mode={mode}
+          setMode={handleModeChange}
+          handicapMode={handicapMode}
+          setHandicapMode={setHandicapMode}
+        />
+
+        <PlayerSetupPanel
+          mode={mode}
+          players={players}
+          onPlayerChange={handlePlayerChange}
+          onSaveSetup={saveSetup}
+          onLoadSetup={loadSetup}
+          onResetSetup={resetSetup}
+        />
+
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={saveLastRound} style={{ marginRight: 8 }}>
+            Save Last Round
+          </button>
+
+          <button onClick={loadLastRound}>Load Last Round</button>
+        </div>
+
+        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Saved Test Rounds</h3>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <input
+              type="text"
+              value={savedRoundName}
+              onChange={(e) => setSavedRoundName(e.target.value)}
+              placeholder="Enter round name"
+              style={{ minWidth: 220 }}
+            />
+
+            <button onClick={saveNamedRound}>Save Named Round</button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select
+              value={selectedSavedRoundId}
+              onChange={(e) => setSelectedSavedRoundId(e.target.value)}
+              style={{ minWidth: 260 }}
+            >
+              <option value="">Select saved round</option>
+              {savedRounds.map((round) => (
+                <option key={round.id} value={round.id}>
+                  {round.name}
+                </option>
+              ))}
+            </select>
+
+            <button onClick={loadNamedRound}>Load Named Round</button>
+            <button onClick={deleteNamedRound}>Delete Named Round</button>
+          </div>
+        </div>
+
+        {setupMessage && (
+          <div style={{ marginBottom: 12, color: "green" }}>
+            {setupMessage}
+          </div>
+        )}
+
+        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+          <h3>Course Setup</h3>
+
+          <div style={{ marginBottom: 10 }}>
+            <label>
+              Course Name:
+              <input
+                type="text"
+                value={course.name || ""}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => updateCourseName(e.target.value)}
+                style={{ marginLeft: 6 }}
+              />
+            </label>
+          </div>
+
+          <CourseEditor
+            course={course}
+            onParChange={updateCoursePar}
+            onHcpChange={updateCourseHcp}
+          />
+        </div>
+
+        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+          <h3>Team Game & Birdie Betting</h3>
+
+          <div style={{ marginBottom: 8 }}>
+            <label>
+              Team Game Unit Amount:
+              <input
+                type="number"
+                value={teamGameUnitAmount}
+                onChange={(e) => setTeamGameUnitAmount(Number(e.target.value) || 1)}
+                style={{ width: 80, marginLeft: 6 }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <h3>Team Game Selector</h3>
+
+        <div style={{ marginBottom: 12 }}>
+          <strong>Game Hole Setup</strong>
+
+          <div style={{ marginTop: 8, marginBottom: 10 }}>
+            <button onClick={() => applyPreset("6-6-6")}>6 / 6 / 6</button>
+
+            <button onClick={() => applyPreset("9-9")} style={{ marginLeft: 8 }}>
+              9 / 9
+            </button>
+          </div>
+
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <button
+              onClick={() =>
+                setTeamGames((prev) => [
+                  ...prev,
+                  createDefaultTeamGame(prev.length + 1),
+                ])
+              }
+            >
+              Add Team Game
+            </button>
+          </div>
+
+          {totalHoles !== 18 && (
+            <div style={{ color: "red", marginBottom: 10 }}>
+              Total holes must equal 18 (currently {totalHoles})
+            </div>
+          )}
+        </div>
+
+        {teamGames.map((game, index) => {
+          const { start, end } = getTeamGameRange(teamGames, index);
+          const duplicateError = hasDuplicateSelections(
+            getTeamGameSelection(index),
+            mode
+          );
+
+          return (
+  <div
+    key={game.id}
+    ref={(el) => {
+      teamGameRefs.current[index] = el;
+    }}
+    style={{ border: "1px solid gray", margin: 6, padding: 10 }}
+  >
+              <div>
+                <strong>
+                  Game {index + 1}: Holes {start}-{end}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <label>
+                  Holes:
+                  <input
+                    type="number"
+                    min={1}
+                    max={18}
+                    value={game.holes ?? 1}
+                    onChange={(e) => {
+                      const value = Number(e.target.value) || 1;
+                      setTeamGames((prev) =>
+                        prev.map((g, i) =>
+                          i === index ? { ...g, holes: value } : g
+                        )
+                      );
+                    }}
+                    style={{ width: 60, marginLeft: 6 }}
+                  />
+                </label>
+
+                <label>
+                  Press Trigger:
+                  <input
+                    type="number"
+                    min={1}
+                    value={game.pressTrigger ?? 1}
+                    onChange={(e) => {
+                      const value = Number(e.target.value) || 1;
+                      setTeamGames((prev) =>
+                        prev.map((g, i) =>
+                          i === index ? { ...g, pressTrigger: value } : g
+                        )
+                      );
+                    }}
+                    style={{ width: 60, marginLeft: 6 }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!game.birdieEnabled}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+
+                      setTeamGames((prev) =>
+                        prev.map((g, i) =>
+                          i === index
+                            ? {
+                                ...g,
+                                birdieEnabled: checked,
+                                birdieBet: checked ? Number(g.birdieBet || 1) : 0,
+                              }
+                            : g
+                        )
+                      );
+                    }}
+                  />
+                  Birdies
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  Birdie Bet:
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={game.birdieBet ?? 0}
+                    disabled={!game.birdieEnabled}
+                    onChange={(e) => {
+                      const value = Number(e.target.value || 0);
+
+                      setTeamGames((prev) =>
+                        prev.map((g, i) =>
+                          i === index ? { ...g, birdieBet: value } : g
+                        )
+                      );
+                    }}
+                    style={{ width: 70 }}
+                  />
+                </label>
+
+                {teamGames.length > 1 && (
+                  <button
+                    onClick={() =>
+                      setTeamGames((prev) => prev.filter((_, i) => i !== index))
+                    }
+                  >
+                    Remove Game
+                  </button>
+                )}
+              </div>
+
+              <div style={{ marginTop: 6 }}>
+                {mode === "5p" &&
+                  "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
+                {mode === "4p" &&
+                  "Select Team 1 and Team 2. One 2v2 match is played for this game."}
+                {mode === "3p" &&
+                  "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
+              </div>
+
+              {renderTeamSelectors(index)}
+
+              {duplicateError && (
+                <div style={{ marginTop: 8, color: "red" }}>
+                  Duplicate players in this game are not allowed.
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={addMatch}>Add Match</button>
+
+          <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
+            Add 9 Point Match
+          </button>
+        </div>
+
+        <MatchList
+          players={players}
+          matches={matches}
+          results={matchResults}
+          onAddMatch={addMatch}
+          onUpdateMatch={updateMatch}
+          onRemoveMatch={removeMatch}
+        />
+
+        <button
+          onClick={startRound}
+          style={{
+            width: "100%",
+            padding: 14,
+            fontSize: 18,
+            fontWeight: "bold",
+            marginTop: 16,
+          }}
+        >
+          Start Round
+        </button>
+      </>
+  );
+}

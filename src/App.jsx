@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
@@ -15,6 +15,7 @@ import ScoresGrid from "./components/ScoresGrid";
 import MatchList from "./components/MatchList";
 import DebugPanel from "./components/DebugPanel";
 import SettlementSection from "./components/SettlementSection";
+import SetupScreen from "./screens/SetupScreen";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -85,6 +86,28 @@ export default function App() {
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
   const [round] = useState(createEmptyRound());
+  const [screen, setScreen] = useState("setup");
+  const [currentHole, setCurrentHole] = useState(1);
+  const [showMatchDetails, setShowMatchDetails] = useState({});
+  const [showScorecardEdit, setShowScorecardEdit] = useState(false);
+  const [lastHoleSaved, setLastHoleSaved] = useState(null);
+  const scoreInputRefs = useRef({});
+  const saveHoleButtonRef = useRef(null);
+  const [focusGameIndex, setFocusGameIndex] = useState(null);
+
+useEffect(() => {
+  const firstPlayer = players?.[0];
+  if (!firstPlayer) return;
+
+  const el = scoreInputRefs.current[firstPlayer.id];
+  if (el) {
+    setTimeout(() => {
+      el.focus();
+      el.select?.();
+    }, 0);
+  }
+}, [currentHole, screen]);
+
   function createDefaultTeamGame(index = 0) {
   return {
     id: `team-game-${Date.now()}-${index}`,
@@ -1221,15 +1244,21 @@ function deleteNamedRound() {
   }
 }
 
-  function resetSetup() {
-    setMode("5p");
-    setAllPlayers(createDefaultAllPlayers());
-    setCourse(createDefaultCourse());
-    setHandicapMode("relative");
-    setTeamGameUnitAmount(1);
-    resetRoundData();
-    setSetupMessage("Setup reset.");
-  }
+function resetSetup() {
+  setMode("5p");
+  setAllPlayers(createDefaultAllPlayers());
+  setCourse(createDefaultCourse());
+  setHandicapMode("relative");
+  setTeamGameUnitAmount(1);
+  setScores({});
+  setMatches([]);
+  setTeamGames([
+    createDefaultTeamGame(1),
+    createDefaultTeamGame(2),
+    createDefaultTeamGame(3),
+  ]);
+  setSetupMessage("Setup reset.");
+}
 
   function setScore(hole, playerId, value) {
     const next = value === "" ? null : Number(value);
@@ -1324,498 +1353,687 @@ useEffect(() => {
   }
 }, []);
 
-  return (
-    <div style={{ padding: 12 }}>
-      <h2>Golf Betting App</h2>
+// Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
-      <SettingsPanel
-  mode={mode}
-  setMode={handleModeChange}
+function startRound() {
+  if (teamGames.length > 0 && totalHoles !== 18) {
+    setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
+    alert(`Team game holes must equal 18. Currently ${totalHoles}.`);
+    return;
+  }
 
-  handicapMode={handicapMode}
-  setHandicapMode={setHandicapMode}
-/>
+  const hasTeamGame =
+    Array.isArray(teamGames) &&
+    teamGames.length > 0 &&
+    teamGames.some((game, index) => {
+      const selection = getTeamGameSelection(index);
 
-      <PlayerSetupPanel
-        mode={mode}
-        players={players}
-        onPlayerChange={handlePlayerChange}
-        onSaveSetup={saveSetup}
-        onLoadSetup={loadSetup}
-        onResetSetup={resetSetup}
-      />
+      if (!selection) return false;
 
-<div style={{ marginBottom: 12 }}>
-  <button onClick={saveLastRound} style={{ marginRight: 8 }}>
-    Save Last Round
-  </button>
-
-  <button onClick={loadLastRound}>
-    Load Last Round
-  </button>
-</div>
-
-<div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-  <h3 style={{ marginTop: 0 }}>Saved Test Rounds</h3>
-
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-    <input
-      type="text"
-      value={savedRoundName}
-      onChange={(e) => setSavedRoundName(e.target.value)}
-      placeholder="Enter round name"
-      style={{ minWidth: 220 }}
-    />
-
-    <button onClick={saveNamedRound}>Save Named Round</button>
-  </div>
-
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-    <select
-      value={selectedSavedRoundId}
-      onChange={(e) => setSelectedSavedRoundId(e.target.value)}
-      style={{ minWidth: 260 }}
-    >
-      <option value="">Select saved round</option>
-      {savedRounds.map((round) => (
-        <option key={round.id} value={round.id}>
-          {round.name}
-        </option>
-      ))}
-    </select>
-
-    <button onClick={loadNamedRound}>Load Named Round</button>
-    <button onClick={deleteNamedRound}>Delete Named Round</button>
-  </div>
-</div>
-
-      {setupMessage && (
-        <div style={{ marginBottom: 12, color: "green" }}>
-          {setupMessage}
-        </div>
-      )}
-
-      <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-        <h3>Course Setup</h3>
-
-        <div style={{ marginBottom: 10 }}>
-          <label>
-            Course Name:
-         <input
-            type="text"
-            value={course.name || ""}
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => updateCourseName(e.target.value)}
-            style={{ marginLeft: 6 }}
-/>   
-          </label>
-        </div>
-
-        <CourseEditor
-          course={course}
-          onParChange={updateCoursePar}
-          onHcpChange={updateCourseHcp}
-        />
-      </div>
-
-      <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-        <h3>Team Game & Birdie Betting</h3>
-
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Team Game Unit Amount:
-            <input
-              type="number"
-              value={teamGameUnitAmount}
-              onChange={(e) => setTeamGameUnitAmount(Number(e.target.value) || 1)}
-              style={{ width: 80, marginLeft: 6 }}
-            />
-          </label>
-        </div>
-
-        <div>
-        
-        </div>
-      </div>
-
-      <h3>Team Game Selector</h3>
-
-      <div style={{ marginBottom: 12 }}>
-        <strong>Game Hole Setup</strong>
-
-<strong>Game Hole Setup</strong>
-
-<div style={{ marginTop: 8, marginBottom: 10 }}>
-  <button onClick={() => applyPreset("6-6-6")}>
-    6 / 6 / 6
-  </button>
-
-  <button
-    onClick={() => applyPreset("9-9")}
-    style={{ marginLeft: 8 }}
-  >
-    9 / 9
-  </button>
-</div>
-
-        <div style={{ marginTop: 8, marginBottom: 8 }}>
-          <button
-            onClick={() =>
-              setTeamGames((prev) => [
-                ...prev,
-                createDefaultTeamGame(prev.length + 1),
-              ])
-            }
-          >
-            Add Team Game
-          </button>
-        </div>
-
-        {totalHoles !== 18 && (
-          <div style={{ color: "red", marginBottom: 10 }}>
-            Total holes must equal 18 (currently {totalHoles})
-          </div>
-        )}
-      </div>
-
-      {teamGames.map((game, index) => {
-        const { start, end } = getTeamGameRange(teamGames, index);
-        const duplicateError = hasDuplicateSelections(
-          getTeamGameSelection(index),
-          mode
-        );
-
+      if (mode === "5p") {
         return (
-          <div
-            key={game.id}
-            style={{ border: "1px solid gray", margin: 6, padding: 10 }}
-          >
-            <div>
-              <strong>
-                Game {index + 1}: Holes {start}-{end}
-              </strong>
-            </div>
-
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                gap: 12,
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              <label>
-                Holes:
-                <input
-                  type="number"
-                  min={1}
-                  max={18}
-                  value={game.holes ?? 1}
-                  onChange={(e) => {
-                    const value = Number(e.target.value) || 1;
-                    setTeamGames((prev) =>
-                      prev.map((g, i) =>
-                        i === index ? { ...g, holes: value } : g
-                      )
-                    );
-                  }}
-                  style={{ width: 60, marginLeft: 6 }}
-                />
-              </label>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-  <label>
-    Press Trigger:
-    <input
-      type="number"
-      min={1}
-      value={game.pressTrigger ?? 1}
-      onChange={(e) => {
-        const value = Number(e.target.value) || 1;
-        setTeamGames((prev) =>
-          prev.map((g, i) =>
-            i === index ? { ...g, pressTrigger: value } : g
-          )
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2 &&
+          (selection.team3 || []).filter(Boolean).length === 2 &&
+          (selection.team4 || []).filter(Boolean).length === 2
         );
-      }}
-      style={{ width: 60, marginLeft: 6 }}
-    />
-  </label>
+      }
 
-  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-    <input
-      type="checkbox"
-      checked={!!game.birdieEnabled}
-      onChange={(e) => {
-        const checked = e.target.checked;
-
-        setTeamGames((prev) =>
-          prev.map((g, i) =>
-            i === index
-              ? {
-                  ...g,
-                  birdieEnabled: checked,
-                  birdieBet: checked
-                    ? Number(g.birdieBet || 1)
-                    : 0,
-                }
-              : g
-          )
+      if (mode === "4p") {
+        return (
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2
         );
-      }}
-    />
-    Birdies
-  </label>
+      }
 
-  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-    Birdie Bet:
-    <input
-      type="number"
-      min="0"
-      step="1"
-      value={game.birdieBet ?? 0}
-      disabled={!game.birdieEnabled}
-      onChange={(e) => {
-        const value = Number(e.target.value || 0);
-
-        setTeamGames((prev) =>
-          prev.map((g, i) =>
-            i === index
-              ? {
-                  ...g,
-                  birdieBet: value,
-                }
-              : g
-          )
+      if (mode === "3p") {
+        return (
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 1
         );
-      }}
-      style={{ width: 70 }}
-    />
-  </label>
-</div>
+      }
 
-              {teamGames.length > 1 && (
-                <button
-                  onClick={() =>
-                    setTeamGames((prev) => prev.filter((_, i) => i !== index))
-                  }
-                >
-                  Remove Game
-                </button>
-              )}
-            </div>
+      return false;
+    });
 
-            <div style={{ marginTop: 6 }}>
-              {mode === "5p" &&
-                "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
-              {mode === "4p" &&
-                "Select Team 1 and Team 2. One 2v2 match is played for this game."}
-              {mode === "3p" &&
-                "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
-            </div>
+  const hasMatch =
+    Array.isArray(matches) &&
+    matches.some((match) => {
+      if (match.gameType === "ninePoint") {
+        return match.p1Id && match.p2Id && match.p3Id;
+      }
 
-            {renderTeamSelectors(index)}
+      return match.p1Id && match.p2Id;
+    });
 
-            {duplicateError && (
-              <div style={{ marginTop: 8, color: "red" }}>
-                Duplicate players in this game are not allowed.
-              </div>
-            )}
-          </div>
-        );
-      })}
+  if (!hasTeamGame && !hasMatch) {
+    setSetupMessage("Choose at least one valid game before starting.");
+    alert("Choose at least one valid game before starting.");
+    return;
+  }
 
-{showDebug && (
+  if (lastHoleSaved != null) {
+  setCurrentHole(lastHoleSaved + 1);
+} else {
+  setCurrentHole(1);
+}
+  setLastHoleSaved(null);
+  setScreen("live");
+}
 
+function finishRound() {
+  setScreen("results");
+}
 
+function backToSetup() {
+  setScreen("setup");
+}
 
-  <DebugPanel
-    players={players}
-    course={course}
-    scores={scores}
+function goToResults() {
+  setScreen("results");
+}
+
+function goToLive() {
+  setScreen("live");
+}
+
+function getPlayerName(playerId) {
+  return players.find((p) => p.id === playerId)?.name || playerId;
+}
+
+function buildHoleResultLines(holeNumber) {
+  const holeScores = scores[holeNumber] || {};
+  const enteredPlayers = players.filter(
+    (player) => holeScores[player.id] != null
+  );
+
+  if (enteredPlayers.length < 2) {
+    return ["Not enough scores entered."];
+  }
+
+  const scoredPlayers = enteredPlayers
+    .map((player) => ({
+      player,
+      score: Number(holeScores[player.id]),
+    }))
+    .filter((entry) => Number.isFinite(entry.score));
+
+  const bestScore = Math.min(...scoredPlayers.map((entry) => entry.score));
+  const winners = scoredPlayers.filter((entry) => entry.score === bestScore);
+
+  const lines = [];
+
+  if (winners.length === 1) {
+    lines.push(`${winners[0].player.name} wins hole`);
+  } else {
+    lines.push("Hole halved");
+  }
+
+  const par = Number(course.pars?.[holeNumber - 1]);
+
+  if (Number.isFinite(par)) {
+    const birdies = scoredPlayers.filter((entry) => entry.score === par - 1);
+
+    birdies.forEach((entry) => {
+      lines.push(`${entry.player.name} birdie`);
+    });
+  }
+
+  return lines;
+}
+
+function formatMoney(amount) {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return "";
+  if (num === 0) return "$0";
+  return `${num > 0 ? "+" : "-"}$${Math.abs(num)}`;
+}
+
+function getLedgerEntryHole(entry) {
+  return (
+    entry.hole ??
+    entry.holeNumber ??
+    entry.holeIndex ??
+    entry.startHole ??
+    null
+  );
+}
+
+function getLedgerEntryLabel(entry) {
+  return (
+    entry.label ||
+    entry.description ||
+    entry.game ||
+    entry.gameType ||
+    entry.type ||
+    "Betting result"
+  );
+}
+
+function getLedgerEntryPlayerName(entry) {
+  const playerId =
+    entry.playerId ||
+    entry.toPlayerId ||
+    entry.winnerId ||
+    entry.player ||
+    null;
+
+  if (!playerId) return "";
+
+  return players.find((p) => p.id === playerId)?.name || playerId;
+}
+
+function getLedgerEntryAmount(entry) {
+  return (
+    entry.amount ??
+    entry.value ??
+    entry.dollars ??
+    entry.net ??
+    entry.total ??
+    0
+  );
+}
+
+function buildRealHoleResultLines(holeNumber) {
+  const lines = [];
+
+  const holeScores = scores[holeNumber] || {};
+  const scoredPlayers = players
+    .map((player) => ({
+      player,
+      score: Number(holeScores[player.id]),
+    }))
+    .filter((entry) => Number.isFinite(entry.score));
+
+  if (scoredPlayers.length < 2) {
+    return ["No result yet."];
+  }
+
+  const bestScore = Math.min(...scoredPlayers.map((entry) => entry.score));
+  const winners = scoredPlayers.filter((entry) => entry.score === bestScore);
+
+  if (winners.length === 1) {
+    lines.push(`${winners[0].player.name} wins hole`);
+  } else {
+    lines.push("Hole halved");
+  }
+
+  const par = Number(course.pars?.[holeNumber - 1]);
+  const activeGame = teamGames.find((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return holeNumber >= range.start && holeNumber <= range.end;
+  });
+
+  const birdieBet = Number(activeGame?.birdieBet || 0);
+  const birdiesEnabled = !!activeGame?.birdieEnabled && birdieBet > 0;
+
+  if (Number.isFinite(par)) {
+    const birdies = scoredPlayers.filter((entry) => entry.score === par - 1);
+
+    birdies.forEach((entry) => {
+      if (birdiesEnabled) {
+        lines.push(`${entry.player.name} birdie (+$${birdieBet})`);
+      } else {
+        lines.push(`${entry.player.name} birdie`);
+      }
+    });
+  }
+
+  return lines;
+}
+
+ // ===== FINAL APP RETURN (DO NOT TOUCH INNER RETURNS ABOVE) =====
+return (
+  <div style={{ padding: 12 }}>
+    <h2>Golf Betting App</h2>
+
+    {screen === "setup" && (
+  <SetupScreen
+    mode={mode}
+    handleModeChange={handleModeChange}
     handicapMode={handicapMode}
-    teamA={debugMatchup?.teamA || []}
-    teamB={debugMatchup?.teamB || []}
-    startHole={debugMatchup?.start || 1}
-    endHole={debugMatchup?.end || 18}
-    title={debugMatchup?.title || "Debug View"}
-    teamALabel={debugMatchup?.teamALabel || "Team A"}
-    teamBLabel={debugMatchup?.teamBLabel || "Team B"}
-    computedResults={computedResults}
-    teamGameResults={teamGameResults}
+    setHandicapMode={setHandicapMode}
+    players={players}
+    handlePlayerChange={handlePlayerChange}
+    saveSetup={saveSetup}
+    loadSetup={loadSetup}
+    resetSetup={resetSetup}
+    saveLastRound={saveLastRound}
+    loadLastRound={loadLastRound}
+    savedRoundName={savedRoundName}
+    setSavedRoundName={setSavedRoundName}
+    saveNamedRound={saveNamedRound}
+    savedRounds={savedRounds}
+    selectedSavedRoundId={selectedSavedRoundId}
+    setSelectedSavedRoundId={setSelectedSavedRoundId}
+    loadNamedRound={loadNamedRound}
+    deleteNamedRound={deleteNamedRound}
+    setupMessage={setupMessage}
+    course={course}
+    updateCourseName={updateCourseName}
+    updateCoursePar={updateCoursePar}
+    updateCourseHcp={updateCourseHcp}
+    teamGameUnitAmount={teamGameUnitAmount}
+    setTeamGameUnitAmount={setTeamGameUnitAmount}
+    applyPreset={applyPreset}
+    setTeamGames={setTeamGames}
+    teamGames={teamGames}
+    totalHoles={totalHoles}
+    getTeamGameRange={getTeamGameRange}
+    hasDuplicateSelections={hasDuplicateSelections}
     getTeamGameSelection={getTeamGameSelection}
+    renderTeamSelectors={renderTeamSelectors}
+    addMatch={addMatch}
+    addNinePointMatch={addNinePointMatch}
+    matches={matches}
+    matchResults={matchResults}
+    updateMatch={updateMatch}
+    removeMatch={removeMatch}
+    startRound={startRound}
+    createDefaultTeamGame={createDefaultTeamGame}
+    focusGameIndex={focusGameIndex}
   />
 )}
 
-<div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-  <h3 style={{ marginTop: 0 }}>Debug Tools</h3>
-
-  <label>
-    <input
-      type="checkbox"
-      checked={showDebug}
-      onChange={(e) => setShowDebug(e.target.checked)}
-    />
-    Show Debug View
-  </label>
-
-  {showDebug && (
-    <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
-      <label>
-        Team Game:
-        <select
-          value={debugGameIndex}
-          onChange={(e) => setDebugGameIndex(Number(e.target.value))}
-          style={{ marginLeft: 6 }}
+    {screen === "live" && (
+      <>
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            background: "white",
+            border: "1px solid #ccc",
+            padding: 12,
+            marginBottom: 12,
+            zIndex: 10,
+          }}
         >
-          {teamGames.map((game, index) => (
-            <option key={game.id} value={index}>
-              Game {index + 1}
-            </option>
-          ))}
-        </select>
+          <div style={{ fontSize: 12, color: "#666" }}>Projected Settlement</div>
+          <strong>
+            {leaderboard && players.length > 0
+              ? (() => {
+                  const sorted = [...players].sort(
+                    (a, b) => (leaderboard[b.id] ?? 0) - (leaderboard[a.id] ?? 0)
+                  );
+                  const top = sorted[0];
+                  const amount = leaderboard[top.id] ?? 0;
+                  return amount === 0 ? "Even" : `${top.name} ${amount > 0 ? "wins" : "owes"} $${Math.abs(amount)}`;
+                })()
+              : "Even"}
+          </strong>
+        </div>
+
+        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>
+            Hole {currentHole} • Par {course.pars?.[currentHole - 1] ?? "-"} • HCP{" "}
+            {course.hcp?.[currentHole - 1] ?? "-"}
+          </h3>
+
+        <div style={{ display: "grid", gap: 10 }}>
+  {players.map((player, playerIndex) => (
+    <div
+      key={player.id}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <label htmlFor={`score-${currentHole}-${player.id}`}>
+        {player.name}
       </label>
 
-      <label>
-        Matchup:
-        <select
-          value={debugMatchKey}
-          onChange={(e) => setDebugMatchKey(e.target.value)}
-          style={{ marginLeft: 6 }}
-        >
-          <option value="team2">Team 1 vs Team 2</option>
-          <option value="team3">Team 1 vs Team 3</option>
-          <option value="team4">Team 1 vs Team 4</option>
-        </select>
-      </label>
+      <input
+        ref={(el) => {
+          scoreInputRefs.current[player.id] = el;
+        }}
+        id={`score-${currentHole}-${player.id}`}
+        type="number"
+        inputMode="numeric"
+        value={scores[currentHole]?.[player.id] ?? ""}
+        onFocus={(e) => e.target.select()}
+       onChange={(e) => {
+  const rawValue = e.target.value;
+  const value = rawValue.slice(-1);
+
+  if (value !== "" && !/^[1-9]$/.test(value)) return;
+
+  setScore(currentHole, player.id, value);
+
+  if (value !== "") {
+    if (playerIndex < players.length - 1) {
+      const nextPlayer = players[playerIndex + 1];
+
+      setTimeout(() => {
+        scoreInputRefs.current[nextPlayer.id]?.focus();
+      }, 0);
+    } else {
+      setTimeout(() => {
+        saveHoleButtonRef.current?.focus();
+      }, 0);
+    }
+  }
+}}
+
+          
+        style={{
+          width: 80,
+          padding: 8,
+          fontSize: 18,
+          textAlign: "center",
+        }}
+      />
     </div>
-  )}
+  ))}
 </div>
 
-      <h3>Team Game Results</h3>
-      {teamGameResults.map((game) => (
-        <div
-          key={game.index}
-          style={{ border: "1px solid gray", margin: 6, padding: 10 }}
-        >
-          <div>
-            <strong>
-              Game {game.index + 1}: Holes {game.start}-{game.end}
-            </strong>
-          </div>
+          <button 
+          ref={saveHoleButtonRef}
+          disabled={!players.every((player) => scores[currentHole]?.[player.id] != null)}
+ onClick={() => {
+  const nextHole = currentHole + 1;
 
-          {game.duplicateError ? (
-            <div style={{ marginTop: 6, color: "red" }}>
-              Fix duplicate player selections before results can be calculated.
-            </div>
-          ) : game.matches.length === 0 ? (
-            <div style={{ marginTop: 6 }}>No valid team matches selected yet.</div>
-          ) : (
-            game.matches.map((match, idx) => {
-              const settlement = getTeamGameSettlement(
-  match.result,
-  teamGameUnitAmount
+  setLastHoleSaved(currentHole);
+
+  if (currentHole >= 18) {
+    finishRound();
+    return;
+  }
+
+  const nextGameIndex = teamGames.findIndex((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return nextHole >= range.start && nextHole <= range.end;
+  });
+
+  if (nextGameIndex >= 0) {
+    const selection = getTeamGameSelection(nextGameIndex);
+
+    const hasValidTeams =
+      mode === "5p"
+        ? (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2 &&
+          (selection.team3 || []).filter(Boolean).length === 2 &&
+          (selection.team4 || []).filter(Boolean).length === 2
+        : mode === "4p"
+        ? (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2
+        : (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 1;
+
+    if (!hasValidTeams) {
+  setSetupMessage(`Set teams for Game ${nextGameIndex + 1} before continuing.`);
+  setFocusGameIndex(nextGameIndex);
+  setScreen("setup");
+  return;
+}
+  }
+
+  setCurrentHole(nextHole);
+}}
+  style={{
+    width: "100%",
+    padding: 12,
+    fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 12,
+    opacity: players.every((player) => scores[currentHole]?.[player.id] != null)
+      ? 1
+      : 0.5,
+  }}
+  
+>
+  Save Hole {currentHole}
+</button>
+
+        </div>
+
+        {lastHoleSaved && (
+  <div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+    <h3 style={{ marginTop: 0 }}>Hole {lastHoleSaved} Result</h3>
+
+    {buildRealHoleResultLines(lastHoleSaved).map((line, index) => (
+      <div key={index}>{line}</div>
+    ))}
+  </div>
+)}
+
+<div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+<h3 style={{ marginTop: 0 }}>Current Game</h3>
+  {teamGames.map((game, index) => {
+  const range = getTeamGameRange(teamGames, index);
+
+const activeGameSelection = getTeamGameSelection(index);
+const currentGameResult = teamGameResults.find(
+  (result) => result.index === index
 );
 
-const selection = getTeamGameSelection(game.index);
+const matchupLines = [];
 
-const parts = (match.label || "").split(" ");
-const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+function teamName(teamIds = []) {
+  return teamIds
+    .filter(Boolean)
+    .map((id) => players.find((p) => p.id === id)?.name || id)
+    .join(" / ");
+}
 
-const teamALabel = formatTeamNames(selection?.[teamAKey] || [], players);
-const teamBLabel = formatTeamNames(selection?.[teamBKey] || [], players);
+(currentGameResult?.matches || []).forEach((matchup) => {
+  const parts = matchup.label.split(" ");
+  const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+  const teamBKey = `team${parts[4] || ""}`.toLowerCase();
 
-const displayLabel =
-  teamALabel && teamBLabel
-    ? `${teamALabel} v ${teamBLabel}`
-    : match.label;
+  const teamAPlayers = activeGameSelection?.[teamAKey] || [];
+  const teamBPlayers = activeGameSelection?.[teamBKey] || [];
+
+  const units = (matchup.result || []).reduce((sum, item) => {
+    const score = item.score || 0;
+    if (score > 0) return sum + 1;
+    if (score < 0) return sum - 1;
+    return sum;
+  }, 0);
+
+  let resultText = "Even";
+
+  if (units > 0) {
+    resultText = `${teamName(teamAPlayers)} won ${units}`;
+  }
+
+  if (units < 0) {
+    resultText = `${teamName(teamBPlayers)} won ${Math.abs(units)}`;
+  }
+
+  matchupLines.push(
+    `${teamName(teamAPlayers)} vs ${teamName(teamBPlayers)}: ${resultText}`
+  );
+});
+
+let status = "Not started";
+
+  let holesPlayed = 0;
+
+  if (currentHole > range.end) {
+    status = "Complete";
+    holesPlayed = Number(game.holes) || 0;
+  } else if (currentHole >= range.start && currentHole <= range.end) {
+    status = "In progress";
+holesPlayed = Math.max(0, currentHole - range.start);
+  }
+
+if (status === "Not started") return null;
+
+const playerSummary = currentGameResult?.gameUnitTotals || {};
+
+  return (
+    <div key={game.id} style={{ marginBottom: 8 }}>
+      <strong>
+        Game {index + 1}: Holes {range.start}-{range.end}
+      </strong>
+      <div>{status}</div>
+     {Object.entries(playerSummary)
+  .filter(([, value]) => value !== 0)
+  .sort((a, b) => b[1] - a[1])
+  .map(([playerId, value]) => {
+    const name = players.find((p) => p.id === playerId)?.name || playerId;
+
+    return (
+      <div key={playerId} style={{ fontSize: 13 }}>
+        {name} {value > 0 ? `won ${Number(value.toFixed(2))}` : `lost ${Number(Math.abs(value).toFixed(2))}`}
+      </div>
+    );
+  })}
+
+<button
+  onClick={() =>
+    setShowMatchDetails((prev) => ({
+      ...prev,
+      [game.id]: !prev[game.id],
+    }))
+  }
+  style={{ marginTop: 6 }}
+>
+  {showMatchDetails[game.id] ? "Hide match details" : "Show match details"}
+</button>
+
+{showMatchDetails[game.id] &&
+  matchupLines.map((line, lineIndex) => (
+    <div key={lineIndex} style={{ fontSize: 12, color: "#666" }}>
+      {line}
+    </div>
+  ))}
+      {status !== "Not started" && (
+        <div style={{ fontSize: 12, color: "#666" }}>
+          {holesPlayed} of {Number(game.holes) || 0} holes played
+        </div>
+      )}
+    </div>
+  );
+})}
+
+</div>
+
+<div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+  <h3 style={{ marginTop: 0 }}>Birdies (Gross Side Bet)</h3>
+
+{players
+  .map((player) => {
+        let birdieTotal = 0;
+
+    for (let hole = 1; hole <= 18; hole += 1) {
+      const score = scores[hole]?.[player.id];
+      const par = Number(course.pars?.[hole - 1]);
+
+      if (score != null && Number(score) === par - 1) {
+        const activeGame = teamGames.find((game, index) => {
+          const range = getTeamGameRange(teamGames, index);
+          return hole >= range.start && hole <= range.end;
+        });
+
+        if (activeGame?.birdieEnabled) {
+          birdieTotal += Number(activeGame.birdieBet || 0);
+        }
+      }
+    }
+
+    if (birdieTotal === 0) return null;
 
 return (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #ccc",
-                    marginTop: 8,
-                    padding: 8,
-                  }}
-                >
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>{displayLabel}</strong>
-                  </div>
+  <div key={player.id}>
+    {player.name}: ${birdieTotal}
+  </div>
+);
+  })}
+</div>
 
-                  <div style={{ marginBottom: 4 }}>
-                    Trigger: {teamGames[game.index]?.pressTrigger ?? 1} downs
-                  </div>
-
-                  {match.result.map((bet, betIndex) => (
-                    <div key={betIndex}>
-                      {bet.label} = {formatBetScore(bet.score)}
-                    </div>
-                  ))}
-
-                  <div
-                    style={{
-                      marginTop: 8,
-                      borderTop: "1px solid #ddd",
-                      paddingTop: 8,
-                    }}
-                  >
-                    <div>Wins: {settlement.wins}</div>
-                    <div>Losses: {settlement.losses}</div>
-                    <div>Pushes: {settlement.pushes}</div>
-                    <div>
-                      <strong>Net Units: {settlement.netUnits}</strong>
-                    </div>
-                    <div>
-                      <strong>Net Dollars: ${settlement.netDollars}</strong>
-                    </div>
-                  </div>
-
-
-                </div>
-              );
-            })
-          )}
+        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+<h3 style={{ marginTop: 0 }}>Final Settlement Preview</h3>
+          <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
+            Final settlement updates after games are completed.
+          </div>
+          {players.map((player) => (
+            <div key={player.id}>
+              {player.name}: ${leaderboard[player.id] ?? 0}
+            </div>
+          ))}
         </div>
-      ))}
 
-<div style={{ marginBottom: 12 }}>
-  <button onClick={addMatch}>Add Match</button>
-
-  <button
-    onClick={addNinePointMatch}
-    style={{ marginLeft: 8 }}
-  >
-    Add 9 Point Match
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+  <button onClick={backToSetup}>Edit Setup</button>
+  <button onClick={goToResults}>View Results</button>
+  <button onClick={() => setShowScorecardEdit((prev) => !prev)}>
+    {showScorecardEdit ? "Hide Scorecard" : "Edit Scorecard"}
   </button>
 </div>
 
-      <MatchList
-        players={players}
-        matches={matches}
-        results={matchResults}
-        onAddMatch={addMatch}
-        onUpdateMatch={updateMatch}
-        onRemoveMatch={removeMatch}
-      />
+{showScorecardEdit && (
+  <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+    <h3 style={{ marginTop: 0 }}>Edit Scorecard</h3>
 
-      <ScoresGrid players={players} scores={scores} onSetScore={setScore} />
+    <ScoresGrid
+      players={players}
+      scores={scores}
+      onSetScore={setScore}
+    />
+  </div>
+)}
+      </>
+    )}
 
-      <h3>Leaderboard</h3>
-      <div>
-        {players.map((player) => (
-          <div key={player.id}>
-            {player.name}: ${leaderboard[player.id] ?? 0}
-          </div>
-        ))}
-      </div>
-      <SettlementSection
-  playerLedger={computedResults.playerLedger}
-  tabs={computedResults.tabs}
-  players={players}
-/>
-    </div>
-  );
+    {screen === "results" && (
+      <>
+        <button onClick={goToLive} style={{ marginBottom: 12 }}>
+          Back to Round
+        </button>
+
+        <h3>Final Results</h3>
+
+        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
+          {players.map((player) => (
+            <div key={player.id}>
+              {player.name}: ${leaderboard[player.id] ?? 0}
+            </div>
+          ))}
+        </div>
+
+        <SettlementSection
+          playerLedger={computedResults.playerLedger}
+          tabs={computedResults.tabs}
+          players={players}
+        />
+
+        {showDebug && (
+          <DebugPanel
+            players={players}
+            course={course}
+            scores={scores}
+            handicapMode={handicapMode}
+            teamA={debugMatchup?.teamA || []}
+            teamB={debugMatchup?.teamB || []}
+            startHole={debugMatchup?.start || 1}
+            endHole={debugMatchup?.end || 18}
+            title={debugMatchup?.title || "Debug View"}
+            teamALabel={debugMatchup?.teamALabel || "Team A"}
+            teamBLabel={debugMatchup?.teamBLabel || "Team B"}
+            computedResults={computedResults}
+            teamGameResults={teamGameResults}
+            getTeamGameSelection={getTeamGameSelection}
+          />
+        )}
+
+        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Debug Tools</h3>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={showDebug}
+              onChange={(e) => setShowDebug(e.target.checked)}
+            />
+            Show Debug View
+          </label>
+        </div>
+      </>
+    )}
+  </div>
+);
 }
