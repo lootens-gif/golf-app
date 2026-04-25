@@ -12,6 +12,7 @@ import ScoresGrid from "./components/ScoresGrid";
 import DebugPanel from "./components/DebugPanel";
 import SettlementSection from "./components/SettlementSection";
 import SetupScreen from "./screens/SetupScreen";
+import ResultsScreen from "./screens/ResultsScreen";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -1847,62 +1848,14 @@ return (
       </>
     )}
 
-    {screen === "results" && (
-      <>
-        <button onClick={goToLive} style={{ marginBottom: 12 }}>
-          Back to Round
-        </button>
-
-        <h3>Final Results</h3>
-
-        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
-          {players.map((player) => (
-            <div key={player.id}>
-              {player.name}: ${leaderboard[player.id] ?? 0}
-            </div>
-          ))}
-        </div>
-
-        <SettlementSection
-          playerLedger={computedResults.playerLedger}
-          tabs={computedResults.tabs}
-          players={players}
-        />
-
-        {showDebug && (
-          <DebugPanel
-            players={players}
-            course={course}
-            scores={scores}
-            handicapMode={handicapMode}
-            teamA={debugMatchup?.teamA || []}
-            teamB={debugMatchup?.teamB || []}
-            startHole={debugMatchup?.start || 1}
-            endHole={debugMatchup?.end || 18}
-            title={debugMatchup?.title || "Debug View"}
-            teamALabel={debugMatchup?.teamALabel || "Team A"}
-            teamBLabel={debugMatchup?.teamBLabel || "Team B"}
-            computedResults={computedResults}
-            teamGameResults={teamGameResults}
-            getTeamGameSelection={getTeamGameSelection}
-          />
-        )}
-
-        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Debug Tools</h3>
-
-          <label>
-            <input
-              type="checkbox"
-              checked={showDebug}
-              onChange={(e) => setShowDebug(e.target.checked)}
-            />
-            Show Debug View
-          </label>
-        </div>
-      </>
-    )}
+{screen === "results" && (
+  <ResultsScreen
+    players={players}
+    leaderboard={leaderboard}
+    computedResults={computedResults}
+    goToLive={goToLive}
+  />
+)}
   </div>
 );
 }
