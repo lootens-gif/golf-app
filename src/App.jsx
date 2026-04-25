@@ -8,11 +8,7 @@ import {
   scoreRound,
   buildBirdieResults,
 } from "./engine/scoringEngine";
-import SettingsPanel from "./components/SettingsPanel";
-import PlayerSetupPanel from "./components/PlayerSetupPanel";
-import CourseEditor from "./components/CourseEditor";
 import ScoresGrid from "./components/ScoresGrid";
-import MatchList from "./components/MatchList";
 import DebugPanel from "./components/DebugPanel";
 import SettlementSection from "./components/SettlementSection";
 import SetupScreen from "./screens/SetupScreen";
@@ -41,18 +37,7 @@ function getTeamGameRange(teamGames, index) {
   return { start, end };
 }
 
-function formatTeamNames(teamIds = [], players = []) {
-  return (teamIds || [])
-    .map((id) => players.find((p) => p.id === id)?.name || id)
-    .filter(Boolean)
-    .join(" / ");
-}
 
-function formatBetScore(score) {
-  if (score === 0) return "Tie";
-  if (score > 0) return `${score} up`;
-  return `${Math.abs(score)} down`;
-}
 
 function createEmptyRound() {
   return {
@@ -80,8 +65,8 @@ export default function App() {
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
   const [showDebug, setShowDebug] = useState(false);
-  const [debugGameIndex, setDebugGameIndex] = useState(0);
-  const [debugMatchKey, setDebugMatchKey] = useState("team2");
+  const [debugGameIndex] = useState(0);
+  const [debugMatchKey] = useState("team2");
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
@@ -95,18 +80,7 @@ export default function App() {
   const saveHoleButtonRef = useRef(null);
   const [focusGameIndex, setFocusGameIndex] = useState(null);
 
-useEffect(() => {
-  const firstPlayer = players?.[0];
-  if (!firstPlayer) return;
 
-  const el = scoreInputRefs.current[firstPlayer.id];
-  if (el) {
-    setTimeout(() => {
-      el.focus();
-      el.select?.();
-    }, 0);
-  }
-}, [currentHole, screen]);
 
   function createDefaultTeamGame(index = 0) {
   return {
@@ -140,6 +114,19 @@ useEffect(() => {
     [players]
   );
 
+useEffect(() => {
+  const firstPlayer = players?.[0];
+  if (!firstPlayer) return;
+
+  const el = scoreInputRefs.current[firstPlayer.id];
+  if (el) {
+    setTimeout(() => {
+      el.focus();
+      el.select?.();
+    }, 0);
+  }
+}, [currentHole, screen, players]);
+
   const context = useMemo(
     () => ({
       players,
@@ -155,15 +142,6 @@ useEffect(() => {
     ]
   );
 
-  function resetRoundData() {
-    setScores({});
-    setMatches([]);
-    setTeamGames([
-      createDefaultTeamGame(1),
-      createDefaultTeamGame(2),
-      createDefaultTeamGame(3),
-    ]);
-  }
 
   function handleModeChange(nextMode) {
     setMode(nextMode);
@@ -272,21 +250,7 @@ function getDebugMatchup() {
   return null;
 }
 
-  function getTeamGameSettlement(result, unitAmount = 1) {
-  const wins = result.filter((bet) => bet.score > 0).length;
-  const losses = result.filter((bet) => bet.score < 0).length;
-  const pushes = result.filter((bet) => bet.score === 0).length;
-  const netUnits = wins - losses;
-  const netDollars = netUnits * unitAmount;
-
-  return {
-    wins,
-    losses,
-    pushes,
-    netUnits,
-    netDollars,
-  };
-}
+  
 
 function applyPreset(preset) {
   if (preset === "6-6-6") {
@@ -1437,67 +1401,7 @@ function goToLive() {
   setScreen("live");
 }
 
-function getPlayerName(playerId) {
-  return players.find((p) => p.id === playerId)?.name || playerId;
-}
 
-function buildHoleResultLines(holeNumber) {
-  const holeScores = scores[holeNumber] || {};
-  const enteredPlayers = players.filter(
-    (player) => holeScores[player.id] != null
-  );
-
-  if (enteredPlayers.length < 2) {
-    return ["Not enough scores entered."];
-  }
-
-  const scoredPlayers = enteredPlayers
-    .map((player) => ({
-      player,
-      score: Number(holeScores[player.id]),
-    }))
-    .filter((entry) => Number.isFinite(entry.score));
-
-  const bestScore = Math.min(...scoredPlayers.map((entry) => entry.score));
-  const winners = scoredPlayers.filter((entry) => entry.score === bestScore);
-
-  const lines = [];
-
-  if (winners.length === 1) {
-    lines.push(`${winners[0].player.name} wins hole`);
-  } else {
-    lines.push("Hole halved");
-  }
-
-  const par = Number(course.pars?.[holeNumber - 1]);
-
-  if (Number.isFinite(par)) {
-    const birdies = scoredPlayers.filter((entry) => entry.score === par - 1);
-
-    birdies.forEach((entry) => {
-      lines.push(`${entry.player.name} birdie`);
-    });
-  }
-
-  return lines;
-}
-
-function formatMoney(amount) {
-  const num = Number(amount);
-  if (!Number.isFinite(num)) return "";
-  if (num === 0) return "$0";
-  return `${num > 0 ? "+" : "-"}$${Math.abs(num)}`;
-}
-
-function getLedgerEntryHole(entry) {
-  return (
-    entry.hole ??
-    entry.holeNumber ??
-    entry.holeIndex ??
-    entry.startHole ??
-    null
-  );
-}
 
 function getLedgerEntryLabel(entry) {
   return (
