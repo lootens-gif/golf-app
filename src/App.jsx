@@ -1403,41 +1403,6 @@ function goToLive() {
 
 
 
-function getLedgerEntryLabel(entry) {
-  return (
-    entry.label ||
-    entry.description ||
-    entry.game ||
-    entry.gameType ||
-    entry.type ||
-    "Betting result"
-  );
-}
-
-function getLedgerEntryPlayerName(entry) {
-  const playerId =
-    entry.playerId ||
-    entry.toPlayerId ||
-    entry.winnerId ||
-    entry.player ||
-    null;
-
-  if (!playerId) return "";
-
-  return players.find((p) => p.id === playerId)?.name || playerId;
-}
-
-function getLedgerEntryAmount(entry) {
-  return (
-    entry.amount ??
-    entry.value ??
-    entry.dollars ??
-    entry.net ??
-    entry.total ??
-    0
-  );
-}
-
 function buildRealHoleResultLines(holeNumber) {
   const lines = [];
 
