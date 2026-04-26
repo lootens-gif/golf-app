@@ -9,8 +9,7 @@ import {
   buildBirdieResults,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
-import DebugPanel from "./components/DebugPanel";
-import SettlementSection from "./components/SettlementSection";
+
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 
@@ -65,7 +64,6 @@ export default function App() {
   const [scores, setScores] = useState({});
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
-  const [showDebug, setShowDebug] = useState(false);
   const [debugGameIndex] = useState(0);
   const [debugMatchKey] = useState("team2");
   const [savedRoundName, setSavedRoundName] = useState("");
@@ -194,64 +192,7 @@ function getTeamGameSelection(index) {
   );
 }
   
-function getDebugMatchup() {
-  if (!["4p", "5p"].includes(mode)) {
-    return null;
-  }
 
-  const selected = getTeamGameSelection(debugGameIndex);
-  if (!selected) return null;
-
-  const team1 = normalizeTeam(selected.team1 || []);
-  const team2 = normalizeTeam(selected.team2 || []);
-  const team3 = normalizeTeam(selected.team3 || []);
-  const team4 = normalizeTeam(selected.team4 || []);
-
-  const game = teamGames[debugGameIndex];
-  if (!game) return null;
-
-  const { start, end } = getTeamGameRange(teamGames, debugGameIndex);
-
-  if (debugMatchKey === "team2") {
-    return {
-      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 2`,
-      teamA: team1,
-      teamB: team2,
-      teamALabel: "Team 1",
-      teamBLabel: "Team 2",
-      start,
-      end,
-    };
-  }
-
-  if (debugMatchKey === "team3") {
-    return {
-      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 3`,
-      teamA: team1,
-      teamB: team3,
-      teamALabel: "Team 1",
-      teamBLabel: "Team 3",
-      start,
-      end,
-    };
-  }
-
-  if (debugMatchKey === "team4") {
-    return {
-      title: `Game ${debugGameIndex + 1}: Team 1 vs Team 4`,
-      teamA: team1,
-      teamB: team4,
-      teamALabel: "Team 1",
-      teamBLabel: "Team 4",
-      start,
-      end,
-    };
-  }
-
-  return null;
-}
-
-  
 
 function applyPreset(preset) {
   if (preset === "6-6-6") {
@@ -780,7 +721,6 @@ function addNinePointMatch() {
 
 
 
-  const debugMatchup = getDebugMatchup();
 
   const teamGameResults = teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
