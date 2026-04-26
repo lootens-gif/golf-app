@@ -64,8 +64,6 @@ export default function App() {
   const [scores, setScores] = useState({});
   const [handicapMode, setHandicapMode] = useState("relative");
   const [matches, setMatches] = useState([]);
-  const [debugGameIndex] = useState(0);
-  const [debugMatchKey] = useState("team2");
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
