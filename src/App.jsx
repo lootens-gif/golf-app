@@ -1330,87 +1330,84 @@ function startRound() {
     return;
   }
 
- const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
-
-const requiredGameIndex = teamGames.findIndex((game, index) => {
-  const range = getTeamGameRange(teamGames, index);
-  return requiredHole >= range.start && requiredHole <= range.end;
-});
-
-const hasValidTeamGameForRequiredHole =
-  requiredGameIndex >= 0 &&
-  (() => {
-    const selection = getTeamGameSelection(requiredGameIndex);
-    if (!selection) return false;
-
-    if (mode === "5p") {
-      return (
-        (selection.team1 || []).filter(Boolean).length === 2 &&
-        (selection.team2 || []).filter(Boolean).length === 2 &&
-        (selection.team3 || []).filter(Boolean).length === 2 &&
-        (selection.team4 || []).filter(Boolean).length === 2
-      );
-    }
-
-    if (mode === "4p") {
-      return (
-        (selection.team1 || []).filter(Boolean).length === 2 &&
-        (selection.team2 || []).filter(Boolean).length === 2
-      );
-    }
-
-    if (mode === "3p") {
-      return (
-        (selection.team1 || []).filter(Boolean).length === 2 &&
-        (selection.team2 || []).filter(Boolean).length === 1
-      );
-    }
-
-    return false;
-  })();
-
-  const hasMatch =
-    Array.isArray(matches) &&
-    matches.some((match) => {
-      if (match.gameType === "ninePoint") {
-        return match.p1Id && match.p2Id && match.p3Id;
-      }
-
-      return match.p1Id && match.p2Id;
-    });
-
-if (!hasValidTeamGameForRequiredHole && !hasMatch) {
-  const gameLabel =
-    requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
-
-  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
-
-  if (requiredGameIndex >= 0) {
-    setFocusGameTarget({
-      gameIndex: requiredGameIndex,
-      nonce: Date.now(),
-    });
+  // Round already complete: go back to Live so user can view/edit scorecard
+  if (lastHoleSaved != null && lastHoleSaved >= 18) {
+    setPendingNextGameIndex(null);
+    setScreen("live");
+    return;
   }
 
-  alert(`Set teams for ${gameLabel} before continuing.`);
+  const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
 
-  if (requiredGameIndex >= 0) {
-    setTimeout(() => {
+  const requiredGameIndex = teamGames.findIndex((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return requiredHole >= range.start && requiredHole <= range.end;
+  });
+
+  const hasValidTeamGameForRequiredHole =
+    requiredGameIndex >= 0 &&
+    (() => {
+      const selection = getTeamGameSelection(requiredGameIndex);
+      if (!selection) return false;
+
+      if (mode === "5p") {
+        return (
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2 &&
+          (selection.team3 || []).filter(Boolean).length === 2 &&
+          (selection.team4 || []).filter(Boolean).length === 2
+        );
+      }
+
+      if (mode === "4p") {
+        return (
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 2
+        );
+      }
+
+      if (mode === "3p") {
+        return (
+          (selection.team1 || []).filter(Boolean).length === 2 &&
+          (selection.team2 || []).filter(Boolean).length === 1
+        );
+      }
+
+      return false;
+    })();
+
+  if (!hasValidTeamGameForRequiredHole) {
+    const gameLabel =
+      requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
+
+    setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
+
+    if (requiredGameIndex >= 0) {
       setFocusGameTarget({
         gameIndex: requiredGameIndex,
         nonce: Date.now(),
       });
-    }, 0);
+    }
+
+    alert(`Set teams for ${gameLabel} before continuing.`);
+
+    if (requiredGameIndex >= 0) {
+      setTimeout(() => {
+        setFocusGameTarget({
+          gameIndex: requiredGameIndex,
+          nonce: Date.now(),
+        });
+      }, 0);
+    }
+
+    return;
   }
 
-  return;
-}
-
   if (lastHoleSaved != null) {
-  setCurrentHole(lastHoleSaved + 1);
-} else {
-  setCurrentHole(1);
-}
+    setCurrentHole(lastHoleSaved + 1);
+  } else {
+    setCurrentHole(1);
+  }
 
   setPendingNextGameIndex(null);
   setScreen("live");
