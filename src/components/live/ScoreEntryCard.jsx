@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 export default function ScoreEntryCard({
   currentHole,
@@ -11,17 +11,15 @@ export default function ScoreEntryCard({
   const scoreInputRefs = useRef({});
   const saveHoleButtonRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const firstPlayer = players?.[0];
     if (!firstPlayer) return;
 
     const el = scoreInputRefs.current[firstPlayer.id];
 
     if (el) {
-      setTimeout(() => {
         el.focus();
         el.select?.();
-      }, 0);
     }
   }, [currentHole, players]);
 
@@ -74,7 +72,7 @@ if (currentHole > 18) {
                 scoreInputRefs.current[player.id] = el;
               }}
               id={`score-${currentHole}-${player.id}`}
-              type="number"
+              type="tel"
               inputMode="numeric"
               value={scores[currentHole]?.[player.id] ?? ""}
               onFocus={(e) => e.target.select()}

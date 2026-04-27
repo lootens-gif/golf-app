@@ -53,16 +53,19 @@ export default function SetupScreen({
 }) {
     const teamGameRefs = useRef({});
 
+// Do not force-focus selects in Safari; it can lock/dropdown weirdly.
+// Scroll to the game only.
+
     useEffect(() => {
-  if (focusGameTarget == null) return;
+  if (!focusGameTarget) return;
 
   const el = teamGameRefs.current[focusGameTarget.gameIndex];
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (!el) return;
 
-    const firstSelector = el.querySelector("select");
-firstSelector?.focus();
-  }
+  setTimeout(() => {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 0);
+
 }, [focusGameTarget]);
   return (
     <>
