@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
@@ -9,9 +9,10 @@ import {
   buildBirdieResults,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
-
+import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
+import HoleResultCard from "./components/live/HoleResultCard";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -70,12 +71,12 @@ export default function App() {
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
   const [currentHole, setCurrentHole] = useState(1);
-  const [showMatchDetails, setShowMatchDetails] = useState({});
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
-  const scoreInputRefs = useRef({});
-  const saveHoleButtonRef = useRef(null);
-  const [focusGameIndex, setFocusGameIndex] = useState(null);
+  const [focusGameTarget, setFocusGameTarget] = useState(null);
+  const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
+  const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
+  const [showRoundSummary, setShowRoundSummary] = useState(true);
 
 
 
@@ -110,19 +111,6 @@ export default function App() {
     () => new Set(players.map((p) => p.id)),
     [players]
   );
-
-useEffect(() => {
-  const firstPlayer = players?.[0];
-  if (!firstPlayer) return;
-
-  const el = scoreInputRefs.current[firstPlayer.id];
-  if (el) {
-    setTimeout(() => {
-      el.focus();
-      el.select?.();
-    }, 0);
-  }
-}, [currentHole, screen, players]);
 
   const context = useMemo(
     () => ({
@@ -1147,6 +1135,78 @@ function deleteNamedRound() {
   }
 }
 
+function exportSavedRounds() {
+  try {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      savedRounds,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `golf-saved-rounds-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+    setSetupMessage("Saved rounds exported.");
+  } catch (error) {
+    setSetupMessage("Could not export saved rounds.");
+  }
+}
+
+function importSavedRounds(event) {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+
+      const importedRounds = Array.isArray(parsed)
+        ? parsed
+        : parsed.savedRounds;
+
+      if (!Array.isArray(importedRounds)) {
+        setSetupMessage("Import file does not contain saved rounds.");
+        return;
+      }
+
+      const mergedRounds = [...importedRounds, ...savedRounds];
+
+      const dedupedRounds = mergedRounds.filter(
+        (round, index, arr) =>
+          round?.id &&
+          index === arr.findIndex((item) => item.id === round.id)
+      );
+
+      setSavedRounds(dedupedRounds);
+      localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(dedupedRounds));
+
+      setSetupMessage(`Imported ${importedRounds.length} saved rounds.`);
+      event.target.value = "";
+    } catch (error) {
+      setSetupMessage("Could not import saved rounds.");
+    }
+  };
+
+  reader.readAsText(file);
+}
+
 function resetSetup() {
   setMode("5p");
   setAllPlayers(createDefaultAllPlayers());
@@ -1160,6 +1220,11 @@ function resetSetup() {
     createDefaultTeamGame(2),
     createDefaultTeamGame(3),
   ]);
+  setCurrentHole(1);
+  setLastHoleSaved(null);
+  setFocusGameTarget(null);
+  setScreen("setup");
+
   setSetupMessage("Setup reset.");
 }
 
@@ -1265,39 +1330,44 @@ function startRound() {
     return;
   }
 
-  const hasTeamGame =
-    Array.isArray(teamGames) &&
-    teamGames.length > 0 &&
-    teamGames.some((game, index) => {
-      const selection = getTeamGameSelection(index);
+ const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
 
-      if (!selection) return false;
+const requiredGameIndex = teamGames.findIndex((game, index) => {
+  const range = getTeamGameRange(teamGames, index);
+  return requiredHole >= range.start && requiredHole <= range.end;
+});
 
-      if (mode === "5p") {
-        return (
-          (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 2 &&
-          (selection.team3 || []).filter(Boolean).length === 2 &&
-          (selection.team4 || []).filter(Boolean).length === 2
-        );
-      }
+const hasValidTeamGameForRequiredHole =
+  requiredGameIndex >= 0 &&
+  (() => {
+    const selection = getTeamGameSelection(requiredGameIndex);
+    if (!selection) return false;
 
-      if (mode === "4p") {
-        return (
-          (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 2
-        );
-      }
+    if (mode === "5p") {
+      return (
+        (selection.team1 || []).filter(Boolean).length === 2 &&
+        (selection.team2 || []).filter(Boolean).length === 2 &&
+        (selection.team3 || []).filter(Boolean).length === 2 &&
+        (selection.team4 || []).filter(Boolean).length === 2
+      );
+    }
 
-      if (mode === "3p") {
-        return (
-          (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 1
-        );
-      }
+    if (mode === "4p") {
+      return (
+        (selection.team1 || []).filter(Boolean).length === 2 &&
+        (selection.team2 || []).filter(Boolean).length === 2
+      );
+    }
 
-      return false;
-    });
+    if (mode === "3p") {
+      return (
+        (selection.team1 || []).filter(Boolean).length === 2 &&
+        (selection.team2 || []).filter(Boolean).length === 1
+      );
+    }
+
+    return false;
+  })();
 
   const hasMatch =
     Array.isArray(matches) &&
@@ -1309,18 +1379,40 @@ function startRound() {
       return match.p1Id && match.p2Id;
     });
 
-  if (!hasTeamGame && !hasMatch) {
-    setSetupMessage("Choose at least one valid game before starting.");
-    alert("Choose at least one valid game before starting.");
-    return;
+if (!hasValidTeamGameForRequiredHole && !hasMatch) {
+  const gameLabel =
+    requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
+
+  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
+
+  if (requiredGameIndex >= 0) {
+    setFocusGameTarget({
+      gameIndex: requiredGameIndex,
+      nonce: Date.now(),
+    });
   }
+
+  alert(`Set teams for ${gameLabel} before continuing.`);
+
+  if (requiredGameIndex >= 0) {
+    setTimeout(() => {
+      setFocusGameTarget({
+        gameIndex: requiredGameIndex,
+        nonce: Date.now(),
+      });
+    }, 0);
+  }
+
+  return;
+}
 
   if (lastHoleSaved != null) {
   setCurrentHole(lastHoleSaved + 1);
 } else {
   setCurrentHole(1);
 }
-  setLastHoleSaved(null);
+
+  setPendingNextGameIndex(null);
   setScreen("live");
 }
 
@@ -1340,54 +1432,165 @@ function goToLive() {
   setScreen("live");
 }
 
-
-
 function buildRealHoleResultLines(holeNumber) {
-  const lines = [];
+  const holeLines = [];
+  const matchLines = [];
+  const birdieLines = [];
 
-  const holeScores = scores[holeNumber] || {};
-  const scoredPlayers = players
-    .map((player) => ({
-      player,
-      score: Number(holeScores[player.id]),
-    }))
-    .filter((entry) => Number.isFinite(entry.score));
-
-  if (scoredPlayers.length < 2) {
-    return ["No result yet."];
-  }
-
-  const bestScore = Math.min(...scoredPlayers.map((entry) => entry.score));
-  const winners = scoredPlayers.filter((entry) => entry.score === bestScore);
-
-  if (winners.length === 1) {
-    lines.push(`${winners[0].player.name} wins hole`);
-  } else {
-    lines.push("Hole halved");
-  }
-
-  const par = Number(course.pars?.[holeNumber - 1]);
-  const activeGame = teamGames.find((game, index) => {
+  const activeGameIndex = teamGames.findIndex((game, index) => {
     const range = getTeamGameRange(teamGames, index);
     return holeNumber >= range.start && holeNumber <= range.end;
   });
 
-  const birdieBet = Number(activeGame?.birdieBet || 0);
-  const birdiesEnabled = !!activeGame?.birdieEnabled && birdieBet > 0;
+  if (activeGameIndex < 0) {
+    return {
+      holeLines: ["No active game found for this hole."],
+      matchLines: [],
+      birdieLines: [],
+    };
+  }
 
-  if (Number.isFinite(par)) {
-    const birdies = scoredPlayers.filter((entry) => entry.score === par - 1);
+  const activeGame = teamGames[activeGameIndex];
+  const range = getTeamGameRange(teamGames, activeGameIndex);
+  const selection = getTeamGameSelection(activeGameIndex);
+  const holeScores = scores[holeNumber] || {};
 
-    birdies.forEach((entry) => {
-      if (birdiesEnabled) {
-        lines.push(`${entry.player.name} birdie (+$${birdieBet})`);
-      } else {
-        lines.push(`${entry.player.name} birdie`);
+  const playerName = (id) =>
+    players.find((p) => p.id === id)?.name || id;
+
+  const teamName = (ids = []) =>
+    ids.filter(Boolean).map(playerName).join(" / ");
+
+  const teamBestScore = (ids = [], scoreMap = {}) => {
+    const vals = ids
+      .map((id) => Number(scoreMap[id]))
+      .filter((v) => Number.isFinite(v));
+    return vals.length ? Math.min(...vals) : null;
+  };
+
+  const pluralBet = (n) => (n === 1 ? "bet" : "bets");
+
+  const matchups =
+    mode === "5p"
+      ? [
+          ["team1", "team2"],
+          ["team1", "team3"],
+          ["team1", "team4"],
+        ]
+      : [["team1", "team2"]];
+
+// --- HOLE RESULT (GOLFER SUMMARY) ---
+let wins = 0;
+let losses = 0;
+let ties = 0;
+
+matchups.forEach(([a, b]) => {
+  const A = selection?.[a] || [];
+  const B = selection?.[b] || [];
+
+  const scoreA = teamBestScore(A, holeScores);
+  const scoreB = teamBestScore(B, holeScores);
+
+  if (scoreA == null || scoreB == null) return;
+
+  if (scoreA < scoreB) wins += 1;
+  else if (scoreB < scoreA) losses += 1;
+  else ties += 1;
+});
+
+const team1Name = teamName(selection?.team1 || []);
+
+// build natural language summary
+if (wins === 3) {
+  holeLines.push(`${team1Name} won all 3`);
+} else if (wins === 2 && ties === 1) {
+  holeLines.push(`${team1Name} won 2, tied 1`);
+} else if (wins === 1 && ties === 2) {
+  holeLines.push(`${team1Name} won 1, tied 2`);
+} else if (ties === 3) {
+  holeLines.push(`${team1Name} tied all 3`);
+} else if (losses === 3) {
+  holeLines.push(`${team1Name} lost all 3`);
+} else if (losses === 2 && ties === 1) {
+  holeLines.push(`${team1Name} lost 2, tied 1`);
+} else if (losses === 1 && ties === 2) {
+  holeLines.push(`${team1Name} lost 1, tied 2`);
+} else if (wins === 1 && losses === 1 && ties === 1) {
+  holeLines.push(`Split: ${team1Name} won 1, lost 1, tied 1`);
+} else if (wins === 2 && losses === 1) {
+  holeLines.push(`Split: ${team1Name} won 2, lost 1`);
+} else if (losses === 2 && wins === 1) {
+  holeLines.push(`Split: ${team1Name} lost 2, won 1`);
+}
+
+  // --- MATCH STATUS ---
+  matchups.forEach(([a, b]) => {
+    const A = selection?.[a] || [];
+    const B = selection?.[b] || [];
+
+    let winsA = 0;
+    let winsB = 0;
+
+    for (let h = range.start; h <= holeNumber; h++) {
+      const s = scores[h] || {};
+      const scoreA = teamBestScore(A, s);
+      const scoreB = teamBestScore(B, s);
+
+      if (scoreA == null || scoreB == null) continue;
+
+      if (scoreA < scoreB) winsA++;
+      else if (scoreB < scoreA) winsB++;
+    }
+
+    if (winsA > winsB) {
+  const diff = winsA - winsB;
+  matchLines.push(
+    `${teamName(A)} ${diff} ${pluralBet(diff)} up vs ${teamName(B)}`
+  );
+} else if (winsB > winsA) {
+  const diff = winsB - winsA;
+  matchLines.push(
+    `${teamName(A)} ${diff} ${pluralBet(diff)} down to ${teamName(B)}`
+  );
+} else {
+  matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
+}
+  });
+
+  // --- BIRDIES (TEAM-BASED PAYOUT) ---
+  const par = Number(course.pars?.[holeNumber - 1]);
+  const bet = Number(activeGame?.birdieBet || 0);
+  const enabled = !!activeGame?.birdieEnabled && bet > 0;
+
+  if (enabled && Number.isFinite(par)) {
+    const birdieIds = players
+      .filter((p) => Number(holeScores[p.id]) === par - 1)
+      .map((p) => p.id);
+
+    matchups.forEach(([a, b]) => {
+      const A = selection?.[a] || [];
+      const B = selection?.[b] || [];
+
+      const aCount = A.filter((id) => birdieIds.includes(id)).length;
+      const bCount = B.filter((id) => birdieIds.includes(id)).length;
+
+      if (aCount > 0 && bCount === 0) {
+        birdieLines.push(
+          `${teamName(A)} win $${aCount * bet} birdies from ${teamName(B)}`
+        );
+      } else if (bCount > 0 && aCount === 0) {
+        birdieLines.push(
+          `${teamName(B)} win $${bCount * bet} birdies from ${teamName(A)}`
+        );
+      } else if (aCount > 0 && bCount > 0) {
+        birdieLines.push(
+          `${teamName(A)} and ${teamName(B)} both made birdies`
+        );
       }
     });
   }
 
-  return lines;
+  return { holeLines, matchLines, birdieLines };
 }
 
  // ===== FINAL APP RETURN (DO NOT TOUCH INNER RETURNS ABOVE) =====
@@ -1416,6 +1619,8 @@ return (
     setSelectedSavedRoundId={setSelectedSavedRoundId}
     loadNamedRound={loadNamedRound}
     deleteNamedRound={deleteNamedRound}
+    exportSavedRounds={exportSavedRounds}
+    importSavedRounds={importSavedRounds}
     setupMessage={setupMessage}
     course={course}
     updateCourseName={updateCourseName}
@@ -1439,332 +1644,337 @@ return (
     removeMatch={removeMatch}
     startRound={startRound}
     createDefaultTeamGame={createDefaultTeamGame}
-    focusGameIndex={focusGameIndex}
-  />
+    focusGameTarget={focusGameTarget}  />
 )}
 
     {screen === "live" && (
       <>
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            background: "white",
-            border: "1px solid #ccc",
-            padding: 12,
-            marginBottom: 12,
-            zIndex: 10,
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#666" }}>Projected Settlement</div>
+  {pendingNextGameIndex == null && (
+  <div
+    style={{
+      position: "sticky",
+      top: 0,
+      background: "white",
+      border: "1px solid #ccc",
+      padding: 12,
+      marginBottom: 12,
+      zIndex: 10,
+    }}
+  >
+    ...
+  </div>
+)}
+
+{pendingNextGameIndex == null && (
+  <ScoreEntryCard
+    currentHole={currentHole}
+    course={course}
+    players={players}
+    scores={scores}
+    setScore={setScore}
+    onSaveHole={() => {
+      const nextHole = currentHole + 1;
+
+      setLastHoleSaved(currentHole);
+
+      if (currentHole >= 18) {
+        finishRound();
+        return;
+      }
+
+      const nextGameIndex = teamGames.findIndex((game, index) => {
+        const range = getTeamGameRange(teamGames, index);
+        return nextHole >= range.start && nextHole <= range.end;
+      });
+
+      if (nextGameIndex >= 0) {
+        const selection = getTeamGameSelection(nextGameIndex);
+
+        const hasValidTeams =
+          mode === "5p"
+            ? (selection.team1 || []).filter(Boolean).length === 2 &&
+              (selection.team2 || []).filter(Boolean).length === 2 &&
+              (selection.team3 || []).filter(Boolean).length === 2 &&
+              (selection.team4 || []).filter(Boolean).length === 2
+            : mode === "4p"
+            ? (selection.team1 || []).filter(Boolean).length === 2 &&
+              (selection.team2 || []).filter(Boolean).length === 2
+            : (selection.team1 || []).filter(Boolean).length === 2 &&
+              (selection.team2 || []).filter(Boolean).length === 1;
+
+        if (!hasValidTeams) {
+          setPendingNextGameIndex(nextGameIndex);
+          return;
+        }
+      }
+
+      setCurrentHole(nextHole);
+    }}
+  />
+)}
+
+<HoleResultCard
+  lastHoleSaved={lastHoleSaved}
+  buildRealHoleResultLines={buildRealHoleResultLines}
+/>
+
+{pendingNextGameIndex != null && (
+  <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+    <h3 style={{ marginTop: 0 }}>
+      Game {pendingNextGameIndex} Complete
+    </h3>
+
+    <div style={{ marginBottom: 8 }}>
+  {(() => {
+    const completedGameIndex = pendingNextGameIndex - 1;
+    const completedGameResult = teamGameResults.find(
+      (result) => result.index === completedGameIndex
+    );
+    const selection = getTeamGameSelection(completedGameIndex);
+    const summary = {};
+
+    players.forEach((player) => {
+      summary[player.id] = 0;
+    });
+
+    (completedGameResult?.matches || []).forEach((matchup) => {
+      const parts = matchup.label.split(" ");
+      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+      const teamAPlayers = selection?.[teamAKey] || [];
+      const teamBPlayers = selection?.[teamBKey] || [];
+
+      const units = (matchup.result || []).reduce((sum, item) => {
+        const score = item.score || 0;
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0);
+
+      teamAPlayers.forEach((playerId) => {
+        summary[playerId] += units;
+      });
+
+      teamBPlayers.forEach((playerId) => {
+        summary[playerId] -= units;
+      });
+    });
+
+    const team1Ids = selection?.team1 || [];
+    const team1Names = team1Ids
+      .map((id) => players.find((p) => p.id === id)?.name || id)
+      .join(" / ");
+
+    const team1Total = team1Ids.reduce(
+      (sum, id) => sum + (summary[id] || 0),
+      0
+    );
+
+    const perPlayer =
+  team1Ids.length > 0 ? Math.abs(team1Total) / team1Ids.length : 0;
+
+    const otherPlayers = players.filter(
+      (player) => !team1Ids.includes(player.id)
+    );
+
+    return (
+      <>
+        <div>
           <strong>
-            {leaderboard && players.length > 0
-              ? (() => {
-                  const sorted = [...players].sort(
-                    (a, b) => (leaderboard[b.id] ?? 0) - (leaderboard[a.id] ?? 0)
-                  );
-                  const top = sorted[0];
-                  const amount = leaderboard[top.id] ?? 0;
-                  return amount === 0 ? "Even" : `${top.name} ${amount > 0 ? "wins" : "owes"} $${Math.abs(amount)}`;
-                })()
-              : "Even"}
+
+            {team1Names} {team1Total >= 0 ? "win" : "lose"} {Math.abs(team1Total)} bets ({perPlayer} each)
           </strong>
         </div>
 
-        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>
-            Hole {currentHole} • Par {course.pars?.[currentHole - 1] ?? "-"} • HCP{" "}
-            {course.hcp?.[currentHole - 1] ?? "-"}
-          </h3>
-
-        <div style={{ display: "grid", gap: 10 }}>
-  {players.map((player, playerIndex) => (
-    <div
-      key={player.id}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 12,
-      }}
-    >
-      <label htmlFor={`score-${currentHole}-${player.id}`}>
-        {player.name}
-      </label>
-
-      <input
-        ref={(el) => {
-          scoreInputRefs.current[player.id] = el;
-        }}
-        id={`score-${currentHole}-${player.id}`}
-        type="number"
-        inputMode="numeric"
-        value={scores[currentHole]?.[player.id] ?? ""}
-        onFocus={(e) => e.target.select()}
-       onChange={(e) => {
-  const rawValue = e.target.value;
-  const value = rawValue.slice(-1);
-
-  if (value !== "" && !/^[1-9]$/.test(value)) return;
-
-  setScore(currentHole, player.id, value);
-
-  if (value !== "") {
-    if (playerIndex < players.length - 1) {
-      const nextPlayer = players[playerIndex + 1];
-
-      setTimeout(() => {
-        scoreInputRefs.current[nextPlayer.id]?.focus();
-      }, 0);
-    } else {
-      setTimeout(() => {
-        saveHoleButtonRef.current?.focus();
-      }, 0);
-    }
-  }
-}}
-
-          
-        style={{
-          width: 80,
-          padding: 8,
-          fontSize: 18,
-          textAlign: "center",
-        }}
-      />
-    </div>
-  ))}
-</div>
-
-          <button 
-          ref={saveHoleButtonRef}
-          disabled={!players.every((player) => scores[currentHole]?.[player.id] != null)}
- onClick={() => {
-  const nextHole = currentHole + 1;
-
-  setLastHoleSaved(currentHole);
-
-  if (currentHole >= 18) {
-    finishRound();
-    return;
-  }
-
-  const nextGameIndex = teamGames.findIndex((game, index) => {
-    const range = getTeamGameRange(teamGames, index);
-    return nextHole >= range.start && nextHole <= range.end;
-  });
-
-  if (nextGameIndex >= 0) {
-    const selection = getTeamGameSelection(nextGameIndex);
-
-    const hasValidTeams =
-      mode === "5p"
-        ? (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 2 &&
-          (selection.team3 || []).filter(Boolean).length === 2 &&
-          (selection.team4 || []).filter(Boolean).length === 2
-        : mode === "4p"
-        ? (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 2
-        : (selection.team1 || []).filter(Boolean).length === 2 &&
-          (selection.team2 || []).filter(Boolean).length === 1;
-
-    if (!hasValidTeams) {
-  setSetupMessage(`Set teams for Game ${nextGameIndex + 1} before continuing.`);
-  setFocusGameIndex(nextGameIndex);
-  setScreen("setup");
-  return;
-}
-  }
-
-  setCurrentHole(nextHole);
-}}
-  style={{
-    width: "100%",
-    padding: 12,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginTop: 12,
-    opacity: players.every((player) => scores[currentHole]?.[player.id] != null)
-      ? 1
-      : 0.5,
-  }}
-  
->
-  Save Hole {currentHole}
-</button>
-
+        <div style={{ marginTop: 4 }}>
+          {otherPlayers
+            .map((player) => {
+              const value = summary[player.id] || 0;
+              if (value === 0) return `${player.name} even`;
+              return `${player.name} ${value > 0 ? "wins" : "loses"} ${Math.abs(
+                value
+              )}`;
+            })
+            .join(", ")}
         </div>
 
-        {lastHoleSaved && (
-  <div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
-    <h3 style={{ marginTop: 0 }}>Hole {lastHoleSaved} Result</h3>
+        <div style={{ marginTop: 8 }}>
+          Review the completed game before choosing teams for the next game.
+        </div>
+              <button
+  onClick={() => setShowProjectedSettlement((prev) => !prev)}
+  style={{ marginTop: 8, marginRight: 8 }}
+>
+  {showProjectedSettlement ? "Hide Projected Settlement" : "Projected Settlement"}
+</button>
 
-    {buildRealHoleResultLines(lastHoleSaved).map((line, index) => (
-      <div key={index}>{line}</div>
-    ))}
+{showProjectedSettlement && (
+  <div style={{ marginTop: 8 }}>
+    {players.map((player) => {
+      const amount = leaderboard[player.id] ?? 0;
+
+      return (
+        <div key={player.id}>
+          {player.name}: ${amount}
+        </div>
+      );
+    })}
+  </div>
+)}
+
+      </>
+    );
+  })()}
+</div>
+
+    <button
+      onClick={() => {
+        setFocusGameTarget({
+          gameIndex: pendingNextGameIndex,
+          nonce: Date.now(),
+        });
+        setScreen("setup");
+        setShowProjectedSettlement(false);
+      }}
+    >
+      Choose Teams for Game {pendingNextGameIndex + 1}
+    </button>
   </div>
 )}
 
 <div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
-<h3 style={{ marginTop: 0 }}>Current Game</h3>
-  {teamGames.map((game, index) => {
-  const range = getTeamGameRange(teamGames, index);
+  <button
+    onClick={() => setShowRoundSummary((prev) => !prev)}
+    style={{
+      width: "100%",
+      textAlign: "left",
+      fontWeight: "bold",
+      padding: 8,
+      marginBottom: showRoundSummary ? 10 : 0,
+    }}
+  >
+    {showRoundSummary ? "Hide Round Summary" : "Show Round Summary"}
+  </button>
 
-const activeGameSelection = getTeamGameSelection(index);
-const currentGameResult = teamGameResults.find(
-  (result) => result.index === index
-);
-
-const matchupLines = [];
-
-function teamName(teamIds = []) {
-  return teamIds
-    .filter(Boolean)
-    .map((id) => players.find((p) => p.id === id)?.name || id)
-    .join(" / ");
-}
-
-(currentGameResult?.matches || []).forEach((matchup) => {
-  const parts = matchup.label.split(" ");
-  const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-  const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-
-  const teamAPlayers = activeGameSelection?.[teamAKey] || [];
-  const teamBPlayers = activeGameSelection?.[teamBKey] || [];
-
-  const units = (matchup.result || []).reduce((sum, item) => {
-    const score = item.score || 0;
-    if (score > 0) return sum + 1;
-    if (score < 0) return sum - 1;
-    return sum;
-  }, 0);
-
-  let resultText = "Even";
-
-  if (units > 0) {
-    resultText = `${teamName(teamAPlayers)} won ${units}`;
-  }
-
-  if (units < 0) {
-    resultText = `${teamName(teamBPlayers)} won ${Math.abs(units)}`;
-  }
-
-  matchupLines.push(
-    `${teamName(teamAPlayers)} vs ${teamName(teamBPlayers)}: ${resultText}`
-  );
-});
-
-let status = "Not started";
-
-  let holesPlayed = 0;
-
-  if (currentHole > range.end) {
-    status = "Complete";
-    holesPlayed = Number(game.holes) || 0;
-  } else if (currentHole >= range.start && currentHole <= range.end) {
-    status = "In progress";
-holesPlayed = Math.max(0, currentHole - range.start);
-  }
-
-if (status === "Not started") return null;
-
-const playerSummary = currentGameResult?.gameUnitTotals || {};
-
-  return (
-    <div key={game.id} style={{ marginBottom: 8 }}>
-      <strong>
-        Game {index + 1}: Holes {range.start}-{range.end}
-      </strong>
-      <div>{status}</div>
-     {Object.entries(playerSummary)
-  .filter(([, value]) => value !== 0)
-  .sort((a, b) => b[1] - a[1])
-  .map(([playerId, value]) => {
-    const name = players.find((p) => p.id === playerId)?.name || playerId;
-
-    return (
-      <div key={playerId} style={{ fontSize: 13 }}>
-        {name} {value > 0 ? `won ${Number(value.toFixed(2))}` : `lost ${Number(Math.abs(value).toFixed(2))}`}
+  {showRoundSummary && (
+    <div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "80px 60px 60px 60px 70px",
+          gap: 8,
+          fontFamily: "monospace",
+          fontWeight: "bold",
+          marginBottom: 6,
+        }}
+      >
+        <div>Name</div>
+        <div>G1</div>
+        <div>G2</div>
+        <div>G3</div>
+        <div>Total</div>
       </div>
-    );
-  })}
 
-<button
-  onClick={() =>
-    setShowMatchDetails((prev) => ({
-      ...prev,
-      [game.id]: !prev[game.id],
-    }))
-  }
-  style={{ marginTop: 6 }}
->
-  {showMatchDetails[game.id] ? "Hide match details" : "Show match details"}
-</button>
+      {players.map((player) => {
+        let netTotal = 0;
 
-{showMatchDetails[game.id] &&
-  matchupLines.map((line, lineIndex) => (
-    <div key={lineIndex} style={{ fontSize: 12, color: "#666" }}>
-      {line}
-    </div>
-  ))}
-      {status !== "Not started" && (
-        <div style={{ fontSize: 12, color: "#666" }}>
-          {holesPlayed} of {Number(game.holes) || 0} holes played
-        </div>
-      )}
-    </div>
-  );
-})}
+        const gameTotals = teamGames.map((game, gameIndex) => {
+          const gameResult = teamGameResults.find(
+            (result) => result.index === gameIndex
+          );
 
-</div>
+          const selection = getTeamGameSelection(gameIndex);
+          let total = 0;
 
-<div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
-  <h3 style={{ marginTop: 0 }}>Birdies (Gross Side Bet)</h3>
+          (gameResult?.matches || []).forEach((matchup) => {
+            const parts = matchup.label.split(" ");
+            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
 
-{players
-  .map((player) => {
-        let birdieTotal = 0;
+            const teamAPlayers = selection?.[teamAKey] || [];
+            const teamBPlayers = selection?.[teamBKey] || [];
 
-    for (let hole = 1; hole <= 18; hole += 1) {
-      const score = scores[hole]?.[player.id];
-      const par = Number(course.pars?.[hole - 1]);
+            const units = (matchup.result || []).reduce((sum, item) => {
+              const score = item.score || 0;
+              if (score > 0) return sum + 1;
+              if (score < 0) return sum - 1;
+              return sum;
+            }, 0);
 
-      if (score != null && Number(score) === par - 1) {
-        const activeGame = teamGames.find((game, index) => {
-          const range = getTeamGameRange(teamGames, index);
-          return hole >= range.start && hole <= range.end;
+            if (teamAPlayers.includes(player.id)) total += units;
+            if (teamBPlayers.includes(player.id)) total -= units;
+          });
+
+          netTotal += total;
+
+          if (total > 0) return `+${total}`;
+          if (total < 0) return `${total}`;
+          return "0";
         });
 
-        if (activeGame?.birdieEnabled) {
-          birdieTotal += Number(activeGame.birdieBet || 0);
-        }
-      }
-    }
-
-    if (birdieTotal === 0) return null;
-
-return (
-  <div key={player.id}>
-    {player.name}: ${birdieTotal}
-  </div>
-);
-  })}
+        return (
+          <div
+            key={player.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "80px 60px 60px 60px 70px",
+              gap: 8,
+              fontFamily: "monospace",
+              marginBottom: 4,
+            }}
+          >
+            <div>
+              <strong>{player.name}</strong>
+            </div>
+            <div>{gameTotals[0] ?? "0"}</div>
+            <div>{gameTotals[1] ?? "0"}</div>
+            <div>{gameTotals[2] ?? "0"}</div>
+            <div style={{ fontWeight: "bold" }}>
+              {netTotal > 0 ? `+${netTotal}` : netTotal}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
 </div>
 
-        <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
-<h3 style={{ marginTop: 0 }}>Final Settlement Preview</h3>
-          <div style={{ fontSize: 12, color: "#666", marginBottom: 8 }}>
-            Final settlement updates after games are completed.
-          </div>
-          {players.map((player) => (
-            <div key={player.id}>
-              {player.name}: ${leaderboard[player.id] ?? 0}
-            </div>
-          ))}
-        </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+{teamGames.some((game) => game.birdieEnabled) && (
+  <div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+    <h3 style={{ marginTop: 0 }}>Birdies (Gross Side Bet)</h3>
+
+    {players.map((player) => {
+      let birdieTotal = 0;
+
+      for (let hole = 1; hole <= 18; hole += 1) {
+        const score = scores[hole]?.[player.id];
+        const par = Number(course.pars?.[hole - 1]);
+
+        if (score != null && Number(score) === par - 1) {
+          const activeGame = teamGames.find((game, index) => {
+            const range = getTeamGameRange(teamGames, index);
+            return hole >= range.start && hole <= range.end;
+          });
+
+          if (activeGame?.birdieEnabled) {
+            birdieTotal += Number(activeGame.birdieBet || 0);
+          }
+        }
+      }
+
+      if (birdieTotal === 0) return null;
+
+      return (
+        <div key={player.id}>
+          {player.name}: ${birdieTotal}
+        </div>
+      );
+    })}
+  </div>
+)}
+<div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
   <button onClick={backToSetup}>Edit Setup</button>
   <button onClick={goToResults}>View Results</button>
   <button onClick={() => setShowScorecardEdit((prev) => !prev)}>

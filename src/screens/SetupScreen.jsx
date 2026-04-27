@@ -21,8 +21,10 @@ export default function SetupScreen({
   savedRounds,
   selectedSavedRoundId,
   setSelectedSavedRoundId,
-  loadNamedRound,
+  loadNamedRound,   
   deleteNamedRound,
+  exportSavedRounds,
+  importSavedRounds,
   setupMessage,
   course,
   updateCourseName,
@@ -47,21 +49,21 @@ export default function SetupScreen({
   removeMatch,
   startRound,
   createDefaultTeamGame,
-  focusGameIndex,
+  focusGameTarget,
 }) {
     const teamGameRefs = useRef({});
 
     useEffect(() => {
-  if (focusGameIndex == null) return;
+  if (focusGameTarget == null) return;
 
-  const el = teamGameRefs.current[focusGameIndex];
+  const el = teamGameRefs.current[focusGameTarget.gameIndex];
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
 
     const firstSelector = el.querySelector("select");
 firstSelector?.focus();
   }
-}, [focusGameIndex]);
+}, [focusGameTarget]);
   return (
     <>
 
@@ -120,6 +122,27 @@ firstSelector?.focus();
 
             <button onClick={loadNamedRound}>Load Named Round</button>
             <button onClick={deleteNamedRound}>Delete Named Round</button>
+            <button onClick={exportSavedRounds}>Export Saved Rounds</button>
+
+<label style={{ display: "inline-block" }}>
+  <span
+    style={{
+      display: "inline-block",
+      border: "1px solid gray",
+      padding: "2px 6px",
+      cursor: "pointer",
+      background: "#eee",
+    }}
+  >
+    Import Saved Rounds
+  </span>
+  <input
+    type="file"
+    accept="application/json"
+    onChange={importSavedRounds}
+    style={{ display: "none" }}
+  />
+</label>
           </div>
         </div>
 
