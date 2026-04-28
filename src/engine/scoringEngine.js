@@ -873,15 +873,7 @@ function getNinePointParticipants(match, scores, holeNumber) {
   );
 }
 
-function getTeamParticipants(selection, teamAKey, teamBKey, scores, holeNumber) {
-  const teamAPlayers = getScoredPlayers(selection?.[teamAKey] || [], scores, holeNumber);
-  const teamBPlayers = getScoredPlayers(selection?.[teamBKey] || [], scores, holeNumber);
 
-  return {
-    teamAPlayers,
-    teamBPlayers,
-  };
-}
 
 export function buildMatchBirdieResults(matches, scores, course) {
   const results = [];
@@ -980,20 +972,29 @@ export function buildTeamBirdieResults(
   teamGameResults,
   scores,
   course,
-  getTeamGameSelection
+  getTeamGameSelection,
+  birdieBetAmount
 ) {
   const results = [];
 
   for (const game of teamGameResults || []) {
     if (game?.duplicateError) continue;
 
-    const teamGameConfig = teamGames?.[game.index];
-    if (!teamGameConfig?.birdieEnabled) continue;
+    const gameIndex = typeof game.index === "number" ? game.index : 0;
+    const teamGameConfig = teamGames?.[gameIndex] || {};
 
-    const amount = Number(teamGameConfig?.birdieBet || 0);
+    const amount =
+      birdieBetAmount != null
+        ? Number(birdieBetAmount || 0)
+        : Number(teamGameConfig?.birdieBet || 0);
+
     if (!amount || amount <= 0) continue;
 
-    const selection = getTeamGameSelection?.(game.index);
+    if (birdieBetAmount == null && !teamGameConfig?.birdieEnabled) {
+      continue;
+    }
+
+    const selection = getTeamGameSelection?.(gameIndex);
     if (!selection) continue;
 
     for (const match of game.matches || []) {
@@ -1004,11 +1005,19 @@ export function buildTeamBirdieResults(
       const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
       const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
 
-      if (!teamAPlayers.length || !teamBPlayers.length) continue;
+      const startHole = Number(game.start || 1);
+      const endHole = Number(game.end || 18);
 
-      for (let holeNumber = game.start; holeNumber <= game.end; holeNumber += 1) {
-        const { teamAPlayers: teamAActive, teamBPlayers: teamBActive } =
-          getTeamParticipants(selection, teamAKey, teamBKey, scores, holeNumber);
+      for (let holeNumber = startHole; holeNumber <= endHole; holeNumber += 1) {
+        const holeScores = scores?.[holeNumber] || {};
+
+        const teamAActive = teamAPlayers.filter(
+          (playerId) => holeScores[playerId] != null
+        );
+
+        const teamBActive = teamBPlayers.filter(
+          (playerId) => holeScores[playerId] != null
+        );
 
         if (!teamAActive.length || !teamBActive.length) continue;
 
@@ -1056,10 +1065,16 @@ export function buildBirdieResults({
   scores,
   course,
   getTeamGameSelection,
+  birdiesEnabled,
+  birdieBetAmount,
 }) {
-  if (!scores || !course) {
-    return [];
-  }
+if (!scores || !course) {
+  return [];
+}
+
+if (birdiesEnabled === false) {
+  return [];
+}
 
   const matchBirdies = buildMatchBirdieResults(
     matches,
@@ -1067,13 +1082,14 @@ export function buildBirdieResults({
     course
   );
 
-  const teamBirdies = buildTeamBirdieResults(
-    teamGames,
-    teamGameResults,
-    scores,
-    course,
-    getTeamGameSelection
-  );
+const teamBirdies = buildTeamBirdieResults(
+  teamGames,
+  teamGameResults,
+  scores,
+  course,
+  getTeamGameSelection,
+  birdieBetAmount
+);
 
   const ninePointBirdies = buildNinePointBirdieResults(
     matchResults,

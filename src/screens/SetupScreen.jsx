@@ -32,6 +32,12 @@ export default function SetupScreen({
   updateCourseHcp,
   teamGameUnitAmount,
   setTeamGameUnitAmount,
+  pressTrigger,
+  setPressTrigger,
+  birdiesEnabled,
+  setBirdiesEnabled,
+  birdieBetAmount,
+  setBirdieBetAmount,
   applyPreset,
   setTeamGames,
   teamGames,
@@ -191,7 +197,50 @@ export default function SetupScreen({
                 style={{ width: 80, marginLeft: 6 }}
               />
             </label>
+
+<div style={{ marginTop: 8 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    Press Trigger:
+    <input
+      type="number"
+      min="1"
+      step="1"
+      value={pressTrigger}
+      onChange={(e) => setPressTrigger(Number(e.target.value || 1))}
+      style={{ width: 70 }}
+    />
+  </label>
+</div>
+
+<div style={{ marginTop: 8 }}>
+
+</div>
+
           </div>
+          <div style={{ marginTop: 10 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <input
+      type="checkbox"
+      checked={birdiesEnabled}
+      onChange={(e) => setBirdiesEnabled(e.target.checked)}
+    />
+    Birdies (Gross Side Bet)
+  </label>
+  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+  Birdie Bet:
+  <input
+    type="number"
+    min="0"
+    step="1"
+    value={birdieBetAmount}
+    disabled={!birdiesEnabled}
+    onChange={(e) => setBirdieBetAmount(Number(e.target.value || 0))}
+    style={{ width: 70 }}
+  />
+</label>
+
+
+</div>
         </div>
 
         <h3>Team Game Selector</h3>
@@ -276,67 +325,7 @@ export default function SetupScreen({
                   />
                 </label>
 
-                <label>
-                  Press Trigger:
-                  <input
-                    type="number"
-                    min={1}
-                    value={game.pressTrigger ?? 1}
-                    onChange={(e) => {
-                      const value = Number(e.target.value) || 1;
-                      setTeamGames((prev) =>
-                        prev.map((g, i) =>
-                          i === index ? { ...g, pressTrigger: value } : g
-                        )
-                      );
-                    }}
-                    style={{ width: 60, marginLeft: 6 }}
-                  />
-                </label>
 
-                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!game.birdieEnabled}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-
-                      setTeamGames((prev) =>
-                        prev.map((g, i) =>
-                          i === index
-                            ? {
-                                ...g,
-                                birdieEnabled: checked,
-                                birdieBet: checked ? Number(g.birdieBet || 1) : 0,
-                              }
-                            : g
-                        )
-                      );
-                    }}
-                  />
-                  Birdies
-                </label>
-
-                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  Birdie Bet:
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={game.birdieBet ?? 0}
-                    disabled={!game.birdieEnabled}
-                    onChange={(e) => {
-                      const value = Number(e.target.value || 0);
-
-                      setTeamGames((prev) =>
-                        prev.map((g, i) =>
-                          i === index ? { ...g, birdieBet: value } : g
-                        )
-                      );
-                    }}
-                    style={{ width: 70 }}
-                  />
-                </label>
 
                 {teamGames.length > 1 && (
                   <button
