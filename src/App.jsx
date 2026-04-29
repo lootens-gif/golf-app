@@ -1523,10 +1523,6 @@ function startRound() {
   setScreen("live");
 }
 
-function finishRound() {
-  setScreen("results");
-}
-
 function backToSetup() {
   setScreen("setup");
 }

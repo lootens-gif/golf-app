@@ -53,12 +53,6 @@ function moveToPrevPlayer() {
     moveToNextPlayer();
   }
 
-  function handleClearScore() {
-    if (!activePlayer) return;
-
-    setScore(currentHole, activePlayer.id, "");
-  }
-
   return (
     <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
       <h3 style={{ marginTop: 0 }}>
