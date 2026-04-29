@@ -77,6 +77,7 @@ export default function App() {
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
   const [showRoundSummary, setShowRoundSummary] = useState(true);
+  const [saveMessage, setSaveMessage] = useState(null);
 
 
 
@@ -505,71 +506,117 @@ function applyPreset(preset) {
     );
   }
 
-  function renderPlayerSelect(gameIndex, teamKey, slotIndex) {
-    const selection = getTeamGameSelection(gameIndex);
-    const value = selection[teamKey]?.[slotIndex] || "";
-    const options = getAvailablePlayersForTeam(gameIndex, teamKey, slotIndex);
+function getPlayerNameById(playerId) {
+  return players.find((player) => player.id === playerId)?.name || "";
+}
 
-    return (
-      <select
-        key={`${teamKey}-${slotIndex}`}
-        value={value}
-        onChange={(e) =>
-          updateTeamGameTeam(gameIndex, teamKey, slotIndex, e.target.value)
-        }
-      >
-        <option value="">Select</option>
-        {options.map((player) => (
-          <option key={player.id} value={player.id}>
-            {player.name}
-          </option>
-        ))}
-      </select>
-    );
-  }
+function getTeamDisplayName(team = []) {
+  const names = team.filter(Boolean).map(getPlayerNameById);
+  return names.length ? names.join(" / ") : "Not selected";
+}
+
+  function renderPlayerSelect(gameIndex, teamKey, slotIndex) {
+  const selection = getTeamGameSelection(gameIndex);
+  const value = selection[teamKey]?.[slotIndex] || "";
+  const options = getAvailablePlayersForTeam(gameIndex, teamKey, slotIndex);
+
+  return (
+    <select
+      key={`${teamKey}-${slotIndex}`}
+      value={value}
+      onChange={(e) =>
+        updateTeamGameTeam(gameIndex, teamKey, slotIndex, e.target.value)
+      }
+      style={{
+        fontSize: 16,
+        padding: 8,
+        minWidth: 140,
+        borderRadius: 6,
+        border: "1px solid #bbb",
+        background: "#fff",
+      }}
+    >
+      <option value="">Select player</option>
+      {options.map((player) => (
+        <option key={player.id} value={player.id}>
+          {player.name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
   function renderTeamSelectors(gameIndex) {
-    if (mode === "5p") {
-      return (
-        <>
-          <div style={{ marginTop: 8 }}>
-            <strong>Team 1</strong>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {[0, 1].map((slotIndex) =>
-                renderPlayerSelect(gameIndex, "team1", slotIndex)
-              )}
-            </div>
-          </div>
+   if (mode === "5p") {
+  const selection = getTeamGameSelection(gameIndex);
 
-          <div style={{ marginTop: 8 }}>
-            <strong>Team 2</strong>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {[0, 1].map((slotIndex) =>
-                renderPlayerSelect(gameIndex, "team2", slotIndex)
-              )}
-            </div>
-          </div>
+  return (
+    <>
+      <div
+        style={{
+          marginTop: 10,
+          padding: 10,
+          background: "#f7f7f7",
+          border: "1px solid #ddd",
+          borderRadius: 6,
+        }}
+      >
+        <strong>5-Player Team Game</strong>
+        <div style={{ fontSize: 13, marginTop: 4 }}>
+          Pick the anchor team. The app builds the three opponent pairs.
+        </div>
+      </div>
 
-          <div style={{ marginTop: 8 }}>
-            <strong>Team 3</strong>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {[0, 1].map((slotIndex) =>
-                renderPlayerSelect(gameIndex, "team3", slotIndex)
-              )}
-            </div>
-          </div>
+      <div style={{ marginTop: 10 }}>
+        <strong>Anchor Team</strong>
+        <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
+          Pick 2 players
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {[0, 1].map((slotIndex) =>
+            renderPlayerSelect(gameIndex, "team1", slotIndex)
+          )}
+        </div>
+      </div>
 
-          <div style={{ marginTop: 8 }}>
-            <strong>Team 4</strong>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {[0, 1].map((slotIndex) =>
-                renderPlayerSelect(gameIndex, "team4", slotIndex)
-              )}
-            </div>
-          </div>
-        </>
-      );
-    }
+      <div style={{ marginTop: 12 }}>
+        <strong>Opponent Pair 1</strong>
+        <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
+          {getTeamDisplayName(selection.team2)}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {[0, 1].map((slotIndex) =>
+            renderPlayerSelect(gameIndex, "team2", slotIndex)
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <strong>Opponent Pair 2</strong>
+        <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
+          {getTeamDisplayName(selection.team3)}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {[0, 1].map((slotIndex) =>
+            renderPlayerSelect(gameIndex, "team3", slotIndex)
+          )}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <strong>Opponent Pair 3</strong>
+        <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
+          {getTeamDisplayName(selection.team4)}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {[0, 1].map((slotIndex) =>
+            renderPlayerSelect(gameIndex, "team4", slotIndex)
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
 
     if (mode === "4p") {
       return (
@@ -914,6 +961,49 @@ const computedResults = scoreRound(round, {
 const leaderboard = useMemo(() => {
   return buildLeaderboard(computedResults.playerLedger, { players });
 }, [computedResults, players]);
+
+const roundSummaryRows = players.map((player) => {
+  let netTotal = 0;
+
+  const gameTotals = teamGames.map((game, gameIndex) => {
+    const gameResult = teamGameResults.find(
+      (result) => result.index === gameIndex
+    );
+
+    const selection = getTeamGameSelection(gameIndex);
+    let total = 0;
+
+    (gameResult?.matches || []).forEach((matchup) => {
+      const parts = matchup.label.split(" ");
+      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+      const teamAPlayers = selection?.[teamAKey] || [];
+      const teamBPlayers = selection?.[teamBKey] || [];
+
+      const units = (matchup.result || []).reduce((sum, item) => {
+        const score = item.score || 0;
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0);
+
+      if (teamAPlayers.includes(player.id)) total += units;
+      if (teamBPlayers.includes(player.id)) total -= units;
+    });
+
+    netTotal += total;
+
+    return total;
+  });
+
+  return {
+    playerId: player.id,
+    name: player.name,
+    gameTotals,
+    netTotal,
+  };
+});
 
   function saveSetup() {
     try {
@@ -1539,39 +1629,43 @@ if (wins === 3) {
   holeLines.push(`Split: ${team1Name} lost 2, won 1`);
 }
 
-  // --- MATCH STATUS ---
-  matchups.forEach(([a, b]) => {
-    const A = selection?.[a] || [];
-    const B = selection?.[b] || [];
+// --- MATCH STATUS WITH PRESSES ---
+matchups.forEach(([a, b]) => {
+  const A = selection?.[a] || [];
+  const B = selection?.[b] || [];
 
-    let winsA = 0;
-    let winsB = 0;
+  if (A.filter(Boolean).length === 0 || B.filter(Boolean).length === 0) return;
 
-    for (let h = range.start; h <= holeNumber; h++) {
-      const s = scores[h] || {};
-      const scoreA = teamBestScore(A, s);
-      const scoreB = teamBestScore(B, s);
-
-      if (scoreA == null || scoreB == null) continue;
-
-      if (scoreA < scoreB) winsA++;
-      else if (scoreB < scoreA) winsB++;
-    }
-
-    if (winsA > winsB) {
-  const diff = winsA - winsB;
-  matchLines.push(
-    `${teamName(A)} ${diff} ${pluralBet(diff)} up vs ${teamName(B)}`
-  );
-} else if (winsB > winsA) {
-  const diff = winsB - winsA;
-  matchLines.push(
-    `${teamName(A)} ${diff} ${pluralBet(diff)} down to ${teamName(B)}`
-  );
-} else {
-  matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
-}
+  const pressResults = playPressMatch({
+    teamA: A,
+    teamB: B,
+    start: range.start,
+    end: holeNumber,
+    trigger: teamGames[activeGameIndex]?.pressTrigger ?? 1,
+    context,
   });
+
+  const betScore = (pressResults || []).reduce((sum, bet) => {
+    const score = Number(bet.score || 0);
+
+    if (score > 0) return sum + 1;
+    if (score < 0) return sum - 1;
+    return sum;
+  }, 0);
+
+  if (betScore > 0) {
+    matchLines.push(
+      `${teamName(A)} ${betScore} ${pluralBet(betScore)} up vs ${teamName(B)}`
+    );
+  } else if (betScore < 0) {
+    const absScore = Math.abs(betScore);
+    matchLines.push(
+      `${teamName(A)} ${absScore} ${pluralBet(absScore)} down to ${teamName(B)}`
+    );
+  } else {
+    matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
+  }
+});
 
 // --- BIRDIES ---
 const par = Number(course.pars?.[holeNumber - 1]);
@@ -1660,8 +1754,30 @@ return (
 
     {screen === "live" && (
       <>
-
 {pendingNextGameIndex == null && (
+  <>
+    {saveMessage && (
+      <div
+        style={{
+          background: "#e6f4ea",
+          border: "1px solid #b7e1cd",
+          padding: 10,
+          marginBottom: 8,
+          borderRadius: 6,
+          fontSize: 14,
+          fontWeight: 500,
+        }}
+      >
+        <div>
+  <div>{saveMessage} ✓</div>
+  <div style={{ fontSize: 12, fontWeight: 400, marginTop: 2 }}>
+    Results updated below
+  </div>
+</div>
+      </div>
+    )}
+
+  
   <ScoreEntryCard
     currentHole={currentHole}
     course={course}
@@ -1671,12 +1787,13 @@ return (
     onSaveHole={() => {
       const nextHole = currentHole + 1;
 
-      setLastHoleSaved(currentHole);
+setLastHoleSaved(currentHole);
+setSaveMessage(`Hole ${currentHole} saved`);
 
       if (currentHole >= 18) {
-        finishRound();
-        return;
-      }
+  setCurrentHole(19);
+  return;
+}
 
       const nextGameIndex = teamGames.findIndex((game, index) => {
         const range = getTeamGameRange(teamGames, index);
@@ -1705,8 +1822,12 @@ return (
       }
 
       setCurrentHole(nextHole);
+      setTimeout(() => {
+  setSaveMessage(null);
+}, 2000);
     }}
   />
+  </>
 )}
 
 <HoleResultCard
@@ -2068,11 +2189,12 @@ const birdieSummaryText = players
 
 {screen === "results" && (
   <ResultsScreen
-    players={players}
-    leaderboard={leaderboard}
-    computedResults={computedResults}
-    goToLive={goToLive}
-  />
+  players={players}
+  leaderboard={leaderboard}
+  computedResults={computedResults}
+  roundSummaryRows={roundSummaryRows}
+  goToLive={goToLive}
+/>
 )}
   </div>
 );

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 
 export default function ScoreEntryCard({
   currentHole,
@@ -8,42 +8,56 @@ export default function ScoreEntryCard({
   setScore,
   onSaveHole,
 }) {
-  const scoreInputRefs = useRef({});
-  const saveHoleButtonRef = useRef(null);
+  const [activePlayerId, setActivePlayerId] = useState(players?.[0]?.id ?? null);
 
-  useLayoutEffect(() => {
-    const firstPlayer = players?.[0];
-    if (!firstPlayer) return;
-
-    const el = scoreInputRefs.current[firstPlayer.id];
-
-    if (el) {
-        el.focus();
-        el.select?.();
-    }
+  useEffect(() => {
+    setActivePlayerId(players?.[0]?.id ?? null);
   }, [currentHole, players]);
 
   if (currentHole > 18) {
-  return (
-    <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>Round Complete</h3>
-      <div>All 18 holes have been entered.</div>
-    </div>
-  );
-}
+    return (
+      <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Round Complete</h3>
+        <div>All 18 holes have been entered.</div>
+      </div>
+    );
+  }
 
-if (currentHole > 18) {
-  return (
-    <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>Round Complete</h3>
-      <div>All 18 holes have been entered.</div>
-    </div>
-  );
-}
+  const activePlayerIndex = players.findIndex((p) => p.id === activePlayerId);
+  const activePlayer = players[activePlayerIndex];
 
   const allScoresEntered = players.every(
     (player) => scores[currentHole]?.[player.id] != null
   );
+
+  function moveToNextPlayer() {
+  if (!players.length) return;
+
+  const nextIndex = (activePlayerIndex + 1) % players.length;
+  setActivePlayerId(players[nextIndex].id);
+}
+
+function moveToPrevPlayer() {
+  if (!players.length) return;
+
+  const prevIndex =
+    activePlayerIndex === 0 ? players.length - 1 : activePlayerIndex - 1;
+
+  setActivePlayerId(players[prevIndex].id);
+}
+
+  function handleKeypadScore(value) {
+    if (!activePlayer) return;
+
+    setScore(currentHole, activePlayer.id, String(value));
+    moveToNextPlayer();
+  }
+
+  function handleClearScore() {
+    if (!activePlayer) return;
+
+    setScore(currentHole, activePlayer.id, "");
+  }
 
   return (
     <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
@@ -52,70 +66,73 @@ if (currentHole > 18) {
         {course.hcp?.[currentHole - 1] ?? "-"}
       </h3>
 
-      <div style={{ display: "grid", gap: 10 }}>
-        {players.map((player, playerIndex) => (
+      <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+        {players.map((player) => {
+          const isActive = player.id === activePlayerId;
+          const score = scores[currentHole]?.[player.id] ?? "";
+
+          return (
+            <button
+              key={player.id}
+              type="button"
+              onClick={() => setActivePlayerId(player.id)}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: 12,
+                border: isActive ? "2px solid #1a73e8" : "1px solid #ccc",
+                borderRadius: 6,
+                background: isActive ? "#e8f0fe" : "#fff",
+                fontSize: 16,
+              }}
+            >
+              <span>{player.name}</span>
+              <strong style={{ fontSize: 22 }}>{score || "-"}</strong>
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          marginBottom: 8,
+          fontWeight: "bold",
+          fontSize: 16,
+        }}
+      >
+        Enter score for: {activePlayer?.name ?? "-"}
+      </div>
+
           <div
-            key={player.id}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 8,
+        }}
+      >
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+          <button
+            key={num}
+            type="button"
+            onClick={() => handleKeypadScore(num)}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
+              padding: 16,
+              fontSize: 20,
+              fontWeight: "bold",
             }}
           >
-            <label htmlFor={`score-${currentHole}-${player.id}`}>
-              {player.name}
-            </label>
-
-            <input
-              ref={(el) => {
-                scoreInputRefs.current[player.id] = el;
-              }}
-              id={`score-${currentHole}-${player.id}`}
-              type="tel"
-              inputMode="numeric"
-              value={scores[currentHole]?.[player.id] ?? ""}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => {
-                const rawValue = e.target.value;
-                const value = rawValue.slice(-1);
-
-                if (value !== "" && !/^[1-9]$/.test(value)) return;
-
-                setScore(currentHole, player.id, value);
-
-                if (value !== "") {
-                  if (playerIndex < players.length - 1) {
-                    const nextPlayer = players[playerIndex + 1];
-
-                    setTimeout(() => {
-                      scoreInputRefs.current[nextPlayer.id]?.focus();
-                    }, 0);
-                  } else {
-                    setTimeout(() => {
-                      saveHoleButtonRef.current?.focus();
-                    }, 0);
-                  }
-                }
-              }}
-              style={{
-                width: 80,
-                padding: 8,
-                fontSize: 18,
-                textAlign: "center",
-              }}
-            />
-          </div>
+            {num}
+          </button>
         ))}
       </div>
 
       <button
-        ref={saveHoleButtonRef}
         disabled={!allScoresEntered}
         onClick={onSaveHole}
         style={{
           width: "100%",
-          padding: 12,
+          padding: 14,
           fontSize: 16,
           fontWeight: "bold",
           marginTop: 12,
@@ -124,6 +141,39 @@ if (currentHole > 18) {
       >
         Save Hole {currentHole}
       </button>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+          marginTop: 8,
+          width: "100%",
+        }}
+      >
+        <button
+          type="button"
+          onClick={moveToPrevPlayer}
+          style={{
+            padding: 12,
+            fontSize: 14,
+          }}
+        >
+          Prev Player
+        </button>
+
+        <button
+          type="button"
+          onClick={moveToNextPlayer}
+          style={{
+            padding: 12,
+            fontSize: 14,
+          }}
+        >
+          Next Player
+        </button>
+      </div>
+
     </div>
   );
 }

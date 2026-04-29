@@ -289,7 +289,13 @@ export default function SetupScreen({
     ref={(el) => {
       teamGameRefs.current[index] = el;
     }}
-    style={{ border: "1px solid gray", margin: 6, padding: 10 }}
+    style={{
+  border: "1px solid #ccc",
+  marginBottom: 12,
+  padding: 12,
+  borderRadius: 8,
+  background: "#fff",
+}}
   >
               <div>
                 <strong>
