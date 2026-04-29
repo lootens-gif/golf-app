@@ -30,6 +30,8 @@ export default function SetupScreen({
   updateCourseName,
   updateCoursePar,
   updateCourseHcp,
+  enableTeamGame,
+  setEnableTeamGame,
   teamGameUnitAmount,
   setTeamGameUnitAmount,
   pressTrigger,
@@ -184,31 +186,41 @@ export default function SetupScreen({
           />
         </div>
 
-        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-          <h3>Team Game & Birdie Betting</h3>
+       <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
+  <h3>Team Game & Birdie Betting</h3>
 
-          <div style={{ marginBottom: 8 }}>
-            <label>
-              Team Game Unit Amount:
+  <div style={{ marginBottom: 12 }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input
+        type="checkbox"
+        checked={enableTeamGame}
+        onChange={(e) => setEnableTeamGame(e.target.checked)}
+      />
+      Enable Team Game
+    </label>
+  </div>
+
+  {enableTeamGame && (
+    <div style={{ marginBottom: 8 }}>
+      <label>
+        Team Game Unit Amount:
               <input
-                type="number"
-                value={teamGameUnitAmount}
-                onChange={(e) => setTeamGameUnitAmount(Number(e.target.value) || 1)}
-                style={{ width: 80, marginLeft: 6 }}
-              />
+            type="number"
+            value={teamGameUnitAmount}
+            onChange={(e) => setTeamGameUnitAmount(e.target.value)}
+            onFocus={(e) => e.target.select()}
+/>
             </label>
 
 <div style={{ marginTop: 8 }}>
   <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
     Press Trigger:
     <input
-      type="number"
-      min="1"
-      step="1"
-      value={pressTrigger}
-      onChange={(e) => setPressTrigger(Number(e.target.value || 1))}
-      style={{ width: 70 }}
-    />
+  type="number"
+  value={pressTrigger}
+  onChange={(e) => setPressTrigger(e.target.value)}
+  onFocus={(e) => e.target.select()}
+/>
   </label>
 </div>
 
@@ -216,8 +228,10 @@ export default function SetupScreen({
 
 </div>
 
-          </div>
-          <div style={{ marginTop: 10 }}>
+    </div>
+  )}
+
+  <div style={{ marginTop: 10 }}>
   <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
     <input
       type="checkbox"
@@ -235,6 +249,7 @@ export default function SetupScreen({
     value={birdieBetAmount}
     disabled={!birdiesEnabled}
     onChange={(e) => setBirdieBetAmount(Number(e.target.value || 0))}
+    onFocus={(e) => e.target.select()}
     style={{ width: 70 }}
   />
 </label>
@@ -243,9 +258,11 @@ export default function SetupScreen({
 </div>
         </div>
 
-        <h3>Team Game Selector</h3>
+        {enableTeamGame && (
+  <>
+    <h3>Team Game Selector</h3>
 
-        <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 12 }}>
           <strong>Game Hole Setup</strong>
 
           <div style={{ marginTop: 8, marginBottom: 10 }}>
@@ -276,7 +293,9 @@ export default function SetupScreen({
           )}
         </div>
 
-        {teamGames.map((game, index) => {
+        {enableTeamGame && (
+         <>
+       {teamGames.map((game, index) => {
           const { start, end } = getTeamGameRange(teamGames, index);
           const duplicateError = hasDuplicateSelections(
             getTeamGameSelection(index),
@@ -363,6 +382,9 @@ export default function SetupScreen({
             </div>
           );
         })}
+  </>
+)}            </>
+            )}
 
         <div style={{ marginBottom: 12 }}>
           <button onClick={addMatch}>Add Match</button>

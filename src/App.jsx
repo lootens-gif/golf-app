@@ -78,6 +78,7 @@ export default function App() {
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
   const [showRoundSummary, setShowRoundSummary] = useState(true);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [enableTeamGame, setEnableTeamGame] = useState(true);
 
 
 
@@ -1745,6 +1746,8 @@ return (
     startRound={startRound}
     createDefaultTeamGame={createDefaultTeamGame}
     focusGameTarget={focusGameTarget}
+    enableTeamGame={enableTeamGame}
+    setEnableTeamGame={setEnableTeamGame}
    />
 )}
 
@@ -1796,8 +1799,8 @@ setSaveMessage(`Hole ${currentHole} saved`);
         return nextHole >= range.start && nextHole <= range.end;
       });
 
-      if (nextGameIndex >= 0) {
-        const selection = getTeamGameSelection(nextGameIndex);
+if (enableTeamGame && nextGameIndex >= 0) {
+          const selection = getTeamGameSelection(nextGameIndex);
 
         const hasValidTeams =
           mode === "5p"
