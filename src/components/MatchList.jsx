@@ -490,10 +490,10 @@ export default function MatchList({
               />
             </label>
 
-            <label>
-              <input
-                type="checkbox"
-                checked={!!match.birdieEnabled}
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  <input
+    type="checkbox"
+    checked={!!match.birdieEnabled}
                 onChange={(e) =>
                   onUpdateMatch(match.id, { birdieEnabled: e.target.checked })
                 }
@@ -501,7 +501,21 @@ export default function MatchList({
               Birdies
             </label>
 
-            <button onClick={() => onRemoveMatch(match.id)}>Remove</button>
+           <button
+  type="button"
+  onClick={() => onRemoveMatch(match.id)}
+  style={{
+    marginLeft: 8,
+    background: "#fff",
+    border: "1px solid #ccc",
+    color: "#555",
+    padding: "6px 10px",
+    borderRadius: 6,
+    fontSize: 13,
+  }}
+>
+  Cancel Match
+</button>
           </div>
 
           {match.birdieEnabled && (
@@ -512,7 +526,7 @@ export default function MatchList({
       color: "#666",
     }}
   >
-    Gross birdies only.
+    Birdies use gross score only.
   </div>
 )}
 

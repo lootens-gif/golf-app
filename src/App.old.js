@@ -237,7 +237,7 @@ export default function App() {
         const res = playIndividual(m);
 
         return (
-          <div key={i} style={{ border: "1px solid gray", margin: 5, padding: 5 }}>
+          <div className="app-card" key={i}>
             {m.p1} vs {m.p2}
 
             <select onChange={e => m.type = e.target.value}>
@@ -258,12 +258,21 @@ export default function App() {
               ))}
             </div>
 
-            <div>
+                        <div>
               Total: ${res.total}
               {res.long !== undefined && (
                 <div>Long: {res.long} Short: {res.short}</div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => removelMatch(i)}
+              style={{ marginTop: 8 }}
+            >
+          Cancel Match
+            </button>
+        
           </div>
         );
       })}

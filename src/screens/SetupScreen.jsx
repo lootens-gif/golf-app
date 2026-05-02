@@ -58,8 +58,26 @@ export default function SetupScreen({
   startRound,
   createDefaultTeamGame,
   focusGameTarget,
+  goToLive,
+  goToResults,
 }) {
     const teamGameRefs = useRef({});
+    const primarySetupActionLabel = focusGameTarget ? "Continue Round" : "Start Round";
+<div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+  
+  <button className="secondary-button" type="button" onClick={goToResults}>
+    Results
+  </button>
+</div>
+    const PrimarySetupAction = () => (
+    <button
+        onClick={startRound}
+        className="primary-button"
+        style={{ marginTop: 12 }}
+    >
+        {primarySetupActionLabel}
+    </button>
+    );
 
 // Do not force-focus selects in Safari; it can lock/dropdown weirdly.
 // Scroll to the game only.
@@ -256,6 +274,17 @@ export default function SetupScreen({
 
 
 </div>
+
+{!enableTeamGame && (
+  <button
+    onClick={startRound}
+    className="primary-button"
+    style={{ marginTop: 12 }}
+  >
+    Start Round
+  </button>
+)}
+
         </div>
 
         {enableTeamGame && (
@@ -379,9 +408,15 @@ export default function SetupScreen({
                   Duplicate players in this game are not allowed.
                 </div>
               )}
+              {!duplicateError && (
+  <PrimarySetupAction />
+)}
             </div>
           );
         })}
+
+    
+
   </>
 )}            </>
             )}
@@ -403,18 +438,7 @@ export default function SetupScreen({
           onRemoveMatch={removeMatch}
         />
 
-        <button
-          onClick={startRound}
-          style={{
-            width: "100%",
-            padding: 14,
-            fontSize: 18,
-            fontWeight: "bold",
-            marginTop: 16,
-          }}
-        >
-          Start Round
-        </button>
+       
       </>
   );
 }

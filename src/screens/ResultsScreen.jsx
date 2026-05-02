@@ -5,13 +5,13 @@ export default function ResultsScreen({
   leaderboard,
   computedResults,
   roundSummaryRows = [],
+  enableTeamGame,
   goToLive,
+  backToSetup,
 }) {
   return (
     <>
-      <button onClick={goToLive} style={{ marginBottom: 12 }}>
-        Back to Round
-      </button>
+   
 
       <h3>Final Results</h3>
 
@@ -58,6 +58,7 @@ export default function ResultsScreen({
   tabs={computedResults.tabs}
   players={players}
   roundSummaryRows={roundSummaryRows}
+  enableTeamGame={enableTeamGame}
 />
     </>
   );

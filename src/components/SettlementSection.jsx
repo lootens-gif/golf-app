@@ -3,6 +3,7 @@ function SettlementSection({
   tabs = [],
   players = [],
   roundSummaryRows = [],
+  enableTeamGame = true,
 }) {
   const getPlayerName = (playerId) => {
     return players.find((player) => player.id === playerId)?.name || playerId;
@@ -29,8 +30,10 @@ function SettlementSection({
               </tr>
             </thead>
             <tbody>
-              {playerLedger.map((row) => (
-                <tr key={row.playerId}>
+{playerLedger
+  .filter((row) => players.some((player) => player.id === row.playerId))
+  .map((row) => (
+                    <tr key={row.playerId}>
                   <td>{getPlayerName(row.playerId)}</td>
                   <td>${Number(row.mainGame ?? 0).toFixed(2)}</td>
                   <td>${Number(row.sideMatches ?? 0).toFixed(2)}</td>
@@ -78,6 +81,7 @@ function SettlementSection({
         )}
       </div>
 
+{enableTeamGame && (
       <div className="settlement-card">
         <h3>Game Summary</h3>
 
@@ -127,6 +131,7 @@ function SettlementSection({
           </div>
         )}
       </div>
+)}
     </section>
   );
 }

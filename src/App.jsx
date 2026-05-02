@@ -76,7 +76,7 @@ export default function App() {
   const [focusGameTarget, setFocusGameTarget] = useState(null);
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
-  const [showRoundSummary, setShowRoundSummary] = useState(true);
+  const [showRoundSummary, setShowRoundSummary] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
 
@@ -564,12 +564,12 @@ function getTeamDisplayName(team = []) {
       >
         <strong>5-Player Team Game</strong>
         <div style={{ fontSize: 13, marginTop: 4 }}>
-          Pick the anchor team. The app builds the three opponent pairs.
+          Pick the wheel team. The app builds the three opponent pairs.
         </div>
       </div>
 
       <div style={{ marginTop: 10 }}>
-        <strong>Anchor Team</strong>
+        <strong>Wheel Team</strong>
         <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>
           Pick 2 players
         </div>
@@ -686,6 +686,8 @@ function addMatch() {
   ]);
 }
 
+
+
 function addNinePointMatch() {
   if (players.length < 3) return;
 
@@ -744,7 +746,7 @@ function addNinePointMatch() {
   });
 }
 
-  function removeMatch(id) {
+  function  removeMatch(id) {
     setMatches((prev) => prev.filter((m) => m.id !== id));
   }
 
@@ -963,7 +965,21 @@ const leaderboard = useMemo(() => {
   return buildLeaderboard(computedResults.playerLedger, { players });
 }, [computedResults, players]);
 
-const roundSummaryRows = players.map((player) => {
+const activePlayers = useMemo(() => {
+  if (enableTeamGame) return players;
+
+  const activePlayerIds = new Set();
+
+  matches.forEach((match) => {
+    if (match.p1Id) activePlayerIds.add(match.p1Id);
+    if (match.p2Id) activePlayerIds.add(match.p2Id);
+    if (match.p3Id) activePlayerIds.add(match.p3Id);
+  });
+
+  return players.filter((player) => activePlayerIds.has(player.id));
+}, [enableTeamGame, players, matches]);
+
+const roundSummaryRows = activePlayers.map((player) => {
   let netTotal = 0;
 
   const gameTotals = teamGames.map((game, gameIndex) => {
@@ -1435,8 +1451,8 @@ useEffect(() => {
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-  if (teamGames.length > 0 && totalHoles !== 18) {
-    setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGames.length > 0 && totalHoles !== 18) {
+      setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
     alert(`Team game holes must equal 18. Currently ${totalHoles}.`);
     return;
   }
@@ -1487,32 +1503,55 @@ function startRound() {
       return false;
     })();
 
-  if (!hasValidTeamGameForRequiredHole) {
-    const gameLabel =
-      requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
+ if (enableTeamGame && !hasValidTeamGameForRequiredHole) {
+  const gameLabel =
+    requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
 
-    setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
+  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
 
-    if (requiredGameIndex >= 0) {
+  if (requiredGameIndex >= 0) {
+    setFocusGameTarget({
+      gameIndex: requiredGameIndex,
+      nonce: Date.now(),
+    });
+  }
+
+  alert(`Set teams for ${gameLabel} before continuing.`);
+
+  if (requiredGameIndex >= 0) {
+    setTimeout(() => {
       setFocusGameTarget({
         gameIndex: requiredGameIndex,
         nonce: Date.now(),
       });
-    }
+    }, 0);
+  }
 
-    alert(`Set teams for ${gameLabel} before continuing.`);
+  return;
+}
 
-    if (requiredGameIndex >= 0) {
-      setTimeout(() => {
-        setFocusGameTarget({
-          gameIndex: requiredGameIndex,
-          nonce: Date.now(),
-        });
-      }, 0);
-    }
-
+if (!enableTeamGame) {
+  if (matches.length === 0) {
+    setSetupMessage("Add at least one 1v1 match before starting.");
+    alert("Add at least one 1v1 match before starting.");
     return;
   }
+
+  const invalidMatch = matches.find((match) => {
+    if (match.gameType === "ninePoint") {
+      const ids = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+      return ids.length !== 3 || new Set(ids).size !== 3;
+    }
+
+    return !match.p1Id || !match.p2Id || match.p1Id === match.p2Id;
+  });
+
+  if (invalidMatch) {
+    setSetupMessage("Finish selecting players for each match before starting.");
+    alert("Finish selecting players for each match before starting.");
+    return;
+  }
+}
 
   if (lastHoleSaved != null) {
     setCurrentHole(lastHoleSaved + 1);
@@ -1525,14 +1564,17 @@ function startRound() {
 }
 
 function backToSetup() {
+  setShowRoundSummary(false);
   setScreen("setup");
 }
 
 function goToResults() {
+  setShowRoundSummary(false);
   setScreen("results");
 }
 
 function goToLive() {
+  setShowRoundSummary(false);
   setScreen("live");
 }
 
@@ -1540,6 +1582,37 @@ function buildRealHoleResultLines(holeNumber) {
   const holeLines = [];
   const matchLines = [];
   const birdieLines = [];
+
+if (!enableTeamGame) {
+  const holeScores = scores[holeNumber] || {};
+  const playerName = (id) => players.find((p) => p.id === id)?.name || id;
+
+  matches.forEach((match) => {
+    if (match.gameType === "ninePoint") return;
+
+    const p1Score = Number(holeScores[match.p1Id]);
+    const p2Score = Number(holeScores[match.p2Id]);
+
+    if (!Number.isFinite(p1Score) || !Number.isFinite(p2Score)) return;
+
+    const p1Name = playerName(match.p1Id);
+    const p2Name = playerName(match.p2Id);
+
+    if (p1Score < p2Score) {
+      holeLines.push(`${p1Name} won hole vs ${p2Name}`);
+    } else if (p2Score < p1Score) {
+      holeLines.push(`${p2Name} won hole vs ${p1Name}`);
+    } else {
+      holeLines.push(`${p1Name} and ${p2Name} tied hole`);
+    }
+  });
+
+  return {
+    holeLines: holeLines.length ? holeLines : ["No completed 1v1 results for this hole."],
+    matchLines: [],
+    birdieLines: [],
+  };
+}
 
   const activeGameIndex = teamGames.findIndex((game, index) => {
     const range = getTeamGameRange(teamGames, index);
@@ -1690,8 +1763,43 @@ if (enabled && Number.isFinite(par)) {
 
  // ===== FINAL APP RETURN (DO NOT TOUCH INNER RETURNS ABOVE) =====
 return (
-  <div style={{ padding: 12 }}>
-    <h2>Golf Betting App</h2>
+  <div className="app-shell">
+    <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  }}
+>
+  <h2 style={{ margin: 0 }}>Golf Betting App</h2>
+
+  <div style={{ display: "flex", gap: 8 }}>
+    <button
+      className="secondary-button"
+      onClick={backToSetup}
+      disabled={screen === "setup"}
+    >
+      Setup
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={goToLive}
+      disabled={screen === "live"}
+    >
+      Live
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={goToResults}
+      disabled={screen === "results"}
+    >
+      Results
+    </button>
+  </div>
+</div>
 
     {screen === "setup" && (
   <SetupScreen
@@ -1748,6 +1856,8 @@ return (
     focusGameTarget={focusGameTarget}
     enableTeamGame={enableTeamGame}
     setEnableTeamGame={setEnableTeamGame}
+    goToLive={goToLive}
+    goToResults={goToResults}
    />
 )}
 
@@ -1780,7 +1890,7 @@ return (
   <ScoreEntryCard
     currentHole={currentHole}
     course={course}
-    players={players}
+    players={activePlayers}
     scores={scores}
     setScore={setScore}
     onSaveHole={() => {
@@ -1835,7 +1945,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 />
 
 {pendingNextGameIndex != null && (
-  <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+  <div className="app-card">
     <h3 style={{ marginTop: 0 }}>
       Game {pendingNextGameIndex} Complete
     </h3>
@@ -2004,7 +2114,7 @@ const birdieSummaryText = players
 
 {showProjectedSettlement && (
   <div style={{ marginTop: 8 }}>
-    {players.map((player) => {
+    {activePlayers.map((player) => {
       const amount = leaderboard[player.id] ?? 0;
 
       return (
@@ -2036,7 +2146,7 @@ const birdieSummaryText = players
   </div>
 )}
 
-<div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
+<div className="app-card" style={{ marginBottom: 12 }}>
   <button
     onClick={() => setShowRoundSummary((prev) => !prev)}
     style={{
@@ -2069,7 +2179,7 @@ const birdieSummaryText = players
         <div>Total</div>
       </div>
 
-      {players.map((player) => {
+      {activePlayers.map((player) => {
         let netTotal = 0;
 
         const gameTotals = teamGames.map((game, gameIndex) => {
@@ -2138,7 +2248,7 @@ const birdieSummaryText = players
   <div style={{ border: "1px solid #ccc", padding: 12, marginBottom: 12 }}>
     <h3 style={{ marginTop: 0 }}>Birdies (Gross Side Bet)</h3>
 
-    {players.map((player) => {
+    {activePlayers.map((player) => {
   const birdieHoles = [];
 
   for (let hole = 1; hole <= 18; hole += 1) {
@@ -2165,19 +2275,22 @@ const birdieSummaryText = players
   </div>
 )}
 <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-  <button onClick={backToSetup}>Edit Setup</button>
-  <button onClick={goToResults}>View Results</button>
-  <button onClick={() => setShowScorecardEdit((prev) => !prev)}>
+  <button className="secondary-button" onClick={backToSetup}>Edit Setup</button>
+<button className="secondary-button" onClick={goToResults}>Final Results</button>
+  <button
+  className="secondary-button"
+  onClick={() => setShowScorecardEdit((prev) => !prev)}
+>
     {showScorecardEdit ? "Hide Scorecard" : "Edit Scorecard"}
   </button>
 </div>
 
 {showScorecardEdit && (
-  <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+  <div className="app-card">
     <h3 style={{ marginTop: 0 }}>Edit Scorecard</h3>
 
     <ScoresGrid
-      players={players}
+      players={enableTeamGame ? players : activePlayers}
       scores={scores}
       onSetScore={setScore}
     />
@@ -2188,11 +2301,13 @@ const birdieSummaryText = players
 
 {screen === "results" && (
   <ResultsScreen
-  players={players}
+  players={activePlayers}
   leaderboard={leaderboard}
   computedResults={computedResults}
   roundSummaryRows={roundSummaryRows}
+  enableTeamGame={enableTeamGame}
   goToLive={goToLive}
+  backToSetup={backToSetup}
 />
 )}
   </div>

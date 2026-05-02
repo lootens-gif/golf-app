@@ -1,3 +1,110 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+body {
+  margin: 0;
+  background: #f5f6f7;
+  color: #1f2933;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #cfd7df;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+.app-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.app-card,
+.settlement-card {
+  background: #fff;
+  border: 1px solid #d9e0e7;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.app-card h2,
+.app-card h3,
+.settlement-card h2,
+.settlement-card h3 {
+  margin-top: 0;
+}
+
+.primary-button {
+  width: 100%;
+  padding: 14px;
+  font-weight: 700;
+  font-size: 16px;
+  background: #111827;
+  color: white;
+  border: 1px solid #111827;
+}
+
+.secondary-button {
+  padding: 12px;
+  font-size: 14px;
+  background: #fff;
+}
+
+input,
+select {
+  border: 1px solid #cfd7df;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th,
+td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    padding: 10px;
+  }
+
+  .app-card,
+  .settlement-card {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  h3 {
+    font-size: 17px;
+  }
+
+  table {
+    font-size: 13px;
+  }
+}

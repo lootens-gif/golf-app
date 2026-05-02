@@ -122,17 +122,14 @@ function moveToPrevPlayer() {
       </div>
 
       <button
-        disabled={!allScoresEntered}
-        onClick={onSaveHole}
-        style={{
-          width: "100%",
-          padding: 14,
-          fontSize: 16,
-          fontWeight: "bold",
-          marginTop: 12,
-          opacity: allScoresEntered ? 1 : 0.5,
-        }}
-      >
+  className="primary-button"
+  disabled={!allScoresEntered}
+  onClick={onSaveHole}
+  style={{
+    marginTop: 12,
+    opacity: allScoresEntered ? 1 : 0.5,
+  }}
+>
         Save Hole {currentHole}
       </button>
 
