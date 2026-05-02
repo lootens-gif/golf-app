@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
@@ -79,6 +79,7 @@ export default function App() {
   const [showRoundSummary, setShowRoundSummary] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
+  const [scoreEntryRef] = useRef(null);
 
 
 
@@ -685,8 +686,6 @@ function addMatch() {
     },
   ]);
 }
-
-
 
 function addNinePointMatch() {
   if (players.length < 3) return;
@@ -1560,7 +1559,14 @@ if (!enableTeamGame) {
   }
 
   setPendingNextGameIndex(null);
-  setScreen("live");
+setScreen("live");
+
+setTimeout(() => {
+  scoreEntryRef.current?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}, 0);
 }
 
 function backToSetup() {
@@ -1887,6 +1893,7 @@ return (
     )}
 
   
+  <div ref={scoreEntryRef}>
   <ScoreEntryCard
     currentHole={currentHole}
     course={course}
@@ -1935,7 +1942,8 @@ if (enableTeamGame && nextGameIndex >= 0) {
   setSaveMessage(null);
 }, 2000);
     }}
-  />
+    />
+</div>
   </>
 )}
 
