@@ -21,9 +21,9 @@ const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
 
 function createDefaultCourse() {
   return {
-    name: "My Course",
-    pars: Array(18).fill(4),
-    hcp: Array.from({ length: 18 }, (_, i) => i + 1),
+    name: "Westwood",
+    pars: [5,4,3,4,4,5,4,3,4,4,4,5,4,4,3,4,3,5],
+    hcp: [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9],
   };
 }
 
