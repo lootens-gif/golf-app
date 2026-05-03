@@ -79,8 +79,7 @@ export default function App() {
   const [showRoundSummary, setShowRoundSummary] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
-  const [scoreEntryRef] = useRef(null);
-
+  const scoreEntryRef = useRef(null);
 
 
   function createDefaultTeamGame(index = 0) {
