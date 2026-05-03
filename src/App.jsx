@@ -759,7 +759,7 @@ function addNinePointMatch() {
       p1Id: defaultIds[0],
       p2Id: defaultIds[1],
       p3Id: defaultIds[2],
-      blitzEnabled: true,
+      blitzEnabled: false,
       bet: 1,
       birdieEnabled: false,
       birdieBet: 1,
