@@ -16,8 +16,51 @@ import HoleResultCard from "./components/live/HoleResultCard";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
+const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
+
+function safeReadJsonStorage(key, fallbackValue = null) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallbackValue;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallbackValue;
+  } catch (error) {
+    console.error(`Bad localStorage data for ${key}:`, error);
+    try {
+      localStorage.removeItem(key);
+    } catch (removeError) {
+      console.error(`Could not remove bad localStorage data for ${key}:`, removeError);
+    }
+    return fallbackValue;
+  }
+}
+
+function safeWriteJsonStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    console.error(`Could not write localStorage data for ${key}:`, error);
+    return false;
+  }
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUsableRoundSnapshot(value) {
+  return (
+    isPlainObject(value) &&
+    Array.isArray(value.allPlayers) &&
+    isPlainObject(value.course) &&
+    isPlainObject(value.scores) &&
+    Array.isArray(value.teamGames) &&
+    Array.isArray(value.matches)
+  );
+}
 
 function createDefaultCourse() {
   return {
@@ -79,6 +122,7 @@ export default function App() {
   const [showRoundSummary, setShowRoundSummary] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
+  const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
   const scoreEntryRef = useRef(null);
 
 
@@ -1150,15 +1194,68 @@ function saveLastRound() {
 
  function buildCurrentRoundSnapshot() {
   return {
+    savedAt: new Date().toISOString(),
     mode,
     allPlayers,
     course,
     scores,
     handicapMode,
+    enableTeamGame,
     teamGameUnitAmount,
+    pressTrigger,
+    birdiesEnabled,
+    birdieBetAmount,
     teamGames,
     matches,
+    screen,
+    currentHole,
+    lastHoleSaved,
   };
+}
+
+function applyRoundSnapshot(round, successMessage = "Round loaded.") {
+  if (!isUsableRoundSnapshot(round)) {
+    setSetupMessage("Saved round data was not usable and was ignored.");
+    return false;
+  }
+
+  if (round.mode) setMode(round.mode);
+  if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
+  if (round.course) setCourse(round.course);
+  if (round.scores) setScores(round.scores);
+  if (round.handicapMode) setHandicapMode(round.handicapMode);
+  if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+  if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
+
+  setPressTrigger(Number(round.pressTrigger || 1));
+  setBirdiesEnabled(!!round.birdiesEnabled);
+  setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+
+  setTeamGames(
+    round.teamGames.map((game, index) => ({
+      id: game.id || `team-game-${Date.now()}-${index}`,
+      holes: Number(game.holes) || 6,
+      pressTrigger: Number(game.pressTrigger) || 1,
+      birdieEnabled: !!game.birdieEnabled,
+      birdieBet: Number(game.birdieBet) || 0,
+      teams: game.teams || {},
+    }))
+  );
+
+  setMatches(round.matches);
+  setCurrentHole(Number(round.currentHole || 1));
+  setLastHoleSaved(round.lastHoleSaved ?? null);
+  setPendingNextGameIndex(null);
+  setFocusGameTarget(null);
+  setShowProjectedSettlement(false);
+  setShowRoundSummary(false);
+
+  if (["setup", "live", "results"].includes(round.screen)) {
+    setScreen(round.screen);
+  }
+
+  setSetupMessage(successMessage);
+  return true;
 }
 
 function saveNamedRound() {
@@ -1445,6 +1542,43 @@ useEffect(() => {
     // ignore load failures
   }
 }, []);
+
+useEffect(() => {
+  const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
+
+  if (round && isUsableRoundSnapshot(round)) {
+    applyRoundSnapshot(round, "Autosaved round restored.");
+  }
+
+  setAutoRestoreComplete(true);
+}, []);
+
+useEffect(() => {
+  if (!autoRestoreComplete) return;
+
+  const timer = setTimeout(() => {
+    safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
+  }, 250);
+
+  return () => clearTimeout(timer);
+}, [
+  autoRestoreComplete,
+  mode,
+  allPlayers,
+  course,
+  scores,
+  handicapMode,
+  enableTeamGame,
+  teamGameUnitAmount,
+  pressTrigger,
+  birdiesEnabled,
+  birdieBetAmount,
+  teamGames,
+  matches,
+  screen,
+  currentHole,
+  lastHoleSaved,
+]);
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
@@ -2172,6 +2306,40 @@ const birdieSummaryText = players
 
   {showRoundSummary && (
     <div>
+      {mode === "3p" &&
+  matchResults
+    .filter(
+      ({ match, result }) =>
+        match?.gameType === "ninePoint" &&
+        result?.gameType === "ninePoint"
+    )
+    .map(({ match, result }) => {
+      const playerIds = [
+        match.p1Id,
+        match.p2Id,
+        match.p3Id,
+      ].filter(Boolean);
+
+      if (!result?.totalsByPlayerId) return null;
+
+      const getPlayerName = (id) =>
+        players.find((p) => p.id === id)?.name || id;
+
+      return (
+        <div key={match.id} style={{ marginBottom: 12 }}>
+          <strong>9-Point Running Total</strong>
+
+          <div style={{ marginTop: 6 }}>
+            {playerIds.map((playerId) => (
+              <div key={playerId}>
+                {getPlayerName(playerId)}:{" "}
+                {result.totalsByPlayerId[playerId] ?? 0}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    })}
       <div
         style={{
           display: "grid",
