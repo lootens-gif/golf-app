@@ -1949,6 +1949,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
 <HoleResultCard
   lastHoleSaved={lastHoleSaved}
   buildRealHoleResultLines={buildRealHoleResultLines}
+  matchResults={matchResults}
+  players={players}
+  mode={mode}
 />
 
 {pendingNextGameIndex != null && (
