@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
@@ -1192,8 +1192,8 @@ function saveLastRound() {
   }
 }
 
- function buildCurrentRoundSnapshot() {
-  return {
+const buildCurrentRoundSnapshot = useCallback(() => {
+    return {
     savedAt: new Date().toISOString(),
     mode,
     allPlayers,
@@ -1211,7 +1211,23 @@ function saveLastRound() {
     currentHole,
     lastHoleSaved,
   };
-}
+}, [
+  mode,
+  allPlayers,
+  course,
+  scores,
+  handicapMode,
+  enableTeamGame,
+  teamGameUnitAmount,
+  pressTrigger,
+  birdiesEnabled,
+  birdieBetAmount,
+  teamGames,
+  matches,
+  screen,
+  currentHole,
+  lastHoleSaved,
+]);
 
 function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   if (!isUsableRoundSnapshot(round)) {
@@ -1578,6 +1594,7 @@ useEffect(() => {
   screen,
   currentHole,
   lastHoleSaved,
+  buildCurrentRoundSnapshot,
 ]);
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
