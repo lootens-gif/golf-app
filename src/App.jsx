@@ -1793,12 +1793,34 @@ if (!enableTeamGame) {
   const teamName = (ids = []) =>
     ids.filter(Boolean).map(playerName).join(" / ");
 
-  const teamBestScore = (ids = [], scoreMap = {}) => {
-    const vals = ids
-      .map((id) => Number(scoreMap[id]))
-      .filter((v) => Number.isFinite(v));
-    return vals.length ? Math.min(...vals) : null;
-  };
+ const holeHcp = Number(course?.hcp?.[holeNumber - 1]);
+
+const lowestPlayerHcp = Math.min(
+  ...players.map((player) => Number(player.hcp || 0))
+);
+
+const strokesOnHole = (playerId) => {
+  const player = players.find((p) => p.id === playerId);
+  if (!player || !Number.isFinite(holeHcp)) return 0;
+
+  const relativeHcp = Math.max(0, Number(player.hcp || 0) - lowestPlayerHcp);
+  const fullRounds = Math.floor(relativeHcp / 18);
+  const remainder = relativeHcp % 18;
+
+  return fullRounds + (holeHcp <= remainder ? 1 : 0);
+};
+
+const teamBestScore = (ids = [], scoreMap = {}) => {
+  const vals = ids
+    .map((id) => {
+      const gross = Number(scoreMap[id]);
+      if (!Number.isFinite(gross)) return null;
+      return gross - strokesOnHole(id);
+    })
+    .filter((v) => Number.isFinite(v));
+
+  return vals.length ? Math.min(...vals) : null;
+};
 
   const pluralBet = (n) => (n === 1 ? "bet" : "bets");
 
