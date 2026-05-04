@@ -6,15 +6,66 @@ export default function ResultsScreen({
   computedResults,
   roundSummaryRows = [],
   enableTeamGame,
+  scores = {},
+  course,
   goToLive,
   backToSetup,
 }) {
+  const grossNetRows = players.map((player) => {
+  const frontGross = Array.from({ length: 9 }, (_, i) => i + 1).reduce(
+    (sum, hole) => {
+      const value = Number(scores?.[hole]?.[player.id]);
+      return Number.isFinite(value) ? sum + value : sum;
+    },
+    0
+  );
+
+  const backGross = Array.from({ length: 9 }, (_, i) => i + 10).reduce(
+    (sum, hole) => {
+      const value = Number(scores?.[hole]?.[player.id]);
+      return Number.isFinite(value) ? sum + value : sum;
+    },
+    0
+  );
+
+  const totalGross = frontGross + backGross;
+  const handicap = Number(player.hcp || 0);
+  const net = totalGross - handicap;
+
+  return {
+    player,
+    frontGross,
+    backGross,
+    totalGross,
+    net,
+  };
+});
   return (
     <>
    
 
       <h3>Final Results</h3>
+<div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
+  <h3 style={{ marginTop: 0 }}>Gross / Net for GHIN</h3>
 
+  {grossNetRows.map(({ player, frontGross, backGross, totalGross, net }) => (
+    <div
+      key={player.id}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 170px 70px",
+        gap: 8,
+        marginBottom: 4,
+      }}
+    >
+      <div>{player.name}</div>
+      <div>
+        Gross {frontGross} + {backGross} = {totalGross}
+      </div>
+      <div>Net {net}</div>
+    </div>
+  ))}
+</div>
       <div style={{ border: "1px solid gray", padding: 12, marginBottom: 12 }}>
   <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
 

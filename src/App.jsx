@@ -2501,6 +2501,8 @@ const birdieSummaryText = players
   computedResults={computedResults}
   roundSummaryRows={roundSummaryRows}
   enableTeamGame={enableTeamGame}
+  scores={scores}
+  course={course}
   goToLive={goToLive}
   backToSetup={backToSetup}
 />
