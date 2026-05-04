@@ -7,8 +7,7 @@ export default function HoleResultCard({
 }) {
   if (!lastHoleSaved) return null;
 
-console.log("DEBUG matchResults", matchResults);
-console.log("DEBUG lastHoleSaved", lastHoleSaved);
+
 
   const result = buildRealHoleResultLines(lastHoleSaved);
 
