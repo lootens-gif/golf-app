@@ -12,18 +12,18 @@ export default function HoleResultCard({
   const isMainNinePoint = mode === "3p";
 
   const ninePointEntry = isMainNinePoint
-    ? matchResults.find(
-        ({ match, result }) =>
-          match?.gameType === "ninePoint" &&
-          result?.gameType === "ninePoint"
-      )
-    : null;
+  ? matchResults.find(
+      ({ match, result }) =>
+        match?.gameType === "ninePoint" &&
+        Array.isArray(result?.holes)
+    )
+  : null;
 
   const ninePointHole = ninePointEntry?.result?.holes?.find(
-    (hole) =>
-      Number(hole.hole) === Number(lastHoleSaved) &&
-      hole.status === "complete"
-  );
+  (hole) =>
+    Number(hole.hole) === Number(lastHoleSaved) &&
+    hole.pointsByPlayerId
+);
 
   const ninePointPlayerIds = ninePointEntry?.match
     ? [
