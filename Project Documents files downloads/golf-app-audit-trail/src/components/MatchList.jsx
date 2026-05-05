@@ -220,7 +220,53 @@ export default function MatchList({
     );
   }
 
+function renderMatchBirdieDetails(match) {
+  if (!match?.birdieEnabled) return null;
 
+  const bet = Number(match.birdieBet || 0);
+  if (!bet || bet <= 0) return null;
+
+  const resultBirdies = birdieResults.filter(
+    (entry) =>
+      entry.source === "match-birdie" &&
+      entry.matchId === match.id &&
+      Number(entry.amount) > 0
+  );
+
+  if (!resultBirdies.length) {
+    return (
+      <div style={{ marginTop: 8 }}>
+        <strong>Birdie Payout:</strong> $0
+        <div style={{ fontSize: 13, color: "#666" }}>No 1v1 birdies made yet.</div>
+      </div>
+    );
+  }
+
+  const lines = resultBirdies.map((entry) => {
+    const player = players.find((p) => p.id === entry.playerId);
+    const opponent = players.find((p) => p.id === entry.opponentId);
+
+    return `${player?.name || entry.playerId} birdied hole ${entry.holeNumber}: +$${Math.abs(
+      Number(entry.amount)
+    )} vs ${opponent?.name || entry.opponentId}`;
+  });
+
+  const total = resultBirdies.reduce(
+    (sum, entry) => sum + Math.abs(Number(entry.amount || 0)),
+    0
+  );
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <strong>Birdie Payout:</strong> ${total}
+      <div style={{ fontSize: 13 }}>
+        {lines.map((line, index) => (
+          <div key={`${match.id}-birdie-${index}`}>{line}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   function renderMatchBirdieDetails(match) {
     if (!match?.birdieEnabled) return null;
@@ -274,7 +320,7 @@ export default function MatchList({
           {result.decidedOn ? <div>Decided on Hole: {result.decidedOn}</div> : null}
           <div>Match Bet: ${match.bet}</div>
                     <div>
-            <strong>Match Payout: ${result.total}</strong>
+            <strong>Payout: ${result.total}</strong>
           </div>
           {renderMatchBirdieDetails(match)}
           {renderHoleStats(holeStats)}

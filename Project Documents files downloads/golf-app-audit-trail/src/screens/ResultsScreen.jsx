@@ -23,10 +23,6 @@ export default function ResultsScreen({
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(false);
 
-if (window.__debug) {
-  console.log("MATCH RESULTS DEBUG", matchResults);
-}
-
   const grossNetRows = players.map((player) => {
   const frontGross = Array.from({ length: 9 }, (_, i) => i + 1).reduce(
     (sum, hole) => {
@@ -120,7 +116,7 @@ if (window.__debug) {
   })()}
 </div>
 
-  <SettlementSection
+   <SettlementSection
   playerLedger={computedResults.playerLedger}
   tabs={computedResults.tabs}
   players={players}
@@ -128,31 +124,31 @@ if (window.__debug) {
   enableTeamGame={enableTeamGame}
 />
 
-<div style={{ marginTop: 16, marginBottom: 12 }}>
-  <button
-    type="button"
-    className="secondary-button"
-    onClick={() => setShowAuditTrail((current) => !current)}
-  >
-    {showAuditTrail ? "Hide Audit Trail" : "Show Audit Trail"}
-  </button>
-</div>
+      <div style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setShowAuditTrail((current) => !current)}
+        >
+          {showAuditTrail ? "Hide Audit Trail" : "Show Audit Trail"}
+        </button>
+      </div>
 
-{showAuditTrail && (
-  <AuditTrail
-    players={players}
-    matches={matches}
-    matchResults={matchResults}
-    birdieResults={birdieResults}
-    teamGames={teamGames}
-    teamGameResults={teamGameResults}
-    getTeamGameSelection={getTeamGameSelection}
-    scores={scores}
-    course={course}
-    handicapMode={handicapMode}
-    teamGameUnitAmount={teamGameUnitAmount}
-  />
-)}
+      {showAuditTrail && (
+        <AuditTrail
+          players={players}
+          matches={matches}
+          matchResults={matchResults}
+          birdieResults={birdieResults}
+          teamGames={teamGames}
+          teamGameResults={teamGameResults}
+          getTeamGameSelection={getTeamGameSelection}
+          scores={scores}
+          course={course}
+          handicapMode={handicapMode}
+          teamGameUnitAmount={teamGameUnitAmount}
+        />
+      )}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
@@ -16,51 +16,8 @@ import HoleResultCard from "./components/live/HoleResultCard";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
-const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
-
-function safeReadJsonStorage(key, fallbackValue = null) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallbackValue;
-    const parsed = JSON.parse(raw);
-    return parsed ?? fallbackValue;
-  } catch (error) {
-    console.error(`Bad localStorage data for ${key}:`, error);
-    try {
-      localStorage.removeItem(key);
-    } catch (removeError) {
-      console.error(`Could not remove bad localStorage data for ${key}:`, removeError);
-    }
-    return fallbackValue;
-  }
-}
-
-function safeWriteJsonStorage(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch (error) {
-    console.error(`Could not write localStorage data for ${key}:`, error);
-    return false;
-  }
-}
-
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isUsableRoundSnapshot(value) {
-  return (
-    isPlainObject(value) &&
-    Array.isArray(value.allPlayers) &&
-    isPlainObject(value.course) &&
-    isPlainObject(value.scores) &&
-    Array.isArray(value.teamGames) &&
-    Array.isArray(value.matches)
-  );
-}
 
 function createDefaultCourse() {
   return {
@@ -122,7 +79,6 @@ export default function App() {
   const [showRoundSummary, setShowRoundSummary] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
-  const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
   const scoreEntryRef = useRef(null);
 
 
@@ -731,7 +687,6 @@ function addMatch() {
 }
 
 function addNinePointMatch() {
-    if (mode !== "3p") return;
   if (players.length < 3) return;
 
   let defaultIds = [players[0]?.id, players[1]?.id, players[2]?.id].filter(Boolean);
@@ -760,7 +715,7 @@ function addNinePointMatch() {
       p1Id: defaultIds[0],
       p2Id: defaultIds[1],
       p3Id: defaultIds[2],
-      blitzEnabled: false,
+      blitzEnabled: true,
       bet: 1,
       birdieEnabled: false,
       birdieBet: 1,
@@ -985,7 +940,7 @@ const birdieResults = buildBirdieResults({
   birdieBetAmount,
 });
 
-
+console.log("BIRDIE RESULTS DEBUG", birdieResults);
 
 const computedResults = scoreRound(round, {
   players,
@@ -1193,86 +1148,17 @@ function saveLastRound() {
   }
 }
 
-const buildCurrentRoundSnapshot = useCallback(() => {
-    return {
-    savedAt: new Date().toISOString(),
+ function buildCurrentRoundSnapshot() {
+  return {
     mode,
     allPlayers,
     course,
     scores,
     handicapMode,
-    enableTeamGame,
     teamGameUnitAmount,
-    pressTrigger,
-    birdiesEnabled,
-    birdieBetAmount,
     teamGames,
     matches,
-    screen,
-    currentHole,
-    lastHoleSaved,
   };
-}, [
-  mode,
-  allPlayers,
-  course,
-  scores,
-  handicapMode,
-  enableTeamGame,
-  teamGameUnitAmount,
-  pressTrigger,
-  birdiesEnabled,
-  birdieBetAmount,
-  teamGames,
-  matches,
-  screen,
-  currentHole,
-  lastHoleSaved,
-]);
-
-function applyRoundSnapshot(round, successMessage = "Round loaded.") {
-  if (!isUsableRoundSnapshot(round)) {
-    setSetupMessage("Saved round data was not usable and was ignored.");
-    return false;
-  }
-
-  if (round.mode) setMode(round.mode);
-  if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
-  if (round.course) setCourse(round.course);
-  if (round.scores) setScores(round.scores);
-  if (round.handicapMode) setHandicapMode(round.handicapMode);
-  if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
-  if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
-
-  setPressTrigger(Number(round.pressTrigger || 1));
-  setBirdiesEnabled(!!round.birdiesEnabled);
-  setBirdieBetAmount(Number(round.birdieBetAmount || 1));
-
-  setTeamGames(
-    round.teamGames.map((game, index) => ({
-      id: game.id || `team-game-${Date.now()}-${index}`,
-      holes: Number(game.holes) || 6,
-      pressTrigger: Number(game.pressTrigger) || 1,
-      birdieEnabled: !!game.birdieEnabled,
-      birdieBet: Number(game.birdieBet) || 0,
-      teams: game.teams || {},
-    }))
-  );
-
-  setMatches(round.matches);
-  setCurrentHole(Number(round.currentHole || 1));
-  setLastHoleSaved(round.lastHoleSaved ?? null);
-  setPendingNextGameIndex(null);
-  setFocusGameTarget(null);
-  setShowProjectedSettlement(false);
-  setShowRoundSummary(false);
-
-  if (["setup", "live", "results"].includes(round.screen)) {
-    setScreen(round.screen);
-  }
-
-  setSetupMessage(successMessage);
-  return true;
 }
 
 function saveNamedRound() {
@@ -1560,44 +1446,6 @@ useEffect(() => {
   }
 }, []);
 
-useEffect(() => {
-  const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
-
-  if (round && isUsableRoundSnapshot(round)) {
-    applyRoundSnapshot(round, "Autosaved round restored.");
-  }
-
-  setAutoRestoreComplete(true);
-}, []);
-
-useEffect(() => {
-  if (!autoRestoreComplete) return;
-
-  const timer = setTimeout(() => {
-    safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
-  }, 250);
-
-  return () => clearTimeout(timer);
-}, [
-  autoRestoreComplete,
-  mode,
-  allPlayers,
-  course,
-  scores,
-  handicapMode,
-  enableTeamGame,
-  teamGameUnitAmount,
-  pressTrigger,
-  birdiesEnabled,
-  birdieBetAmount,
-  teamGames,
-  matches,
-  screen,
-  currentHole,
-  lastHoleSaved,
-  buildCurrentRoundSnapshot,
-]);
-
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
@@ -1747,43 +1595,27 @@ if (!enableTeamGame) {
   matches.forEach((match) => {
     if (match.gameType === "ninePoint") return;
 
-        const matchEntry = matchResults.find((entry) => entry.match?.id === match.id);
-    const holeResult = matchEntry?.result?.holes?.[holeNumber - 1];
+    const p1Score = Number(holeScores[match.p1Id]);
+    const p2Score = Number(holeScores[match.p2Id]);
 
-    if (holeResult == null) return;
+    if (!Number.isFinite(p1Score) || !Number.isFinite(p2Score)) return;
 
     const p1Name = playerName(match.p1Id);
     const p2Name = playerName(match.p2Id);
 
-    if (holeResult > 0) {
+    if (p1Score < p2Score) {
       holeLines.push(`${p1Name} won hole vs ${p2Name}`);
-    } else if (holeResult < 0) {
+    } else if (p2Score < p1Score) {
       holeLines.push(`${p2Name} won hole vs ${p1Name}`);
     } else {
       holeLines.push(`${p1Name} and ${p2Name} tied hole`);
     }
-
-    if (match.birdieEnabled && Number(match.birdieBet || 0) > 0) {
-      const par = Number(course.pars?.[holeNumber - 1]);
-      const p1Score = Number(holeScores[match.p1Id]);
-      const p2Score = Number(holeScores[match.p2Id]);
-
-      if (Number.isFinite(par)) {
-        if (Number.isFinite(p1Score) && p1Score <= par - 1) {
-          birdieLines.push(`${p1Name} birdie +$${Number(match.birdieBet)}`);
-        }
-
-        if (Number.isFinite(p2Score) && p2Score <= par - 1) {
-          birdieLines.push(`${p2Name} birdie +$${Number(match.birdieBet)}`);
-        }
-      }
-    }
   });
 
-    return {
+  return {
     holeLines: holeLines.length ? holeLines : ["No completed 1v1 results for this hole."],
     matchLines: [],
-    birdieLines,
+    birdieLines: [],
   };
 }
 
@@ -1810,34 +1642,12 @@ if (!enableTeamGame) {
   const teamName = (ids = []) =>
     ids.filter(Boolean).map(playerName).join(" / ");
 
- const holeHcp = Number(course?.hcp?.[holeNumber - 1]);
-
-const lowestPlayerHcp = Math.min(
-  ...players.map((player) => Number(player.hcp || 0))
-);
-
-const strokesOnHole = (playerId) => {
-  const player = players.find((p) => p.id === playerId);
-  if (!player || !Number.isFinite(holeHcp)) return 0;
-
-  const relativeHcp = Math.max(0, Number(player.hcp || 0) - lowestPlayerHcp);
-  const fullRounds = Math.floor(relativeHcp / 18);
-  const remainder = relativeHcp % 18;
-
-  return fullRounds + (holeHcp <= remainder ? 1 : 0);
-};
-
-const teamBestScore = (ids = [], scoreMap = {}) => {
-  const vals = ids
-    .map((id) => {
-      const gross = Number(scoreMap[id]);
-      if (!Number.isFinite(gross)) return null;
-      return gross - strokesOnHole(id);
-    })
-    .filter((v) => Number.isFinite(v));
-
-  return vals.length ? Math.min(...vals) : null;
-};
+  const teamBestScore = (ids = [], scoreMap = {}) => {
+    const vals = ids
+      .map((id) => Number(scoreMap[id]))
+      .filter((v) => Number.isFinite(v));
+    return vals.length ? Math.min(...vals) : null;
+  };
 
   const pluralBet = (n) => (n === 1 ? "bet" : "bets");
 
@@ -2044,7 +1854,6 @@ return (
     addNinePointMatch={addNinePointMatch}
     matches={matches}
     matchResults={matchResults}
-    birdieResults={birdieResults}
     updateMatch={updateMatch}
     removeMatch={removeMatch}
     startRound={startRound}
@@ -2536,24 +2345,14 @@ const birdieSummaryText = players
 
 {screen === "results" && (
   <ResultsScreen
-    players={activePlayers}
-    leaderboard={leaderboard}
-    computedResults={computedResults}
-    roundSummaryRows={roundSummaryRows}
-    enableTeamGame={enableTeamGame}
-    scores={scores}
-    course={course}
-    matches={matches}
-    matchResults={matchResults}
-    birdieResults={birdieResults}
-    teamGames={teamGames}
-    teamGameResults={teamGameResults}
-    getTeamGameSelection={getTeamGameSelection}
-    handicapMode={handicapMode}
-    teamGameUnitAmount={teamGameUnitAmount}
-    goToLive={goToLive}
-    backToSetup={backToSetup}
-  />
+  players={activePlayers}
+  leaderboard={leaderboard}
+  computedResults={computedResults}
+  roundSummaryRows={roundSummaryRows}
+  enableTeamGame={enableTeamGame}
+  goToLive={goToLive}
+  backToSetup={backToSetup}
+/>
 )}
   </div>
 );

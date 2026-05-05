@@ -2536,24 +2536,24 @@ const birdieSummaryText = players
 
 {screen === "results" && (
   <ResultsScreen
-    players={activePlayers}
-    leaderboard={leaderboard}
-    computedResults={computedResults}
-    roundSummaryRows={roundSummaryRows}
-    enableTeamGame={enableTeamGame}
-    scores={scores}
-    course={course}
-    matches={matches}
-    matchResults={matchResults}
-    birdieResults={birdieResults}
-    teamGames={teamGames}
-    teamGameResults={teamGameResults}
-    getTeamGameSelection={getTeamGameSelection}
-    handicapMode={handicapMode}
-    teamGameUnitAmount={teamGameUnitAmount}
-    goToLive={goToLive}
-    backToSetup={backToSetup}
-  />
+  players={activePlayers}
+  leaderboard={leaderboard}
+  computedResults={computedResults}
+  roundSummaryRows={roundSummaryRows}
+  enableTeamGame={enableTeamGame}
+  scores={scores}
+  course={course}
+  matches={matches}
+  matchResults={matchResults}
+  birdieResults={birdieResults}
+  teamGames={teamGames}
+  teamGameResults={teamGameResults}
+  getTeamGameSelection={getTeamGameSelection}
+  handicapMode={handicapMode}
+  teamGameUnitAmount={teamGameUnitAmount}
+  goToLive={goToLive}
+  backToSetup={backToSetup}
+/>
 )}
   </div>
 );

@@ -1149,6 +1149,7 @@ export function scoreRound(round, context = {}) {
     };
   });
 
+console.log("SCORE ROUND BIRDIE RESULTS", birdieResults);
 
 for (const entry of birdieResults) {
   if (!entry) continue;
@@ -1158,7 +1159,7 @@ for (const entry of birdieResults) {
 
   if (!playerId || !ledgerMap[playerId] || amount === 0) continue;
 
-  
+  console.log("APPLYING BIRDIE ENTRY", entry);
 
   ledgerMap[playerId].birdies += amount;
   ledgerMap[playerId].total += amount;
