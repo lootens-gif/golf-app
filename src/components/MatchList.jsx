@@ -462,7 +462,7 @@ export default function MatchList({
   >
     <option value="standard">Net Holes</option>
     <option value="longshort">Long/Short</option>
-    <option value="match_fbt">FBT</option>
+<option value="match_fbt">Match Play</option>
     <option value="stroke">Stroke</option>
   </select>
 )}
@@ -571,6 +571,50 @@ export default function MatchList({
     }}
   >
     Birdies use gross score only.
+  </div>
+)}
+
+{match.type === "match_fbt" && (
+  <div
+    style={{
+      marginTop: 8,
+      display: "flex",
+      gap: 12,
+      flexWrap: "wrap",
+    }}
+  >
+    <label>
+      <input
+        type="checkbox"
+        checked={match.matchPlayFront !== false}
+        onChange={(e) =>
+          onUpdateMatch(match.id, { matchPlayFront: e.target.checked })
+        }
+      />
+      Front 9
+    </label>
+
+    <label>
+      <input
+        type="checkbox"
+        checked={match.matchPlayBack !== false}
+        onChange={(e) =>
+          onUpdateMatch(match.id, { matchPlayBack: e.target.checked })
+        }
+      />
+      Back 9
+    </label>
+
+    <label>
+      <input
+        type="checkbox"
+        checked={match.matchPlayTotal !== false}
+        onChange={(e) =>
+          onUpdateMatch(match.id, { matchPlayTotal: e.target.checked })
+        }
+      />
+      Total 18
+    </label>
   </div>
 )}
 

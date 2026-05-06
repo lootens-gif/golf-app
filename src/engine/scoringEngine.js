@@ -644,44 +644,36 @@ const matchPlayers = [p1, p2].filter(Boolean);
   }
 
   if (match.type === "match_fbt") {
-    const front = decideMatchPlaySegment(holes, 1, 9);
-    const back = decideMatchPlaySegment(holes, 10, 18);
-    const totalSeg = decideMatchPlaySegment(holes, 1, 18);
+  const segmentDefs = [
+    { key: "front", label: "Front 9", start: 1, end: 9, enabled: match.matchPlayFront !== false },
+    { key: "back", label: "Back 9", start: 10, end: 18, enabled: match.matchPlayBack !== false },
+    { key: "total", label: "Total 18", start: 1, end: 18, enabled: match.matchPlayTotal !== false },
+  ].filter((seg) => seg.enabled);
 
-    const segments = [
-      {
-        key: "front",
-        label: "Front 9",
-        units: front.units,
-        dollars: front.units * match.bet,
-        resultLabel: front.label,
-        decidedOn: front.decidedOn,
-      },
-      {
-        key: "back",
-        label: "Back 9",
-        units: back.units,
-        dollars: back.units * match.bet,
-        resultLabel: back.label,
-        decidedOn: back.decidedOn,
-      },
-      {
-        key: "total",
-        label: "Total 18",
-        units: totalSeg.units,
-        dollars: totalSeg.units * match.bet,
-        resultLabel: totalSeg.label,
-        decidedOn: totalSeg.decidedOn,
-      },
-    ];
+  const safeSegmentDefs = segmentDefs.length
+    ? segmentDefs
+    : [{ key: "total", label: "Total 18", start: 1, end: 18, enabled: true }];
+
+  const segments = safeSegmentDefs.map((seg) => {
+    const segment = decideMatchPlaySegment(holes, seg.start, seg.end);
 
     return {
-      type: "match_fbt",
-      holes,
-      segments,
-      total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
+      key: seg.key,
+      label: seg.label,
+      units: segment.units,
+      dollars: segment.units * match.bet,
+      resultLabel: segment.label,
+      decidedOn: segment.decidedOn,
     };
-  }
+  });
+
+  return {
+  type: "match_fbt",
+  holes,
+  segments,
+  total: segments.reduce((sum, seg) => sum + seg.dollars, 0),
+};
+}
 
   if (match.type === "stroke") {
     const strokeScoring = match.strokeScoring || "net";

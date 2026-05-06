@@ -40,7 +40,7 @@ function formatStrokeDiff(score, p1Name, p2Name) {
 function getOneVOneGameTypeLabel(match, result) {
   if (result?.type === "standard") return "Net Holes";
   if (result?.type === "longshort") return "Long / Short";
-  if (result?.type === "match_fbt") return "FBT";
+if (result?.type === "match_fbt") return "Match Play";
 
   if (result?.type === "stroke") {
     const scoring = result.strokeScoring === "gross" ? "Gross" : "Net";
@@ -109,29 +109,35 @@ return `Long: ${longLabel} | Short: ${shortLabel}`;
 }
 
 if (result?.type === "match_fbt") {
-  return (result.segments || [])
+  const segments = result.segments || [];
+  const hasFrontOrBack = segments.some(
+    (seg) => seg.key === "front" || seg.key === "back"
+  );
+
+  return segments
     .map((seg) => {
       const shortLabel =
         seg.key === "front"
           ? "F"
           : seg.key === "back"
             ? "B"
-            : seg.key === "total"
+            : seg.key === "total" && hasFrontOrBack
               ? "T"
-              : seg.label;
+              : "";
 
       const units = Number(seg.units || 0);
       const resultLabel = seg.resultLabel || "Tie";
+      const prefix = shortLabel ? `${shortLabel}: ` : "";
 
       if (units > 0) {
-        return `${shortLabel}: ${p1Name} ${resultLabel}`;
+        return `${prefix}${p1Name} ${resultLabel}`;
       }
 
       if (units < 0) {
-        return `${shortLabel}: ${p2Name} ${resultLabel}`;
+        return `${prefix}${p2Name} ${resultLabel}`;
       }
 
-      return `${shortLabel}: Tie`;
+      return `${prefix}Tie`;
     })
     .join(" | ");
 }
@@ -172,8 +178,8 @@ function formatHoleWinner(result, teamAName, teamBName) {
 }
 
 function getPlayerName(players, playerId) {
-    const player = players.find((p) => p.id === playerId);
-  return players.find((player) => player.id === playerId)?.name || playerId;
+  const player = players.find((p) => p.id === playerId);
+  return player?.name || playerId;
 }
 
 function getTeamName(players, ids = []) {
@@ -317,7 +323,7 @@ function formatOneVOneHoleAuditLine({
 
     if (closedSegments.length > 0) {
       const closedText = closedSegments
-        .map((segment) => `${segment.label} closed: ${segment.resultLabel || "Tie"}`)
+     .map((segment) => `${segment.label} closed: ${segment.resultLabel || "Tie"}`)
         .join("; ");
 
       return `${base}; ${closedText}`;
