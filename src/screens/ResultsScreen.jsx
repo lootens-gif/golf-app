@@ -128,14 +128,24 @@ if (window.__debug) {
   enableTeamGame={enableTeamGame}
 />
 
-<div style={{ marginTop: 16, marginBottom: 12 }}>
-  <button
-    type="button"
-    className="secondary-button"
-    onClick={() => setShowAuditTrail((current) => !current)}
-  >
-    {showAuditTrail ? "Hide Audit Trail" : "Show Audit Trail"}
-  </button>
+<div
+  onClick={() => setShowAuditTrail((current) => !current)}
+  style={{
+    marginTop: 16,
+    marginBottom: 12,
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid #ddd",
+    background: "#f7f7f7",
+    fontWeight: 600,
+    display: "flex",
+    alignItems: "center",
+    cursor: "pointer",
+    gap: 6, // 👈 THIS controls spacing between text + arrow
+  }}
+>
+  <span>Scorecards</span>
+  <span>{showAuditTrail ? "▲" : "▼"}</span>
 </div>
 
 {showAuditTrail && (

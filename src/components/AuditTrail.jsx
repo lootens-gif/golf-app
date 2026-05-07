@@ -1,10 +1,45 @@
 import { useState } from "react";
 import {
   computeHoleResult,
+  getHandicapStrokes,
   getNetScore,
   getRawScore,
-  getTeamNetScore,
 } from "../engine/scoringEngine";
+
+const scorecardCellStyle = {
+  border: "1px solid #ddd",
+  padding: "5px 4px",
+  textAlign: "center",
+  minWidth: 44,
+  fontSize: 11,
+  whiteSpace: "nowrap",
+};
+
+const scorecardLabelCellStyle = {
+  ...scorecardCellStyle,
+  position: "sticky",
+  left: 0,
+  background: "#fff",
+  zIndex: 1,
+  textAlign: "left",
+  minWidth: 86,
+  fontWeight: 700,
+};
+
+function ScorecardCell({ value, running, color }) {
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontWeight: 600, color }}>
+        {value}
+      </div>
+      {running !== undefined && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>
+  {running}
+</div>
+      )}
+    </div>
+  );
+}
 
 function isNinePointMatch(match) {
   return (
@@ -187,6 +222,266 @@ function getTeamName(players, ids = []) {
   return names.length ? names.join(" / ") : "-";
 }
 
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode) {
+  const gross = getRawScore(scores, hole, playerId);
+
+  if (gross === null || gross === undefined) {
+    return "-";
+  }
+
+  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode);
+  return `${gross}${"•".repeat(strokes)}`;
+}
+
+function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode) {
+  const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode);
+
+  if (!best) {
+    return "-";
+  }
+
+  return `${best.name} ${formatScoreWithStrokeDots(
+    best.playerId,
+    hole,
+    players,
+    course,
+    scores,
+    handicapMode
+  )}`;
+}
+
+function getTeamAbbrev(teamName = "") {
+  return String(teamName)
+    .split(" / ")
+    .filter(Boolean)
+    .map((name) => name.trim()[0])
+    .join("/");
+}
+
+function formatTeamHoleResult(result, teamAName, teamBName) {
+  if (result > 0) return getTeamAbbrev(teamAName);
+  if (result < 0) return getTeamAbbrev(teamBName);
+  if (result === 0) return "Push";
+  return "-";
+}
+
+function formatRunningUnits(value) {
+  const units = Number(value || 0);
+
+  if (units > 0) return `+${units}`;
+  if (units < 0) return `${units}`;
+  return "Even";
+}
+
+function getBetStatusesForHole(bets = [], hole) {
+  return bets
+    .filter((bet) => {
+      const startHole = Number(bet.startHole || 0);
+
+      // Include bets active on this hole, plus a newly-created press
+      // that starts on the next hole so the scorecard shows the trailing 0.
+      return startHole && hole >= startHole - 1;
+    })
+    .map((bet) => {
+      const startHole = Number(bet.startHole || 0);
+
+      if (hole < startHole) {
+        return 0;
+      }
+
+      const resultsThroughHole = (bet.history || []).slice(
+        0,
+        hole - startHole + 1
+      );
+
+      return resultsThroughHole.reduce(
+        (sum, value) => sum + Number(value || 0),
+        0
+      );
+    });
+}
+
+function getNetActiveBetCountForHole(bets = [], hole) {
+  return getBetStatusesForHole(bets, hole).reduce((total, status) => {
+    if (status > 0) return total + 1;
+    if (status < 0) return total - 1;
+    return total;
+  }, 0);
+}
+
+function formatPressDetail(statuses = []) {
+  if (!statuses.length) return "-";
+  return statuses.map((status) => String(Number(status || 0))).join("/");
+}
+
+function TeamGameScorecard({
+  game,
+  matchup,
+  gameIndex,
+  matchupIndex,
+  teamA,
+  teamB,
+  teamAName,
+  teamBName,
+  players,
+  course,
+  scores,
+  handicapMode,
+  showPressDetail = false,
+}) {
+  const holes = Array.from(
+    { length: Number(game.end || 0) - Number(game.start || 0) + 1 },
+    (_, i) => Number(game.start) + i
+  );
+
+  const rows = holes.map((hole) => {
+    const holeResult = computeHoleResult({
+      hole,
+      teamA,
+      teamB,
+      players,
+      course,
+      scores,
+      handicapMode,
+    });
+    const statuses = getBetStatusesForHole(matchup?.result || [], hole);
+    const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
+
+    return {
+      hole,
+      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode),
+      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode),
+      result: formatTeamHoleResult(holeResult, teamAName, teamBName),
+      running: formatRunningUnits(runningValue),
+      pressDetail: formatPressDetail(statuses),
+      resultValue: holeResult,
+      runningValue,
+    };
+  });
+
+  const scorecardCellStyle = {
+    border: "1px solid #ddd",
+    padding: "6px 4px",
+    textAlign: "center",
+    minWidth: 64,
+    fontSize: 12,
+    whiteSpace: "nowrap",
+  };
+
+  const scorecardLabelCellStyle = {
+    ...scorecardCellStyle,
+    position: "sticky",
+    left: 0,
+    background: "#fff",
+    zIndex: 1,
+    textAlign: "left",
+    minWidth: 92,
+    fontWeight: 700,
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #ddd",
+        borderRadius: 6,
+        marginBottom: 10,
+        overflowX: "auto",
+      }}
+    >
+      <div style={{ padding: 8, fontSize: 13, background: "#f7f7f7" }}>
+        <strong>Scorecard View</strong>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
+          Gross score shown. Dot means stroke received on that hole.
+        </div>
+      </div>
+
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <tbody>
+          <tr>
+            <td style={scorecardLabelCellStyle}>Hole</td>
+            {rows.map((row) => (
+              <td key={`hole-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
+                {row.hole}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>{teamAName}</td>
+            {rows.map((row) => (
+              <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
+                {row.teamAValue}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>{teamBName}</td>
+            {rows.map((row) => (
+              <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
+                {row.teamBValue}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Result</td>
+            {rows.map((row) => (
+              <td
+                key={`result-${gameIndex}-${matchupIndex}-${row.hole}`}
+                style={{
+                  ...scorecardCellStyle,
+                  background:
+                    row.resultValue > 0
+                      ? "#e6f4ea"
+                      : row.resultValue < 0
+                        ? "#fde8e8"
+                        : "#f3f4f6",
+                  fontWeight: 700,
+                }}
+              >
+                {row.result}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Running</td>
+            {rows.map((row) => (
+              <td
+                key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
+                style={{
+                  ...scorecardCellStyle,
+                  color:
+                    row.runningValue > 0
+                      ? "#137333"
+                      : row.runningValue < 0
+                        ? "#b3261e"
+                        : "#555",
+                  fontWeight: 700,
+                }}
+              >
+                {row.running}
+              </td>
+            ))}
+          </tr>
+
+          {showPressDetail && (
+            <tr>
+              <td style={scorecardLabelCellStyle}>Press Detail</td>
+              {rows.map((row) => (
+                <td key={`press-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
+                  {row.pressDetail}
+                </td>
+              ))}
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function getBestBallWinner(teamIds, hole, players, course, scores, handicapMode) {
   const entries = (teamIds || [])
     .filter(Boolean)
@@ -348,10 +643,19 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         let running = 0;
 
         return (
-          <AuditSection
-            key={match.id}
+         <AuditSection
+  key={match.id}
 title={`${p1Name} vs ${p2Name} | ${getOneVOneGameTypeLabel(match, result)} | ${getOneVOneMoneyLabel(result, p1Name, p2Name)} | ${getOneVOneResultLabel(result, p1Name, p2Name )}`}          >
-            {(result.holes || []).map((holeResult, index) => {
+  <OneVOneScorecard
+    match={match}
+    result={result}
+    players={players}
+    scores={scores}
+    course={course}
+    handicapMode={handicapMode}
+  />
+
+  {(result.holes || []).map((holeResult, index) => {
               const hole = index + 1;
               if (holeResult === null || holeResult === undefined) return null;
               running += Number(holeResult || 0);
@@ -399,28 +703,223 @@ title={`${p1Name} vs ${p2Name} | ${getOneVOneGameTypeLabel(match, result)} | ${g
   );
 }
 
-function NinePointAudit({ players, matchResults }) {
-  const ninePointEntry = (matchResults || []).find((entry) => isNinePointMatch(entry.match));
-  if (!ninePointEntry) return null;
+function NinePointScorecard({
+  players,
+  result,
+  scores,
+  course,
+  handicapMode,
+}) {
+  const holes = result?.holes || [];
 
-  const holes = ninePointEntry.result?.holes || [];
+  if (!holes.length) return null;
+
+  const front = holes.slice(0, 9);
+  const back = holes.slice(9, 18);
+
+  const renderSection = (label, sectionHoles) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <tbody>
+          <tr>
+            <td style={scorecardLabelCellStyle}>Hole</td>
+            {sectionHoles.map((h) => (
+              <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>{h.hole}</td>
+            ))}
+          </tr>
+
+         <>
+  {/* SCORE ROWS */}
+  {players.map((player) => (
+    <tr key={`score-${player.id}`}>
+      <td style={scorecardLabelCellStyle}>{player.name}</td>
+
+      {sectionHoles.map((h) => {
+        const gross = getRawScore(scores, h.hole, player.id);
+const strokes = getHandicapStrokes(
+  player.id,
+  h.hole,
+  players,
+  course,
+  handicapMode
+);
+
+const display =
+  gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
+
+        return (
+          <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
+            {display}
+          </td>
+        );
+      })}
+    </tr>
+  ))}
+
+  {/* POINTS + RUNNING */}
+  <tr>
+    <td style={{ ...scorecardLabelCellStyle, borderTop: "2px solid #ccc" }}>
+  Points
+</td>
+    <td colSpan={sectionHoles.length}></td>
+  </tr>
+
+  {players.map((player) => (
+    <tr key={`points-${player.id}`}>
+      <td style={scorecardLabelCellStyle}>{player.name}</td>
+
+      {sectionHoles.map((h) => {
+        const pts = h.pointsByPlayerId?.[player.id] ?? 0;
+        const running = h.runningTotalsByPlayerId?.[player.id] ?? 0;
+
+        let color = "#666";
+        if (pts === 5) color = "#137333";
+        if (pts === 1) color = "#b3261e";
+
+        return (
+          <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
+            <ScorecardCell value={pts} running={running} color={color} />
+          </td>
+        );
+      })}
+    </tr>
+  ))}
+</>
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {renderSection("Front 9", front)}
+      {renderSection("Back 9", back)}
+    </div>
+  );
+}
+
+function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
+  const playerA = players.find((p) => p.id === match.p1Id);
+const playerB = players.find((p) => p.id === match.p2Id);
+
+  if (!playerA || !playerB) return null;
+
+  let running = 0;
+
+  const holes = Array.from({ length: 18 }, (_, i) => i + 1);
+
+  const front = holes.slice(0, 9);
+  const back = holes.slice(9, 18);
+
+  const renderSection = (label, sectionHoles) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <tbody>
+          <tr>
+            <td style={scorecardLabelCellStyle}>Hole</td>
+            {sectionHoles.map(h => (
+              <td key={h} style={{ ...scorecardCellStyle, color: "#444" }}>{h}</td>
+            ))}
+          </tr>
+
+          {[playerA, playerB].map((player) => (
+            <tr key={player.id}>
+              <td style={scorecardLabelCellStyle}>{player.name}</td>
+
+              {sectionHoles.map((hole) => {
+                const gross = getRawScore(scores, hole, player.id);
+                const strokes = getHandicapStrokes(player.id, hole, players, course, handicapMode);
+
+                return (
+                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
+                    {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Result</td>
+            {sectionHoles.map((hole) => {
+              const res = computeHoleResult({
+                hole,
+                teamA: [playerA.id],
+                teamB: [playerB.id],
+                players,
+                course,
+                scores,
+                handicapMode,
+              });
+
+              if (res > 0) running += 1;
+              if (res < 0) running -= 1;
+
+              let color = "#666";
+              if (res > 0) color = "#137333";
+              if (res < 0) color = "#b3261e";
+
+              return (
+                <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
+                  {res > 0 ? playerA.name[0] : res < 0 ? playerB.name[0] : "Push"}
+                </td>
+              );
+            })}
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Running</td>
+            {sectionHoles.map(() => {
+              let color = "#666";
+              if (running > 0) color = "#137333";
+              if (running < 0) color = "#b3261e";
+
+              return (
+                <td style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
+                  {running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} down`}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      {renderSection("Front 9", front)}
+      {renderSection("Back 9", back)}
+    </div>
+  );
+}
+
+function NinePointAudit({
+  players,
+  matchResults,
+  scores,
+  course,
+  handicapMode,
+}) {
+  const ninePointEntry = (matchResults || []).find((entry) =>
+    isNinePointMatch(entry.match)
+  );
+
+  if (!ninePointEntry) return null;
 
   return (
     <AuditSection title="9-Point Audit" defaultOpen>
-      {holes.map((hole) => (
-        <div key={hole.hole} style={{ borderTop: "1px solid #eee", paddingTop: 8, marginTop: 8 }}>
-          <div><strong>Hole {hole.hole}</strong> — {hole.status}{hole.mode ? ` (${hole.mode})` : ""}</div>
-          <div style={{ fontSize: 13 }}>
-            Net: {players.map((player) => `${player.name} ${hole.netScoresByPlayerId?.[player.id] ?? "-"}`).join(" | ")}
-          </div>
-          <div style={{ fontSize: 13 }}>
-            Points: {players.map((player) => `${player.name} ${hole.pointsByPlayerId?.[player.id] ?? 0}`).join(" | ")}
-          </div>
-          <div style={{ fontSize: 13 }}>
-            Running: {players.map((player) => `${player.name} ${hole.runningTotalsByPlayerId?.[player.id] ?? 0}`).join(" | ")}
-          </div>
-        </div>
-      ))}
+      <NinePointScorecard
+  players={players}
+  result={ninePointEntry.result}
+  scores={scores}
+  course={course}
+  handicapMode={handicapMode}
+/>
     </AuditSection>
   );
 }
@@ -474,39 +973,21 @@ function TeamGameAudit({
                   key={`${gameIndex}-${matchupIndex}`}
                   title={`${teamAName} vs ${teamBName} | ${totalUnits > 0 ? "+" : ""}${totalUnits} units | ${formatMoney(totalUnits * Number(teamGameUnitAmount || 0))}`}
                 >
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Press breakdown:</strong>{" "}
-                    {(matchup.result || []).map((bet) => `${bet.label}: ${formatMatchScore(bet.score)} from hole ${bet.startHole}`).join("; ") || "-"}
-                  </div>
-
-                  {Array.from({ length: Number(game.end || 0) - Number(game.start || 0) + 1 }, (_, i) => Number(game.start) + i).map((hole) => {
-                    const teamANet = getTeamNetScore(teamA, hole, players, course, scores, handicapMode);
-                    const teamBNet = getTeamNetScore(teamB, hole, players, course, scores, handicapMode);
-                    const teamABest = getBestBallWinner(teamA, hole, players, course, scores, handicapMode);
-                    const teamBBest = getBestBallWinner(teamB, hole, players, course, scores, handicapMode);
-                    const holeResult = computeHoleResult({
-                      hole,
-                      teamA,
-                      teamB,
-                      players,
-                      course,
-                      scores,
-                      handicapMode,
-                    });
-
-                    return (
-                      <div key={`${gameIndex}-${matchupIndex}-${hole}`} style={{ borderTop: "1px solid #eee", paddingTop: 8, marginTop: 8 }}>
-                        <div><strong>Hole {hole}</strong> — {formatHoleWinner(holeResult, teamAName, teamBName)}
-                        </div>
-                        <div style={{ fontSize: 13 }}>
-                          {teamAName} best ball net: {teamANet ?? "-"}{teamABest ? ` (${teamABest.name}, gross ${teamABest.gross})` : ""}
-                        </div>
-                        <div style={{ fontSize: 13 }}>
-                          {teamBName} best ball net: {teamBNet ?? "-"}{teamBBest ? ` (${teamBBest.name}, gross ${teamBBest.gross})` : ""}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <TeamGameScorecard
+                    game={game}
+                    matchup={matchup}
+                    gameIndex={gameIndex}
+                    matchupIndex={matchupIndex}
+                    teamA={teamA}
+                    teamB={teamB}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    players={players}
+                    course={course}
+                    scores={scores}
+                    handicapMode={handicapMode}
+                    showPressDetail
+                  />
                 </AuditSection>
               );
             })}
@@ -532,7 +1013,7 @@ export default function AuditTrail({
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>Audit Trail</h3>
+      <h3 style={{ marginTop: 0 }}>Scorecards</h3>
       <div style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
         Read-only scoring detail. Uses the same scoring engine outputs/functions as the round totals.
       </div>
@@ -547,8 +1028,15 @@ export default function AuditTrail({
         handicapMode={handicapMode}
       />
 
-      <NinePointAudit players={players} matchResults={matchResults} />
-
+<>
+<NinePointAudit
+  players={players}
+  matchResults={matchResults}
+  scores={scores}
+  course={course}
+  handicapMode={handicapMode}
+/>
+</>
       <TeamGameAudit
         players={players}
         teamGames={teamGames}

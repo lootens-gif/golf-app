@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
+  getHandicapStrokes,
+  getRawScore,
+  getTeamNetScore,
+  computeHoleResult,
   playIndividualMatch,
   buildLeaderboard,
   playPressMatch,
@@ -81,11 +85,290 @@ function getTeamGameRange(teamGames, index) {
   return { start, end };
 }
 
+function getPlayerDisplayName(players, playerId) {
+  return players.find((player) => player.id === playerId)?.name || playerId;
+}
 
+
+
+function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode) {
+  let best = null;
+
+  teamIds.forEach((playerId) => {
+    const net = getTeamNetScore(
+      [playerId],
+      hole,
+      players,
+      course,
+      scores,
+      handicapMode
+    );
+
+    if (net === null) return;
+
+    if (!best || net < best.net) {
+      best = {
+        playerId,
+        name: getPlayerDisplayName(players, playerId),
+        net,
+      };
+    }
+  });
+
+  return best;
+}
+
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode) {
+  const gross = getRawScore(scores, hole, playerId);
+
+  if (gross === null || gross === undefined) {
+    return "-";
+  }
+
+  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode);
+  return `${gross}${"•".repeat(strokes)}`;
+}
+
+function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode) {
+  const best = getBestBallPlayer(
+    teamIds,
+    hole,
+    players,
+    course,
+    scores,
+    handicapMode
+  );
+
+  if (!best) return "-";
+
+  return formatScoreWithStrokeDots(
+    best.playerId,
+    hole,
+    players,
+    course,
+    scores,
+    handicapMode
+  );
+}
+
+function formatTeamHoleResult(result, teamAName, teamBName) {
+  const teamAAbbrev = teamAName
+    .split(" / ")
+    .map((name) => name[0])
+    .join("/");
+
+  const teamBAbbrev = teamBName
+    .split(" / ")
+    .map((name) => name[0])
+    .join("/");
+
+  if (result > 0) return teamAAbbrev;
+  if (result < 0) return teamBAbbrev;
+  if (result === 0) return "Push";
+  return "-";
+}
+
+function formatRunningUnits(value) {
+  const units = Number(value || 0);
+
+  if (units > 0) return `+${units}`;
+  if (units < 0) return `${units}`;
+  return "Even";
+}
+
+function getBetStatusesForHole(bets = [], hole) {
+  return bets
+    .filter((bet) => {
+      const startHole = Number(bet.startHole || 0);
+      return startHole && hole >= startHole;
+    })
+    .map((bet) => {
+      const startHole = Number(bet.startHole || 0);
+      const resultsThroughHole = (bet.history || []).slice(
+        0,
+        hole - startHole + 1
+      );
+
+      return resultsThroughHole.reduce(
+        (sum, value) => sum + Number(value || 0),
+        0
+      );
+    });
+}
+
+function getNetActiveBetCountForHole(bets = [], hole) {
+  return getBetStatusesForHole(bets, hole).reduce((total, status) => {
+    if (status > 0) return total + 1;
+    if (status < 0) return total - 1;
+    return total;
+  }, 0);
+}
+
+function CompletedTeamGameScorecard({
+  start,
+  end,
+  matchup,
+  teamA,
+  teamB,
+  teamAName,
+  teamBName,
+  players,
+  course,
+  scores,
+  handicapMode,
+}) {
+  const holes = Array.from(
+    { length: Number(end || 0) - Number(start || 0) + 1 },
+    (_, i) => Number(start) + i
+  );
+
+  const rows = holes.map((hole) => {
+    const holeResult = computeHoleResult({
+      hole,
+      teamA,
+      teamB,
+      players,
+      course,
+      scores,
+      handicapMode,
+    });
+    const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
+
+    return {
+      hole,
+      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode),
+      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode),
+      result: formatTeamHoleResult(holeResult, teamAName, teamBName),
+      running: formatRunningUnits(runningValue),
+      resultValue: holeResult,
+      runningValue,
+    };
+  });
+
+  const cellStyle = {
+    border: "1px solid #ddd",
+    padding: "5px 4px",
+    textAlign: "center",
+    minWidth: 44,
+    fontSize: 11,
+    whiteSpace: "nowrap",
+  };
+
+  const labelCellStyle = {
+    ...cellStyle,
+    position: "sticky",
+    left: 0,
+    background: "#fff",
+    zIndex: 1,
+    textAlign: "left",
+    minWidth: 86,
+    fontWeight: 700,
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #ddd",
+        borderRadius: 6,
+        marginTop: 10,
+        marginBottom: 10,
+        overflowX: "auto",
+      }}
+    >
+      <div style={{ padding: 8, fontSize: 13, background: "#f7f7f7" }}>
+        <strong>Scorecard View</strong>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
+          Gross score shown. Dot means stroke received.
+        </div>
+      </div>
+
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <tbody>
+          <tr>
+            <td style={labelCellStyle}>Hole</td>
+            {rows.map((row) => (
+              <td key={`hole-${row.hole}`} style={cellStyle}>
+                {row.hole}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={labelCellStyle}>{teamAName}</td>
+            {rows.map((row) => (
+              <td key={`team-a-${row.hole}`} style={cellStyle}>
+                {row.teamAValue}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+            <td style={labelCellStyle}>{teamBName}</td>
+            {rows.map((row) => (
+              <td key={`team-b-${row.hole}`} style={cellStyle}>
+                {row.teamBValue}
+              </td>
+            ))}
+          </tr>
+
+          <tr>
+  <td style={labelCellStyle}>Result</td>
+  {rows.map((row) => (
+    <td
+      key={`result-${row.hole}`}
+      style={{
+        ...cellStyle,
+        background:
+          row.resultValue > 0
+            ? "#e6f4ea"
+            : row.resultValue < 0
+              ? "#fde8e8"
+              : "#f3f4f6",
+        fontWeight: 700,
+      }}
+    >
+      {row.result}
+    </td>
+  ))}
+</tr>
+
+        <tr>
+  <td style={labelCellStyle}>Running</td>
+  {rows.map((row) => (
+    <td
+      key={`running-${row.hole}`}
+      style={{
+        ...cellStyle,
+        color:
+          row.runningValue > 0
+            ? "#137333"
+            : row.runningValue < 0
+              ? "#b3261e"
+              : "#555",
+        fontWeight: 700,
+      }}
+    >
+      {row.running}
+    </td>
+  ))}
+</tr>  
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function createId(prefix = "id") {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function createEmptyRound() {
   return {
-    id: crypto.randomUUID(),
+    id: createId("round"),
     date: new Date().toISOString(),
     players: [],
     mainGame: null,
@@ -714,7 +997,7 @@ function addMatch() {
   setMatches((prev) => [
     ...prev,
     {
-      id: crypto.randomUUID(),
+      id: createId("match"),
       p1Id: players[0].id,
       p2Id: players[1].id,
       type: "standard",
@@ -758,7 +1041,7 @@ function addNinePointMatch() {
   setMatches((prev) => [
     ...prev,
     {
-      id: crypto.randomUUID(),
+      id: createId("nine-point"),
       gameType: "ninePoint",
       p1Id: defaultIds[0],
       p2Id: defaultIds[1],
@@ -1288,7 +1571,7 @@ function saveNamedRound() {
 
   try {
     const round = {
-      id: crypto.randomUUID(),
+      id: createId("saved-round"),
       name: trimmedName,
       savedAt: new Date().toISOString(),
       data: buildCurrentRoundSnapshot(),
@@ -2306,9 +2589,37 @@ const birdieSummaryText = players
   </div>
 )}    
 
-        <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 8 }}>
           Review the completed game before choosing teams for the next game.
         </div>
+
+        {completedGameResult?.matches?.map((matchup, matchupIndex) => {
+          const parts = matchup.label.split(" ");
+          const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+          const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+
+          const teamA = selection?.[teamAKey] || [];
+          const teamB = selection?.[teamBKey] || [];
+
+          if (teamA.length === 0 || teamB.length === 0) return null;
+
+          return (
+            <CompletedTeamGameScorecard
+              key={`${completedGameIndex}-${matchupIndex}`}
+              start={completedGameResult.start}
+              end={completedGameResult.end}
+              matchup={matchup}
+              teamA={teamA}
+              teamB={teamB}
+              teamAName={teamA.map(id => players.find(p => p.id === id)?.name || id).join(" / ")}
+              teamBName={teamB.map(id => players.find(p => p.id === id)?.name || id).join(" / ")}
+              players={players}
+              course={course}
+              scores={scores}
+              handicapMode={handicapMode}
+            />
+          );
+        })}
               <button
   onClick={() => setShowProjectedSettlement((prev) => !prev)}
   style={{ marginTop: 8, marginRight: 8 }}
