@@ -29,8 +29,8 @@ test('birdie_builder_returns_entries_when_match_birdie_enabled', () => {
   });
 
   expect(results).toEqual([
-    { playerId: 'A', amount: 5 },
-    { playerId: 'B', amount: -5 },
+    { playerId: 'A', amount: 5, holeNumber: 1, matchId: undefined, opponentId: 'B', source: 'match-birdie' },
+    { playerId: 'B', amount: -5, holeNumber: 1, matchId: undefined, opponentId: 'A', source: 'match-birdie' },
   ]);
 });
 
@@ -70,6 +70,7 @@ test('team_game_birdie_respects_toggle', () => {
       pars: [4],
       hcp: [1],
     },
+    birdiesEnabled: true,
     getTeamGameSelection: () => ({
       team1: ['A', 'B'],
       team2: ['C', 'D'],
@@ -109,6 +110,7 @@ test('team_game_birdie_respects_toggle', () => {
       pars: [4],
       hcp: [1],
     },
+    birdiesEnabled: false,
     getTeamGameSelection: () => ({
       team1: ['A', 'B'],
       team2: ['C', 'D'],
@@ -238,6 +240,7 @@ test('team_game_birdie_ignores_player_with_no_score_on_hole', () => {
       pars: [4],
       hcp: [1],
     },
+    birdiesEnabled: true,
     getTeamGameSelection: () => ({
       team1: ['A', 'B'],
       team2: ['C', 'D'],

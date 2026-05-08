@@ -4,14 +4,16 @@ import {
   getHandicapStrokes,
   getNetScore,
   getRawScore,
+  isGrossBirdie,
+  isNetBirdie,
 } from "../engine/scoringEngine";
 
 const scorecardCellStyle = {
   border: "1px solid #ddd",
-  padding: "5px 4px",
+  padding: "4px 3px",
   textAlign: "center",
-  minWidth: 44,
-  fontSize: 11,
+  minWidth: 40,
+  fontSize: 10,
   whiteSpace: "nowrap",
 };
 
@@ -22,7 +24,7 @@ const scorecardLabelCellStyle = {
   background: "#fff",
   zIndex: 1,
   textAlign: "left",
-  minWidth: 86,
+  minWidth: 72,
   fontWeight: 700,
 };
 
@@ -56,21 +58,7 @@ function formatMoney(value) {
   return `${sign}$${Math.abs(amount)}`;
 }
 
-function formatMatchScore(score, p1Name, p2Name) {
-  const value = Number(score || 0);
 
-  if (value === 0) return "All square";
-  if (value > 0) return `${p1Name} ${value} up`;
-  return `${p2Name} ${Math.abs(value)} up`;
-}
-
-function formatStrokeDiff(score, p1Name, p2Name) {
-  const value = Number(score || 0);
-
-  if (value === 0) return "Stroke total: tied";
-  if (value > 0) return `Stroke total: ${p1Name} leads by ${value}`;
-  return `Stroke total: ${p2Name} leads by ${Math.abs(value)}`;
-}
 
 function getOneVOneGameTypeLabel(match, result) {
   if (result?.type === "standard") return "Net Holes";
@@ -180,16 +168,25 @@ if (result?.type === "match_fbt") {
   if (result?.type === "stroke") {
   return (result.segments || [])
     .map((seg) => {
+      const shortLabel =
+        seg.key === "front"
+          ? "F"
+          : seg.key === "back"
+            ? "B"
+            : seg.key === "total"
+              ? "T"
+              : seg.label;
+
       const diff = Number(seg.diff || 0);
 
       if (diff === 0) {
-        return `${seg.label}: Tie`;
+        return `${shortLabel}: Tie`;
       }
 
       const units = Number(seg.units || 0);
       const winnerName = units > 0 ? p1Name : p2Name;
 
-      return `${seg.label}: ${winnerName} by ${Math.abs(diff)}`;
+      return `${shortLabel}: ${winnerName} by ${Math.abs(diff)}`;
     })
     .join(" | ");
 }
@@ -205,12 +202,7 @@ function getOneVOneMoneyLabel(result, p1Name, p2Name) {
   return "No payout";
 }
 
-function formatHoleWinner(result, teamAName, teamBName) {
-  if (result > 0) return `${teamAName} +1`;
-  if (result < 0) return `${teamBName} +1`;
-  if (result === 0) return "Push";
-  return "Incomplete";
-}
+
 
 function getPlayerName(players, playerId) {
   const player = players.find((p) => p.id === playerId);
@@ -334,6 +326,11 @@ function TeamGameScorecard({
     (_, i) => Number(game.start) + i
   );
 
+  const teamABirdies = teamA.filter(Boolean).reduce((count, playerId) =>
+    count + holes.filter(h => isGrossBirdie(scores, course, h, playerId)).length, 0);
+  const teamBBirdies = teamB.filter(Boolean).reduce((count, playerId) =>
+    count + holes.filter(h => isGrossBirdie(scores, course, h, playerId)).length, 0);
+
   const rows = holes.map((hole) => {
     const holeResult = computeHoleResult({
       hole,
@@ -408,20 +405,38 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>{teamAName}</td>
-            {rows.map((row) => (
-              <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
-                {row.teamAValue}
-              </td>
-            ))}
+            {rows.map((row) => {
+              const teamAHasBirdie = teamA.filter(Boolean).some(id =>
+                isGrossBirdie(scores, course, row.hole, id)
+              );
+              return (
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle }}>
+                  {teamAHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamAValue}
+                    </span>
+                  ) : row.teamAValue}
+                </td>
+              );
+            })}
           </tr>
 
           <tr>
             <td style={scorecardLabelCellStyle}>{teamBName}</td>
-            {rows.map((row) => (
-              <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
-                {row.teamBValue}
-              </td>
-            ))}
+            {rows.map((row) => {
+              const teamBHasBirdie = teamB.filter(Boolean).some(id =>
+                isGrossBirdie(scores, course, row.hole, id)
+              );
+              return (
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle }}>
+                  {teamBHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamBValue}
+                    </span>
+                  ) : row.teamBValue}
+                </td>
+              );
+            })}
           </tr>
 
           <tr>
@@ -478,6 +493,18 @@ function TeamGameScorecard({
           )}
         </tbody>
       </table>
+
+      {(teamABirdies > 0 || teamBBirdies > 0) && (
+        <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
+          {teamABirdies === 0 && teamBBirdies === 0
+            ? "🐦 No birdies"
+            : teamABirdies === teamBBirdies
+            ? `🐦 Birdies tied (${teamABirdies} each)`
+            : teamABirdies > teamBBirdies
+            ? `🐦 ${teamAName} wins birdies +${teamABirdies - teamBBirdies}`
+            : `🐦 ${teamBName} wins birdies +${teamBBirdies - teamABirdies}`}
+        </div>
+      )}
     </div>
   );
 }
@@ -510,13 +537,40 @@ function parseTeamKeys(label = "") {
 }
 
 function AuditSection({ title, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const storageKey = `scorecard-section:${title}`;
+
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+
+      if (saved === "open") return true;
+      if (saved === "closed") return false;
+    } catch {
+      // ignore localStorage issues
+    }
+
+    return defaultOpen;
+  });
+
+  const toggleOpen = () => {
+    setOpen((current) => {
+      const next = !current;
+
+      try {
+        window.localStorage.setItem(storageKey, next ? "open" : "closed");
+      } catch {
+        // ignore localStorage issues
+      }
+
+      return next;
+    });
+  };
 
   return (
     <div style={{ border: "1px solid #ccc", borderRadius: 6, marginBottom: 10 }}>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleOpen}
         style={{
           width: "100%",
           padding: 10,
@@ -534,99 +588,7 @@ function AuditSection({ title, children, defaultOpen = false }) {
   );
 }
 
-function formatOneVOneHoleAuditLine({
-  result,
-  hole,
-  holeResult,
-  running,
-  p1Name,
-  p2Name,
-}) {
- if (result?.type === "stroke") {
-  const base = formatStrokeDiff(holeResult, p1Name, p2Name);
 
-  if (hole === 9 || hole === 18) {
-    const matchingSegments = (result.segments || []).filter((segment) => {
-      if (hole === 9) return segment.key === "front";
-      if (hole === 18) return segment.key === "back" || segment.key === "total";
-      return false;
-    });
-
-    if (matchingSegments.length > 0) {
-      const segmentText = matchingSegments
-        .map((segment) => {
-  const diff = Number(segment.diff || 0);
-  const units = Number(segment.units || 0);
-
-  if (diff === 0) {
-    return `${segment.label}: Tie`;
-  }
-
-  const winnerName = units > 0 ? p1Name : p2Name;
-
-  return `${segment.label}: ${winnerName} by ${Math.abs(diff)}`;
-})
-        .join("; ");
-
-      return `${base}; ${segmentText}`;
-    }
-  }
-
-  return base;
-}
-
-  const base = `${formatHoleWinner(holeResult, p1Name, p2Name)}; Match: ${formatMatchScore(
-    running,
-    p1Name,
-    p2Name
-  )}`;
-
-  if (result?.type === "longshort") {
-    if (hole === result?.longDecidedOn) {
-  const longUnits = (result.holes || [])
-    .slice(0, hole)
-    .reduce((sum, value) => sum + Number(value || 0), 0);
-
-  const longWinner =
-    longUnits > 0 ? p1Name : longUnits < 0 ? p2Name : null;
-
-  const longCloseLabel =
-    hole === 18 && longWinner
-      ? `${longWinner} ${Math.abs(longUnits)} up`
-      : result.longLabel || "Tie";
-
-  return `${base}; Long closed: ${longCloseLabel}`;
-}
-
-    if (hole === 17 && Number(result?.longDecidedOn || 18) < 18) {
-  return `${formatHoleWinner(holeResult, p1Name, p2Name)}; Short starts: All square`;
-}
-
-    if (hole === result?.shortDecidedOn) {
-      return `${formatHoleWinner(holeResult, p1Name, p2Name)}; Short closed: ${
-        result.shortLabel || "Tie"
-      }`;
-    }
-
-    return base;
-  }
-
-  if (result?.type === "match_fbt") {
-    const closedSegments = (result.segments || []).filter(
-      (segment) => Number(segment.decidedOn) === hole
-    );
-
-    if (closedSegments.length > 0) {
-      const closedText = closedSegments
-     .map((segment) => `${segment.label} closed: ${segment.resultLabel || "Tie"}`)
-        .join("; ");
-
-      return `${base}; ${closedText}`;
-    }
-  }
-
-  return base;
-}
 
 function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, course, handicapMode }) {
   const sideMatchEntries = (matchResults || []).filter((entry) => !isNinePointMatch(entry.match));
@@ -634,13 +596,12 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   if (!sideMatchEntries.length) return null;
 
   return (
-    <AuditSection title="1v1 Match Audit" defaultOpen>
+    <AuditSection title="1v1 Matches"defaultOpen>
       {sideMatchEntries.map((entry) => {
         const match = entry.match;
         const result = entry.result || {};
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
-        let running = 0;
 
         return (
          <AuditSection
@@ -655,47 +616,7 @@ title={`${p1Name} vs ${p2Name} | ${getOneVOneGameTypeLabel(match, result)} | ${g
     handicapMode={handicapMode}
   />
 
-  {(result.holes || []).map((holeResult, index) => {
-              const hole = index + 1;
-              if (holeResult === null || holeResult === undefined) return null;
-              running += Number(holeResult || 0);
-
-              const p1Gross = getRawScore(scores, hole, match.p1Id);
-              const p2Gross = getRawScore(scores, hole, match.p2Id);
-              const p1Net = getNetScore(match.p1Id, hole, players, course, scores, handicapMode);
-              const p2Net = getNetScore(match.p2Id, hole, players, course, scores, handicapMode);
-              const holeBirdies = (birdieResults || []).filter(
-                (birdie) =>
-                  birdie.source === "match-birdie" &&
-                  birdie.matchId === match.id &&
-                  birdie.holeNumber === hole &&
-                  Number(birdie.amount) > 0
-              );
-
-              return (
-                <div key={`${match.id}-${hole}`} style={{ borderTop: "1px solid #eee", paddingTop: 8, marginTop: 8 }}>
-<div>
-  <strong>Hole {hole}</strong> —{" "}
-  {formatOneVOneHoleAuditLine({
-    result,
-    hole,
-    holeResult,
-    running,
-    p1Name,
-    p2Name,
-  })}
-</div>
-                  <div style={{ fontSize: 13 }}>
-                    {p1Name}: gross {p1Gross ?? "-"}, net {p1Net ?? "-"} | {p2Name}: gross {p2Gross ?? "-"}, net {p2Net ?? "-"}
-                  </div>
-                  {holeBirdies.length > 0 && (
-                    <div style={{ fontSize: 13, marginTop: 4 }}>
-                      Birdies: {holeBirdies.map((birdie) => `${getPlayerName(players, birdie.playerId)} ${formatMoney(birdie.amount)} vs ${getPlayerName(players, birdie.opponentId)}`).join("; ")}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+  
           </AuditSection>
         );
       })}
@@ -709,6 +630,7 @@ function NinePointScorecard({
   scores,
   course,
   handicapMode,
+  match,
 }) {
   const holes = result?.holes || [];
 
@@ -716,6 +638,16 @@ function NinePointScorecard({
 
   const front = holes.slice(0, 9);
   const back = holes.slice(9, 18);
+  const toyRule = !!match?.toyRule;
+  const allHoleNums = holes.map(h => h.hole);
+
+  // Count gross birdies per player for summary
+  const birdieCounts = Object.fromEntries(
+    players.map(p => [
+      p.id,
+      allHoleNums.filter(h => isGrossBirdie(scores, course, h, p.id)).length
+    ])
+  );
 
   const renderSection = (label, sectionHoles) => (
     <div style={{ marginBottom: 12 }}>
@@ -738,20 +670,22 @@ function NinePointScorecard({
 
       {sectionHoles.map((h) => {
         const gross = getRawScore(scores, h.hole, player.id);
-const strokes = getHandicapStrokes(
-  player.id,
-  h.hole,
-  players,
-  course,
-  handicapMode
-);
-
-const display =
-  gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
+        const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode);
+        const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
+        const grossBirdie = isGrossBirdie(scores, course, h.hole, player.id);
+        const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode);
 
         return (
           <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
-            {display}
+            {grossBirdie ? (
+              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                {display}
+              </span>
+            ) : netBirdie ? (
+              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
+                {display}
+              </span>
+            ) : display}
           </td>
         );
       })}
@@ -796,22 +730,43 @@ const display =
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
+      {match?.birdieEnabled && (
+        <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
+          {(() => {
+            const counts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
+            const total = counts.reduce((sum, p) => sum + p.count, 0);
+            if (total === 0) return "🐦 No birdies";
+            const max = Math.max(...counts.map(p => p.count));
+            const leaders = counts.filter(p => p.count === max);
+            if (leaders.length === counts.length) return `🐦 Birdies tied (${max} each)`;
+            const leader = leaders[0];
+            const others = counts.filter(p => p.count !== max);
+            return `🐦 ${leader.name} wins birdies: ${others.map(o => `+${leader.count - o.count} over ${o.name}`).join(", ")}`;
+          })()}
+          {toyRule && <span style={{ color: "#1a73e8", marginLeft: 6 }}>(Toy Birdies ON)</span>}
+        </div>
+      )}
     </div>
   );
 }
 
 function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
   const playerA = players.find((p) => p.id === match.p1Id);
-const playerB = players.find((p) => p.id === match.p2Id);
+  const playerB = players.find((p) => p.id === match.p2Id);
 
   if (!playerA || !playerB) return null;
 
   let running = 0;
-
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
-
   const front = holes.slice(0, 9);
   const back = holes.slice(9, 18);
+  const toyRule = !!match.toyRule;
+
+  // Count gross birdies per player for summary
+  const birdieCounts = {
+    [playerA.id]: holes.filter(h => isGrossBirdie(scores, course, h, playerA.id)).length,
+    [playerB.id]: holes.filter(h => isGrossBirdie(scores, course, h, playerB.id)).length,
+  };
 
   const renderSection = (label, sectionHoles) => (
     <div style={{ marginBottom: 12 }}>
@@ -833,10 +788,20 @@ const playerB = players.find((p) => p.id === match.p2Id);
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = getHandicapStrokes(player.id, hole, players, course, handicapMode);
+                const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
+                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, players, course, scores, handicapMode);
 
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
-                    {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
+                    {grossBirdie ? (
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                        {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
+                      </span>
+                    ) : netBirdie ? (
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
+                        {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
+                      </span>
+                    ) : gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                   </td>
                 );
               })}
@@ -890,10 +855,25 @@ const playerB = players.find((p) => p.id === match.p2Id);
     </div>
   );
 
+  const birdieCountA = birdieCounts[playerA.id];
+  const birdieCountB = birdieCounts[playerB.id];
+
   return (
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
+      {match.birdieEnabled && (
+        <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
+          {birdieCountA === 0 && birdieCountB === 0
+            ? "🐦 No birdies"
+            : birdieCountA === birdieCountB
+            ? `🐦 Birdies tied (${birdieCountA} each)`
+            : birdieCountA > birdieCountB
+            ? `🐦 ${playerA.name} wins birdies +${birdieCountA - birdieCountB}`
+            : `🐦 ${playerB.name} wins birdies +${birdieCountB - birdieCountA}`}
+          {toyRule && <span style={{ color: "#1a73e8", marginLeft: 6 }}>(Toy Birdies ON)</span>}
+        </div>
+      )}
     </div>
   );
 }
@@ -912,12 +892,13 @@ function NinePointAudit({
   if (!ninePointEntry) return null;
 
   return (
-    <AuditSection title="9-Point Audit" defaultOpen>
+    <AuditSection title="9-Point" defaultOpen>
       <NinePointScorecard
-  players={players}
-  result={ninePointEntry.result}
-  scores={scores}
-  course={course}
+        players={players}
+        result={ninePointEntry.result}
+        match={ninePointEntry.match}
+        scores={scores}
+        course={course}
   handicapMode={handicapMode}
 />
     </AuditSection>
@@ -937,7 +918,7 @@ function TeamGameAudit({
   if (!teamGameResults?.length) return null;
 
   return (
-    <AuditSection title="Team / Wheel Game Audit" defaultOpen>
+     <AuditSection title="Team Game" defaultOpen>
       {teamGameResults.map((game, gameIndex) => {
         if (game.duplicateError) {
           return (
@@ -1018,17 +999,30 @@ export default function AuditTrail({
         Read-only scoring detail. Uses the same scoring engine outputs/functions as the round totals.
       </div>
 
-      <OneVOneAudit
-        players={players}
-        matches={matches}
-        matchResults={matchResults}
-        birdieResults={birdieResults}
-        scores={scores}
-        course={course}
-        handicapMode={handicapMode}
-      />
+    {/* TEAM GAME FIRST */}
+<TeamGameAudit
+  players={players}
+  teamGames={teamGames}
+  teamGameResults={teamGameResults}
+  getTeamGameSelection={getTeamGameSelection}
+  scores={scores}
+  course={course}
+  handicapMode={handicapMode}
+  teamGameUnitAmount={teamGameUnitAmount}
+/>
 
-<>
+{/* 1v1 */}
+<OneVOneAudit
+  players={players}
+  matches={matches}
+  matchResults={matchResults}
+  birdieResults={birdieResults}
+  scores={scores}
+  course={course}
+  handicapMode={handicapMode}
+/>
+
+{/* 9 POINT */}
 <NinePointAudit
   players={players}
   matchResults={matchResults}
@@ -1036,17 +1030,6 @@ export default function AuditTrail({
   course={course}
   handicapMode={handicapMode}
 />
-</>
-      <TeamGameAudit
-        players={players}
-        teamGames={teamGames}
-        teamGameResults={teamGameResults}
-        getTeamGameSelection={getTeamGameSelection}
-        scores={scores}
-        course={course}
-        handicapMode={handicapMode}
-        teamGameUnitAmount={teamGameUnitAmount}
-      />
     </div>
   );
 }

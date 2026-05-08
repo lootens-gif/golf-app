@@ -40,6 +40,8 @@ export default function SetupScreen({
   setBirdiesEnabled,
   birdieBetAmount,
   setBirdieBetAmount,
+  toyRule,
+  setToyRule,
   applyPreset,
   setTeamGames,
   teamGames,
@@ -275,6 +277,17 @@ export default function SetupScreen({
 
 
 </div>
+
+{birdiesEnabled && (
+  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+    <input
+      type="checkbox"
+      checked={!!toyRule}
+      onChange={(e) => setToyRule(e.target.checked)}
+    />
+    Toy Birdies — Net birdie ties Gross birdie
+  </label>
+)}
 
 {!enableTeamGame && (
   <button

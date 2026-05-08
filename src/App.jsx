@@ -429,6 +429,7 @@ export default function App() {
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
   const [birdieBetAmount, setBirdieBetAmount] = useState(1);
+  const [toyRule, setToyRule] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
 
   const players = useMemo(
@@ -1004,6 +1005,7 @@ function addMatch() {
       bet: 10,
       birdieEnabled: false,
       birdieBet: 5,
+      toyRule: false,
       matchPlayFront: true,
 matchPlayBack: true,
 matchPlayTotal: true,
@@ -1050,6 +1052,7 @@ function addNinePointMatch() {
       bet: 1,
       birdieEnabled: false,
       birdieBet: 1,
+      toyRule: false,
     },
   ]);
 }
@@ -1262,13 +1265,16 @@ console.log("mode", mode);
 const birdieResults = buildBirdieResults({
   matches,
   matchResults,
-  teamGames,
-  teamGameResults,
+  teamGames: enableTeamGame ? teamGames : [],
+  teamGameResults: enableTeamGame ? teamGameResults : [],
   scores,
   course,
   getTeamGameSelection,
-  birdiesEnabled,
+  birdiesEnabled: enableTeamGame ? birdiesEnabled : false,
   birdieBetAmount,
+  toyRule,
+  players,
+  handicapMode,
 });
 
 
@@ -1468,6 +1474,7 @@ function saveLastRound() {
   pressTrigger,
   birdiesEnabled,
   birdieBetAmount,
+  toyRule,
   teamGames,
   matches,
 };
@@ -1492,6 +1499,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     pressTrigger,
     birdiesEnabled,
     birdieBetAmount,
+    toyRule,
     teamGames,
     matches,
     screen,
@@ -1509,6 +1517,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   pressTrigger,
   birdiesEnabled,
   birdieBetAmount,
+  toyRule,
   teamGames,
   matches,
   screen,
@@ -1532,6 +1541,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
 
   setPressTrigger(Number(round.pressTrigger || 1));
   setBirdiesEnabled(!!round.birdiesEnabled);
+  setToyRule(!!round.toyRule);
   setBirdieBetAmount(Number(round.birdieBetAmount || 1));
 
   setTeamGames(
@@ -1876,6 +1886,7 @@ useEffect(() => {
   pressTrigger,
   birdiesEnabled,
   birdieBetAmount,
+  toyRule,
   teamGames,
   matches,
   screen,
@@ -2315,6 +2326,8 @@ return (
     birdiesEnabled={birdiesEnabled}
     setBirdiesEnabled={setBirdiesEnabled}
     birdieBetAmount={birdieBetAmount}
+    toyRule={toyRule}
+    setToyRule={setToyRule}
     setBirdieBetAmount={setBirdieBetAmount}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}

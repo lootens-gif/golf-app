@@ -563,14 +563,22 @@ export default function MatchList({
           </div>
 
           {match.birdieEnabled && (
-  <div
-    style={{
-      marginTop: 8,
-      fontSize: 12,
-      color: "#666",
-    }}
-  >
-    Birdies use gross score only.
+  <div style={{ marginTop: 8 }}>
+    <div style={{ fontSize: 12, color: "#666" }}>
+      {match.toyRule
+        ? "Toy Birdies — Net birdie ties Gross birdie."
+        : "Birdies use gross score only."}
+    </div>
+    <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+      <input
+        type="checkbox"
+        checked={!!match.toyRule}
+        onChange={(e) =>
+          onUpdateMatch(match.id, { toyRule: e.target.checked })
+        }
+      />
+      <span style={{ fontSize: 12 }}>Toy Birdies</span>
+    </label>
   </div>
 )}
 

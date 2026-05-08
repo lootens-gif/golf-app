@@ -867,7 +867,7 @@ function getNinePointParticipants(match, scores, holeNumber) {
 
 
 
-export function buildMatchBirdieResults(matches, scores, course) {
+export function buildMatchBirdieResults(matches, scores, course, toyRule = false, players = [], handicapMode = "relative") {
   const results = [];
 
   for (const match of matches || []) {
@@ -889,50 +889,40 @@ export function buildMatchBirdieResults(matches, scores, course) {
 
     for (let holeNumber = start; holeNumber <= end; holeNumber += 1) {
       const participants = getMatchParticipants(match, scores, holeNumber);
-
       if (participants.length !== 2) continue;
 
       const [p1Id, p2Id] = participants;
 
-      const p1Birdie = isGrossBirdie(scores, course, holeNumber, p1Id);
-      const p2Birdie = isGrossBirdie(scores, course, holeNumber, p2Id);
+      const p1Gross = isGrossBirdie(scores, course, holeNumber, p1Id);
+      const p2Gross = isGrossBirdie(scores, course, holeNumber, p2Id);
+      const matchToyRule = !!match.toyRule;
+      const p1Net = matchToyRule ? isNetBirdie(p1Id, holeNumber, players, course, scores, handicapMode) : false;
+      const p2Net = matchToyRule ? isNetBirdie(p2Id, holeNumber, players, course, scores, handicapMode) : false;
 
-            if (p1Birdie && !p2Birdie) {
-        results.push({
-          playerId: p1Id,
-          opponentId: p2Id,
-          matchId: match.id,
-          holeNumber,
-          amount,
-          source: "match-birdie",
-        });
+      // Under Toy Rule: gross ties net — only gross birdies win outright
+      // A net-only birdie does nothing unless there's a gross birdie to tie
+      if (matchToyRule) {
+        const p1Wins = p1Gross && !p2Gross && !p2Net;
+        const p2Wins = p2Gross && !p1Gross && !p1Net;
+        // gross vs net = push, gross vs gross = push, net only = nothing
 
-        results.push({
-          playerId: p2Id,
-          opponentId: p1Id,
-          matchId: match.id,
-          holeNumber,
-          amount: -amount,
-          source: "match-birdie",
-        });
-      } else if (p2Birdie && !p1Birdie) {
-        results.push({
-          playerId: p2Id,
-          opponentId: p1Id,
-          matchId: match.id,
-          holeNumber,
-          amount,
-          source: "match-birdie",
-        });
-
-        results.push({
-          playerId: p1Id,
-          opponentId: p2Id,
-          matchId: match.id,
-          holeNumber,
-          amount: -amount,
-          source: "match-birdie",
-        });
+        if (p1Wins) {
+          results.push({ playerId: p1Id, opponentId: p2Id, matchId: match.id, holeNumber, amount, source: "match-birdie" });
+          results.push({ playerId: p2Id, opponentId: p1Id, matchId: match.id, holeNumber, amount: -amount, source: "match-birdie" });
+        } else if (p2Wins) {
+          results.push({ playerId: p2Id, opponentId: p1Id, matchId: match.id, holeNumber, amount, source: "match-birdie" });
+          results.push({ playerId: p1Id, opponentId: p2Id, matchId: match.id, holeNumber, amount: -amount, source: "match-birdie" });
+        }
+        // gross vs net = push, both gross = push, net only = nothing — no entries pushed
+      } else {
+        // Original gross-only rule
+        if (p1Gross && !p2Gross) {
+          results.push({ playerId: p1Id, opponentId: p2Id, matchId: match.id, holeNumber, amount, source: "match-birdie" });
+          results.push({ playerId: p2Id, opponentId: p1Id, matchId: match.id, holeNumber, amount: -amount, source: "match-birdie" });
+        } else if (p2Gross && !p1Gross) {
+          results.push({ playerId: p2Id, opponentId: p1Id, matchId: match.id, holeNumber, amount, source: "match-birdie" });
+          results.push({ playerId: p1Id, opponentId: p2Id, matchId: match.id, holeNumber, amount: -amount, source: "match-birdie" });
+        }
       }
     }
   }
@@ -940,7 +930,7 @@ export function buildMatchBirdieResults(matches, scores, course) {
   return results;
 }
 
-export function buildNinePointBirdieResults(matchResults, scores, course) {
+export function buildNinePointBirdieResults(matchResults, scores, course, toyRule = false, players = [], handicapMode = "relative") {
   const results = [];
 
   for (const entry of matchResults || []) {
@@ -969,20 +959,45 @@ export function buildNinePointBirdieResults(matchResults, scores, course) {
       const scoredPlayerIds = getNinePointParticipants(match, scores, holeNumber);
       if (scoredPlayerIds.length !== 3) continue;
 
-      const birdiePlayers = scoredPlayerIds.filter((playerId) =>
+      const grossBirdiePlayers = scoredPlayerIds.filter((playerId) =>
         isGrossBirdie(scores, course, holeNumber, playerId)
       );
+        // Net birdie = defensive only. Protects you from paying gross birdie. Collects nothing.
+      const matchToyRule = !!match.toyRule;
+      if (matchToyRule) {
+        const netBirdiePlayers = scoredPlayerIds.filter(
+          (playerId) =>
+            !isGrossBirdie(scores, course, holeNumber, playerId) &&
+            isNetBirdie(playerId, holeNumber, players, course, scores, handicapMode)
+        );
 
-      if (birdiePlayers.length === 0) continue;
+        // Net birdie only activates when there is at least one gross birdie
+        if (grossBirdiePlayers.length === 0) continue;
 
-      const losers = scoredPlayerIds.filter((id) => !birdiePlayers.includes(id));
+        // Losers = players with no birdie at all (not gross, not net)
+        const allBirdiePlayers = [...grossBirdiePlayers, ...netBirdiePlayers];
+        const losers = scoredPlayerIds.filter((id) => !allBirdiePlayers.includes(id));
 
-      birdiePlayers.forEach((winnerId) => {
-        losers.forEach((loserId) => {
-          results.push({ playerId: winnerId, amount });
-          results.push({ playerId: loserId, amount: -amount });
+        // Only gross birdie players collect — from losers only, not from net birdie players
+        grossBirdiePlayers.forEach((winnerId) => {
+          losers.forEach((loserId) => {
+            results.push({ playerId: winnerId, amount });
+            results.push({ playerId: loserId, amount: -amount });
+          });
         });
-      });
+        // Net birdie players pay nothing and collect nothing — they just don't pay the gross birdie
+
+      } else {
+        // Original gross-only rule
+        if (grossBirdiePlayers.length === 0) continue;
+        const losers = scoredPlayerIds.filter((id) => !grossBirdiePlayers.includes(id));
+        grossBirdiePlayers.forEach((winnerId) => {
+          losers.forEach((loserId) => {
+            results.push({ playerId: winnerId, amount });
+            results.push({ playerId: loserId, amount: -amount });
+          });
+        });
+      }
     }
   }
 
@@ -995,7 +1010,10 @@ export function buildTeamBirdieResults(
   scores,
   course,
   getTeamGameSelection,
-  birdieBetAmount
+  birdieBetAmount,
+  toyRule = false,
+  players = [],
+  handicapMode = "relative"
 ) {
   const results = [];
 
@@ -1033,44 +1051,63 @@ export function buildTeamBirdieResults(
       for (let holeNumber = startHole; holeNumber <= endHole; holeNumber += 1) {
         const holeScores = scores?.[holeNumber] || {};
 
-        const teamAActive = teamAPlayers.filter(
-          (playerId) => holeScores[playerId] != null
-        );
-
-        const teamBActive = teamBPlayers.filter(
-          (playerId) => holeScores[playerId] != null
-        );
+        const teamAActive = teamAPlayers.filter((playerId) => holeScores[playerId] != null);
+        const teamBActive = teamBPlayers.filter((playerId) => holeScores[playerId] != null);
 
         if (!teamAActive.length || !teamBActive.length) continue;
 
-        const teamABirdies = teamAActive.filter((playerId) =>
+        const teamAGrossBirdies = teamAActive.filter((playerId) =>
           isGrossBirdie(scores, course, holeNumber, playerId)
         ).length;
 
-        const teamBBirdies = teamBActive.filter((playerId) =>
+        const teamBGrossBirdies = teamBActive.filter((playerId) =>
           isGrossBirdie(scores, course, holeNumber, playerId)
         ).length;
 
-        if (teamABirdies > teamBBirdies) {
-          const diff = teamABirdies - teamBBirdies;
+        if (toyRule) {
+          const teamANetBirdies = teamAActive.filter(
+            (playerId) =>
+              !isGrossBirdie(scores, course, holeNumber, playerId) &&
+              isNetBirdie(playerId, holeNumber, players, course, scores, handicapMode)
+          ).length;
 
-          teamAActive.forEach((playerId) => {
-            results.push({ playerId, amount: diff * amount });
-          });
+          const teamBNetBirdies = teamBActive.filter(
+            (playerId) =>
+              !isGrossBirdie(scores, course, holeNumber, playerId) &&
+              isNetBirdie(playerId, holeNumber, players, course, scores, handicapMode)
+          ).length;
 
-          teamBActive.forEach((playerId) => {
-            results.push({ playerId, amount: -diff * amount });
-          });
-        } else if (teamBBirdies > teamABirdies) {
-          const diff = teamBBirdies - teamABirdies;
+          // Toy Rule for teams:
+          // A net birdie on your team protects you from paying the opposing gross birdie
+          // Net birdie never earns money — purely defensive
+          // If opposing team has a net birdie, your gross birdie cannot collect from them
 
-          teamBActive.forEach((playerId) => {
-            results.push({ playerId, amount: diff * amount });
-          });
+          const teamAProtected = teamAGrossBirdies > 0 && teamBNetBirdies > 0;
+          const teamBProtected = teamBGrossBirdies > 0 && teamANetBirdies > 0;
 
-          teamAActive.forEach((playerId) => {
-            results.push({ playerId, amount: -diff * amount });
-          });
+          const teamACanCollect = teamAGrossBirdies > 0 && !teamAProtected && teamBGrossBirdies === 0;
+          const teamBCanCollect = teamBGrossBirdies > 0 && !teamBProtected && teamAGrossBirdies === 0;
+
+          if (teamACanCollect) {
+            teamAActive.forEach((playerId) => results.push({ playerId, amount }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount }));
+          } else if (teamBCanCollect) {
+            teamBActive.forEach((playerId) => results.push({ playerId, amount }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount }));
+          }
+          // everything else = push, nothing moves
+
+        } else {
+          // Original gross-only rule
+          if (teamAGrossBirdies > teamBGrossBirdies) {
+            const diff = teamAGrossBirdies - teamBGrossBirdies;
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount }));
+          } else if (teamBGrossBirdies > teamAGrossBirdies) {
+            const diff = teamBGrossBirdies - teamAGrossBirdies;
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount }));
+          }
         }
       }
     }
@@ -1089,16 +1126,15 @@ export function buildBirdieResults({
   getTeamGameSelection,
   birdiesEnabled,
   birdieBetAmount,
+  toyRule = false,
+  players = [],
+  handicapMode = "relative",
 }) {
   if (!scores || !course) {
     return [];
   }
 
-  const matchBirdies = buildMatchBirdieResults(
-    matches,
-    scores,
-    course
-  );
+  const matchBirdies = buildMatchBirdieResults(matches, scores, course, toyRule, players, handicapMode);
 
   const teamBirdies = birdiesEnabled
     ? buildTeamBirdieResults(
@@ -1107,18 +1143,18 @@ export function buildBirdieResults({
         scores,
         course,
         getTeamGameSelection,
-        birdieBetAmount
+        birdieBetAmount,
+        toyRule,
+        players,
+        handicapMode
       )
     : [];
 
-  const ninePointBirdies = buildNinePointBirdieResults(
-    matchResults,
-    scores,
-    course
-  );
+  const ninePointBirdies = buildNinePointBirdieResults(matchResults, scores, course, toyRule, players, handicapMode);
 
   return [...matchBirdies, ...teamBirdies, ...ninePointBirdies];
 }
+
 export function scoreRound(round, context = {}) {
     const {
   players = [],
