@@ -79,9 +79,10 @@ function createDefaultAllPlayers() {
 }
 
 function getTeamGameRange(teamGames, index) {
+  if (!teamGames || !teamGames[index]) return { start: 1, end: 6 };
   const start =
-    teamGames.slice(0, index).reduce((sum, game) => sum + game.holes, 0) + 1;
-  const end = start + teamGames[index].holes - 1;
+    teamGames.slice(0, index).reduce((sum, game) => sum + (game.holes || 6), 0) + 1;
+  const end = start + (teamGames[index].holes || 6) - 1;
   return { start, end };
 }
 
