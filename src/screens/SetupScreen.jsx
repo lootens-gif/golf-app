@@ -50,6 +50,8 @@ export default function SetupScreen({
   hasDuplicateSelections,
   getTeamGameSelection,
   renderTeamSelectors,
+  expandedGame,
+  setExpandedGame,
   modeText,
   addMatch,
   addNinePointMatch,
@@ -252,49 +254,88 @@ export default function SetupScreen({
                     <strong>Game {index + 1}: Holes {start}-{end}</strong>
                   </div>
 
-                  <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                    <label>
-                      Holes:
-                      <input
-                        type="number"
-                        min={1}
-                        max={18}
-                        value={game.holes ?? 1}
-                        onChange={(e) => {
-                          const value = Number(e.target.value) || 1;
-                          setTeamGames((prev) =>
-                            prev.map((g, i) => i === index ? { ...g, holes: value } : g)
-                          );
-                        }}
-                        style={{ width: 60, marginLeft: 6 }}
-                      />
-                    </label>
-
-                    {teamGames.length > 1 && (
+                  {index === 0 ? (
+                    <>
+                      <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                        <label>
+                          Holes:
+                          <input
+                            type="number"
+                            min={1}
+                            max={18}
+                            value={game.holes ?? 1}
+                            onChange={(e) => {
+                              const value = Number(e.target.value) || 1;
+                              setTeamGames((prev) =>
+                                prev.map((g, i) => i === index ? { ...g, holes: value } : g)
+                              );
+                            }}
+                            style={{ width: 60, marginLeft: 6 }}
+                          />
+                        </label>
+                        {teamGames.length > 1 && (
+                          <button onClick={() => setTeamGames((prev) => prev.filter((_, i) => i !== index))}>
+                            Remove Game
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        {mode === "5p" && "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
+                        {mode === "4p" && "Select Team 1 and Team 2. One 2v2 match is played for this game."}
+                        {mode === "3p" && "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
+                      </div>
+                      {renderTeamSelectors(index)}
+                      {!duplicateError && <PrimarySetupAction />}
+                    </>
+                  ) : (
+                    <>
                       <button
-                        onClick={() =>
-                          setTeamGames((prev) => prev.filter((_, i) => i !== index))
-                        }
+                        onClick={() => setExpandedGame(expandedGame === index ? null : index)}
+                        style={{ fontSize: 13, marginTop: 8 }}
                       >
-                        Remove Game
+                        {expandedGame === index ? "▲ Hide Game " + (index + 1) + " Details" : "▼ Set Up Game " + (index + 1) + " Teams"}
                       </button>
-                    )}
-                  </div>
-
-                  <div style={{ marginTop: 6 }}>
-                    {mode === "5p" && "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
-                    {mode === "4p" && "Select Team 1 and Team 2. One 2v2 match is played for this game."}
-                    {mode === "3p" && "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
-                  </div>
-
-                  {renderTeamSelectors(index)}
-
-                  {duplicateError && (
-                    <div style={{ marginTop: 8, color: "red" }}>
-                      Duplicate players in this game are not allowed.
-                    </div>
+                      {expandedGame === index && (
+                        <>
+                          <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                            <label>
+                              Holes:
+                              <input
+                                type="number"
+                                min={1}
+                                max={18}
+                                value={game.holes ?? 1}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value) || 1;
+                                  setTeamGames((prev) =>
+                                    prev.map((g, i) => i === index ? { ...g, holes: value } : g)
+                                  );
+                                }}
+                                style={{ width: 60, marginLeft: 6 }}
+                              />
+                            </label>
+                            {teamGames.length > 1 && (
+                              <button onClick={() => setTeamGames((prev) => prev.filter((_, i) => i !== index))}>
+                                Remove Game
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ marginTop: 6 }}>
+                            {mode === "5p" && "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
+                            {mode === "4p" && "Select Team 1 and Team 2. One 2v2 match is played for this game."}
+                            {mode === "3p" && "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
+                          </div>
+                          {renderTeamSelectors(index)}
+                          {duplicateError && (
+                            <div style={{ marginTop: 8, color: "red" }}>
+                              Duplicate players in this game are not allowed.
+                            </div>
+                          )}
+                          {!duplicateError && <PrimarySetupAction />}
+                        </>
+                      )}
+                    </>
                   )}
-                  {!duplicateError && <PrimarySetupAction />}
                 </div>
               );
             })}

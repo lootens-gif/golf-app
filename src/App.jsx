@@ -404,6 +404,7 @@ export default function App() {
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
   const [showRoundSummary, setShowRoundSummary] = useState(false);
+  const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -411,14 +412,14 @@ export default function App() {
 
 
   function createDefaultTeamGame(index = 0) {
-  return {
-    id: `team-game-${Date.now()}-${index}`,
-    holes: 6,
-    birdieEnabled: false,
-    birdieBet: 0,
-    teams: {},
-  };
-}
+    return {
+      id: `team-game-${Date.now()}-${index}`,
+      holes: 6,
+      birdieEnabled: false,
+      birdieBet: 0,
+      teams: {},
+    };
+  }
 
   const [teamGames, setTeamGames] = useState([
     createDefaultTeamGame(1),
@@ -2340,6 +2341,8 @@ return (
     hasDuplicateSelections={hasDuplicateSelections}
     getTeamGameSelection={getTeamGameSelection}
     renderTeamSelectors={renderTeamSelectors}
+    expandedGame={expandedGame}
+    setExpandedGame={setExpandedGame}
     addMatch={addMatch}
     addNinePointMatch={addNinePointMatch}
     matches={matches}
@@ -2354,6 +2357,7 @@ return (
     setEnableTeamGame={setEnableTeamGame}
     goToLive={goToLive}
     goToResults={goToResults}
+    
    />
 )}
 
