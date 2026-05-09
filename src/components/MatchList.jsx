@@ -211,7 +211,7 @@ export default function MatchList({
 
   function renderHoleStats(holeStats) {
     return (
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 8, fontSize: 13, color: "#555" }}>
         <div>Hole Wins: {holeStats.wins}</div>
         <div>Hole Losses: {holeStats.losses}</div>
         <div>Pushes: {holeStats.pushes}</div>
@@ -273,7 +273,7 @@ export default function MatchList({
           <div>Match Result: {result.label}</div>
           {result.decidedOn ? <div>Decided on Hole: {result.decidedOn}</div> : null}
           <div>Match Bet: ${match.bet}</div>
-                    <div>
+          <div>
             <strong>Match Payout: ${result.total}</strong>
           </div>
           {renderMatchBirdieDetails(match)}
@@ -288,11 +288,9 @@ export default function MatchList({
           <div>Long Result: {result.longLabel}</div>
           <div>Long Bet: ${match.bet}</div>
           <div>Long Decided on Hole: {result.longDecidedOn ?? "-"}</div>
-
           <div style={{ marginTop: 6 }}>Short Result: {result.shortLabel}</div>
           <div>Short Bet: ${match.bet / 2}</div>
           <div>Short Decided on Hole: {result.shortDecidedOn ?? "-"}</div>
-
           <div style={{ marginTop: 6 }}>
             <strong>Total Payout: ${result.total}</strong>
           </div>
@@ -325,14 +323,12 @@ export default function MatchList({
           <div>
             Stroke Mode: {result.strokeScoring} / {result.strokePayoutMode}
           </div>
-
           {result.segments.map((seg) => (
             <div key={seg.key}>
               {seg.label}: {seg.aTotal ?? "-"} vs {seg.bTotal ?? "-"} | Units:{" "}
               {seg.units} | Payout: ${seg.dollars}
             </div>
           ))}
-
           <div style={{ marginTop: 6 }}>
             <strong>Net Payout: ${result.total}</strong>
           </div>
@@ -341,14 +337,14 @@ export default function MatchList({
       );
     }
 
-   return (
-  <div style={{ marginTop: 8 }}>
-    <div>
-      <strong>Payout: ${result.total}</strong>
-    </div>
-    {renderHoleStats(holeStats)}
-  </div>
-);
+    return (
+      <div style={{ marginTop: 8 }}>
+        <div>
+          <strong>Payout: ${result.total}</strong>
+        </div>
+        {renderHoleStats(holeStats)}
+      </div>
+    );
   }
 
   return (
@@ -700,17 +696,20 @@ export default function MatchList({
             </div>
           )}
 
-         <div style={{ marginTop: 8 }}>
-  {match.gameType === "ninePoint"
-    ? `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)} vs ${getPlayerName(players, match.p3Id)}`
-    : `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)}`}
-</div>
+         <div style={{ marginTop: 12, paddingTop: 10, borderTop: "2px dashed #ddd" }}>
+           <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Live Results</div>
+           <div style={{ marginBottom: 4, fontWeight: 600 }}>
+             {match.gameType === "ninePoint"
+               ? `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)} vs ${getPlayerName(players, match.p3Id)}`
+               : `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)}`}
+           </div>
 
           {result?.gameType === "ninePoint"
-  ? renderNinePointResult(result, match, !!expandedNinePointIds[match.id])
-  : renderHoleRows(result.holes || [])}
+            ? renderNinePointResult(result, match, !!expandedNinePointIds[match.id])
+            : renderHoleRows(result.holes || [])}
 
           {renderMatchDetails(match, result)}
+         </div>
         </div>
       ))}
     </div>

@@ -364,53 +364,64 @@ export default function SetupScreen({
 
         {!enableTeamGame && <PrimarySetupAction />}
 
-        {/* ── 6. SAVE / LOAD ROUND ── */}
+        {/* ── 6. SAVED ROUNDS ── */}
         <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginTop: 16, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Save / Load Round</h3>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={saveLastRound}>Save Last Round</button>
-            <button onClick={loadLastRound}>Load Last Round</button>
-          </div>
-        </div>
+          <h3 style={{ marginTop: 0, marginBottom: 10 }}>Saved Rounds</h3>
 
-        {/* ── 7. SAVED TEST ROUNDS ── */}
-        <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Saved Rounds</h3>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          {/* Save a new named round */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <input
               type="text"
               value={savedRoundName}
               onChange={(e) => setSavedRoundName(e.target.value)}
-              placeholder="Enter round name"
-              style={{ minWidth: 220 }}
+              placeholder="Round name (e.g. May 9 Westwood)"
+              style={{ flex: 1, fontSize: 14, padding: "5px 8px" }}
             />
-            <button onClick={saveNamedRound}>Save Named Round</button>
+            <button onClick={saveNamedRound}>Save</button>
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <select
-              value={selectedSavedRoundId}
-              onChange={(e) => setSelectedSavedRoundId(e.target.value)}
-              style={{ minWidth: 260 }}
-            >
-              <option value="">Select saved round</option>
-              {savedRounds.map((round) => (
-                <option key={round.id} value={round.id}>
-                  {round.name}
-                </option>
-              ))}
-            </select>
-            <button onClick={loadNamedRound}>Load Named Round</button>
-            <button onClick={deleteNamedRound}>Delete Named Round</button>
-            <button onClick={exportSavedRounds}>Export Saved Rounds</button>
-            <label style={{ display: "inline-block" }}>
-              <span style={{ display: "inline-block", border: "1px solid gray", padding: "2px 6px", cursor: "pointer", background: "#eee" }}>
-                Import Saved Rounds
-              </span>
-              <input type="file" accept="application/json" onChange={importSavedRounds} style={{ display: "none" }} />
-            </label>
-          </div>
+          {/* Load / delete a saved round */}
+          {savedRounds.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+              <select
+                value={selectedSavedRoundId}
+                onChange={(e) => setSelectedSavedRoundId(e.target.value)}
+                style={{ flex: 1, fontSize: 14, padding: "5px 8px" }}
+              >
+                <option value="">Select a saved round...</option>
+                {savedRounds.map((round) => (
+                  <option key={round.id} value={round.id}>
+                    {round.name}
+                  </option>
+                ))}
+              </select>
+              <button onClick={loadNamedRound}>Load</button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Delete this saved round?")) deleteNamedRound();
+                }}
+                style={{ color: "#b3261e" }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+
+          {/* Backup / restore — hidden behind a toggle */}
+          <details style={{ marginTop: 4 }}>
+            <summary style={{ fontSize: 13, color: "#666", cursor: "pointer" }}>
+              Backup &amp; Restore
+            </summary>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button onClick={exportSavedRounds}>Export All Rounds</button>
+              <label style={{ display: "inline-block" }}>
+                <span style={{ display: "inline-block", border: "1px solid #ccc", padding: "4px 8px", cursor: "pointer", background: "#f5f5f5", borderRadius: 4, fontSize: 14 }}>
+                  Import Rounds
+                </span>
+                <input type="file" accept="application/json" onChange={importSavedRounds} style={{ display: "none" }} />
+              </label>
+            </div>
+          </details>
         </div>
 
         <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginBottom: 12 }}>

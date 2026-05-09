@@ -8,78 +8,65 @@ export default function PlayerSetupPanel({
 }) {
   function handleHandicapChange(index, rawValue) {
     const cleaned = rawValue.replace(/\D/g, "");
-
     if (cleaned === "") {
       onPlayerChange(index, "hcp", "");
       return;
     }
-
     onPlayerChange(index, "hcp", cleaned);
   }
 
   return (
-    <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-      <h3>Player Setup</h3>
-
-      <div style={{ marginBottom: 8 }}>
-        Edit player names and handicaps for the current round.
-      </div>
+    <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+      <h3 style={{ marginTop: 0, marginBottom: 8 }}>Player Setup</h3>
 
       {players.map((player, index) => (
         <div
           key={player.id}
           style={{
             display: "flex",
-            gap: 8,
+            gap: 6,
             alignItems: "center",
-            marginBottom: 8,
-            flexWrap: "wrap",
+            marginBottom: 6,
           }}
         >
-          <strong>Player {index + 1}</strong>
-
-          <label>
-            Name:
-            <input
-                type="text"
-                value={player.name}
-                onFocus={(e) => {
-                    setTimeout(() => {
-                    e.target.setSelectionRange(0, e.target.value.length);
-                    }, 0);
-                }}
-                onClick={(e) => {
-                    setTimeout(() => {
-                    e.target.setSelectionRange(0, e.target.value.length);
-                    }, 0);
-                }}
-                onChange={(e) => onPlayerChange(index, "name", e.target.value)}
-                style={{ marginLeft: 6, fontSize: 16, padding: 6, minWidth: 140  }}
-            />
-          </label>
-
-          <label>
-            HCP:
-            <input
-              type="text"
-              inputMode="numeric"
-              value={player.hcp ?? ""}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => handleHandicapChange(index, e.target.value)}
-              style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
-            />
-          </label>
+          <span style={{ fontSize: 13, color: "#666", minWidth: 20, textAlign: "right" }}>
+            {index + 1}.
+          </span>
+          <input
+            type="text"
+            value={player.name}
+            placeholder="Name"
+            onFocus={(e) => setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0)}
+            onClick={(e) => setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0)}
+            onChange={(e) => onPlayerChange(index, "name", e.target.value)}
+            style={{ fontSize: 15, padding: "5px 8px", flex: 1, minWidth: 0, maxWidth: 160 }}
+          />
+          <span style={{ fontSize: 13, color: "#666" }}>HCP</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={player.hcp ?? ""}
+            placeholder="0"
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => handleHandicapChange(index, e.target.value)}
+            style={{ width: 44, fontSize: 15, padding: "5px 6px", textAlign: "center" }}
+          />
         </div>
       ))}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <button onClick={onSaveSetup}>Save Setup</button>
-        <button onClick={onLoadSetup}>Load Setup</button>
-        <button onClick={onResetSetup}>Reset Setup</button>
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 13, color: "#555" }}>
-        Current mode: {mode}
+      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={onSaveSetup}>Save Players</button>
+        <button onClick={onLoadSetup}>Load Players</button>
+        <button
+          onClick={() => {
+            if (window.confirm("Reset everything to defaults? This clears all scores, matches, and players.")) {
+              onResetSetup();
+            }
+          }}
+          style={{ color: "#b3261e", marginLeft: "auto", fontSize: 13 }}
+        >
+          Reset All
+        </button>
       </div>
     </div>
   );
