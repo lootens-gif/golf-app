@@ -99,13 +99,16 @@ export default function SetupScreen({
   return (
     <>
 
+   {/* ── 1. PLAYER COUNT ── */}
         <SettingsPanel
           mode={mode}
           setMode={handleModeChange}
           handicapMode={handicapMode}
           setHandicapMode={setHandicapMode}
+          
         />
 
+        {/* ── 2. PLAYERS & HANDICAPS ── */}
         <PlayerSetupPanel
           mode={mode}
           players={players}
@@ -115,16 +118,223 @@ export default function SetupScreen({
           onResetSetup={resetSetup}
         />
 
-        <div style={{ marginBottom: 12 }}>
-          <button onClick={saveLastRound} style={{ marginRight: 8 }}>
-            Save Last Round
-          </button>
+        {setupMessage && (
+          <div style={{ marginBottom: 12, color: "green" }}>
+            {setupMessage}
+          </div>
+        )}
 
-          <button onClick={loadLastRound}>Load Last Round</button>
+        {/* ── 3. TEAM GAME & BIRDIE BETTING ── */}
+        <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Team Game & Birdie Betting</h3>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={enableTeamGame}
+                onChange={(e) => setEnableTeamGame(e.target.checked)}
+              />
+              Enable Team Game
+            </label>
+          </div>
+
+          {enableTeamGame && (
+            <div style={{ marginBottom: 8 }}>
+              <label>
+                Team Game Unit Amount:
+                <input
+                  type="number"
+                  value={teamGameUnitAmount}
+                  onChange={(e) => setTeamGameUnitAmount(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  style={{ marginLeft: 6, width: 70 }}
+                />
+              </label>
+
+              <div style={{ marginTop: 8 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  Press Trigger:
+                  <input
+                    type="number"
+                    value={pressTrigger}
+                    onChange={(e) => setPressTrigger(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    style={{ width: 70 }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={birdiesEnabled}
+                onChange={(e) => setBirdiesEnabled(e.target.checked)}
+              />
+              Birdies (Gross Side Bet)
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+              Birdie Bet:
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={birdieBetAmount}
+                disabled={!birdiesEnabled}
+                onChange={(e) => setBirdieBetAmount(Number(e.target.value || 0))}
+                onFocus={(e) => e.target.select()}
+                style={{ width: 70 }}
+              />
+            </label>
+            {birdiesEnabled && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!toyRule}
+                  onChange={(e) => setToyRule(e.target.checked)}
+                />
+                Toy Birdies — Net birdie ties Gross birdie
+              </label>
+            )}
+          </div>
         </div>
 
-        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Saved Test Rounds</h3>
+        {/* ── 4. TEAM GAME SELECTOR ── */}
+        {enableTeamGame && (
+          <>
+            <h3>Team Game Selector</h3>
+
+            <div style={{ marginBottom: 12 }}>
+              <strong>Game Hole Setup</strong>
+
+              <div style={{ marginTop: 8, marginBottom: 10 }}>
+                <button onClick={() => applyPreset("6-6-6")}>6 / 6 / 6</button>
+                <button onClick={() => applyPreset("9-9")} style={{ marginLeft: 8 }}>9 / 9</button>
+              </div>
+
+              <div style={{ marginTop: 8, marginBottom: 8 }}>
+                <button
+                  onClick={() =>
+                    setTeamGames((prev) => [
+                      ...prev,
+                      createDefaultTeamGame(prev.length + 1),
+                    ])
+                  }
+                >
+                  Add Team Game
+                </button>
+              </div>
+
+              {totalHoles !== 18 && (
+                <div style={{ color: "red", marginBottom: 10 }}>
+                  Total holes must equal 18 (currently {totalHoles})
+                </div>
+              )}
+            </div>
+
+            {teamGames.map((game, index) => {
+              const { start, end } = getTeamGameRange(teamGames, index);
+              const duplicateError = hasDuplicateSelections(
+                getTeamGameSelection(index),
+                mode
+              );
+
+              return (
+                <div
+                  key={game.id}
+                  ref={(el) => { teamGameRefs.current[index] = el; }}
+                  style={{ border: "1px solid #ccc", marginBottom: 12, padding: 12, borderRadius: 8, background: "#fff" }}
+                >
+                  <div>
+                    <strong>Game {index + 1}: Holes {start}-{end}</strong>
+                  </div>
+
+                  <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                    <label>
+                      Holes:
+                      <input
+                        type="number"
+                        min={1}
+                        max={18}
+                        value={game.holes ?? 1}
+                        onChange={(e) => {
+                          const value = Number(e.target.value) || 1;
+                          setTeamGames((prev) =>
+                            prev.map((g, i) => i === index ? { ...g, holes: value } : g)
+                          );
+                        }}
+                        style={{ width: 60, marginLeft: 6 }}
+                      />
+                    </label>
+
+                    {teamGames.length > 1 && (
+                      <button
+                        onClick={() =>
+                          setTeamGames((prev) => prev.filter((_, i) => i !== index))
+                        }
+                      >
+                        Remove Game
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: 6 }}>
+                    {mode === "5p" && "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
+                    {mode === "4p" && "Select Team 1 and Team 2. One 2v2 match is played for this game."}
+                    {mode === "3p" && "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
+                  </div>
+
+                  {renderTeamSelectors(index)}
+
+                  {duplicateError && (
+                    <div style={{ marginTop: 8, color: "red" }}>
+                      Duplicate players in this game are not allowed.
+                    </div>
+                  )}
+                  {!duplicateError && <PrimarySetupAction />}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* ── 5. MATCHES ── */}
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={addMatch}>Add Match</button>
+          {mode === "3p" && (
+            <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
+              Add 9 Point Match
+            </button>
+          )}
+        </div>
+
+        <MatchList
+          players={players}
+          matches={matches}
+          results={matchResults}
+          birdieResults={birdieResults}
+          onAddMatch={addMatch}
+          onUpdateMatch={updateMatch}
+          onRemoveMatch={removeMatch}
+        />
+
+        {!enableTeamGame && <PrimarySetupAction />}
+
+        {/* ── 6. SAVE / LOAD ROUND ── */}
+        <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginTop: 16, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Save / Load Round</h3>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={saveLastRound}>Save Last Round</button>
+            <button onClick={loadLastRound}>Load Last Round</button>
+          </div>
+        </div>
+
+        {/* ── 7. SAVED TEST ROUNDS ── */}
+        <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Saved Rounds</h3>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
             <input
@@ -134,7 +344,6 @@ export default function SetupScreen({
               placeholder="Enter round name"
               style={{ minWidth: 220 }}
             />
-
             <button onClick={saveNamedRound}>Save Named Round</button>
           </div>
 
@@ -151,42 +360,20 @@ export default function SetupScreen({
                 </option>
               ))}
             </select>
-
             <button onClick={loadNamedRound}>Load Named Round</button>
             <button onClick={deleteNamedRound}>Delete Named Round</button>
             <button onClick={exportSavedRounds}>Export Saved Rounds</button>
-
-<label style={{ display: "inline-block" }}>
-  <span
-    style={{
-      display: "inline-block",
-      border: "1px solid gray",
-      padding: "2px 6px",
-      cursor: "pointer",
-      background: "#eee",
-    }}
-  >
-    Import Saved Rounds
-  </span>
-  <input
-    type="file"
-    accept="application/json"
-    onChange={importSavedRounds}
-    style={{ display: "none" }}
-  />
-</label>
+            <label style={{ display: "inline-block" }}>
+              <span style={{ display: "inline-block", border: "1px solid gray", padding: "2px 6px", cursor: "pointer", background: "#eee" }}>
+                Import Saved Rounds
+              </span>
+              <input type="file" accept="application/json" onChange={importSavedRounds} style={{ display: "none" }} />
+            </label>
           </div>
         </div>
 
-        {setupMessage && (
-          <div style={{ marginBottom: 12, color: "green" }}>
-            {setupMessage}
-          </div>
-        )}
-
-        <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-          <h3>Course Setup</h3>
-
+        <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+          <h3 style={{ marginTop: 0 }}>Course Setup</h3>
           <div style={{ marginBottom: 10 }}>
             <label>
               Course Name:
@@ -199,7 +386,6 @@ export default function SetupScreen({
               />
             </label>
           </div>
-
           <CourseEditor
             course={course}
             onParChange={updateCoursePar}
@@ -207,255 +393,7 @@ export default function SetupScreen({
           />
         </div>
 
-       <div style={{ border: "1px solid gray", padding: 10, marginBottom: 12 }}>
-  <h3>Team Game & Birdie Betting</h3>
-
-  <div style={{ marginBottom: 12 }}>
-    <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <input
-        type="checkbox"
-        checked={enableTeamGame}
-        onChange={(e) => setEnableTeamGame(e.target.checked)}
-      />
-      Enable Team Game
-    </label>
-  </div>
-
-  {enableTeamGame && (
-    <div style={{ marginBottom: 8 }}>
-      <label>
-        Team Game Unit Amount:
-              <input
-            type="number"
-            value={teamGameUnitAmount}
-            onChange={(e) => setTeamGameUnitAmount(e.target.value)}
-            onFocus={(e) => e.target.select()}
-/>
-            </label>
-
-<div style={{ marginTop: 8 }}>
-  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-    Press Trigger:
-    <input
-  type="number"
-  value={pressTrigger}
-  onChange={(e) => setPressTrigger(e.target.value)}
-  onFocus={(e) => e.target.select()}
-/>
-  </label>
-</div>
-
-<div style={{ marginTop: 8 }}>
-
-</div>
-
-    </div>
-  )}
-
-  <div style={{ marginTop: 10 }}>
-  <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-    <input
-      type="checkbox"
-      checked={birdiesEnabled}
-      onChange={(e) => setBirdiesEnabled(e.target.checked)}
-    />
-    Birdies (Gross Side Bet)
-  </label>
-  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-  Birdie Bet:
-  <input
-    type="number"
-    min="0"
-    step="1"
-    value={birdieBetAmount}
-    disabled={!birdiesEnabled}
-    onChange={(e) => setBirdieBetAmount(Number(e.target.value || 0))}
-    onFocus={(e) => e.target.select()}
-    style={{ width: 70 }}
-  />
-</label>
-
-
-</div>
-
-{birdiesEnabled && (
-  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-    <input
-      type="checkbox"
-      checked={!!toyRule}
-      onChange={(e) => setToyRule(e.target.checked)}
-    />
-    Toy Birdies — Net birdie ties Gross birdie
-  </label>
-)}
-
-{!enableTeamGame && (
-  <button
-    onClick={startRound}
-    className="primary-button"
-    style={{ marginTop: 12 }}
-  >
-    Start Round
-  </button>
-)}
-
-        </div>
-
-        {enableTeamGame && (
-  <>
-    <h3>Team Game Selector</h3>
-
-    <div style={{ marginBottom: 12 }}>
-          <strong>Game Hole Setup</strong>
-
-          <div style={{ marginTop: 8, marginBottom: 10 }}>
-            <button onClick={() => applyPreset("6-6-6")}>6 / 6 / 6</button>
-
-            <button onClick={() => applyPreset("9-9")} style={{ marginLeft: 8 }}>
-              9 / 9
-            </button>
-          </div>
-
-          <div style={{ marginTop: 8, marginBottom: 8 }}>
-            <button
-              onClick={() =>
-                setTeamGames((prev) => [
-                  ...prev,
-                  createDefaultTeamGame(prev.length + 1),
-                ])
-              }
-            >
-              Add Team Game
-            </button>
-          </div>
-
-          {totalHoles !== 18 && (
-            <div style={{ color: "red", marginBottom: 10 }}>
-              Total holes must equal 18 (currently {totalHoles})
-            </div>
-          )}
-        </div>
-
-        {enableTeamGame && (
-         <>
-       {teamGames.map((game, index) => {
-          const { start, end } = getTeamGameRange(teamGames, index);
-          const duplicateError = hasDuplicateSelections(
-            getTeamGameSelection(index),
-            mode
-          );
-
-          return (
-  <div
-    key={game.id}
-    ref={(el) => {
-      teamGameRefs.current[index] = el;
-    }}
-    style={{
-  border: "1px solid #ccc",
-  marginBottom: 12,
-  padding: 12,
-  borderRadius: 8,
-  background: "#fff",
-}}
-  >
-              <div>
-                <strong>
-                  Game {index + 1}: Holes {start}-{end}
-                </strong>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 8,
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                <label>
-                  Holes:
-                  <input
-                    type="number"
-                    min={1}
-                    max={18}
-                    value={game.holes ?? 1}
-                    onChange={(e) => {
-                      const value = Number(e.target.value) || 1;
-                      setTeamGames((prev) =>
-                        prev.map((g, i) =>
-                          i === index ? { ...g, holes: value } : g
-                        )
-                      );
-                    }}
-                    style={{ width: 60, marginLeft: 6 }}
-                  />
-                </label>
-
-
-
-                {teamGames.length > 1 && (
-                  <button
-                    onClick={() =>
-                      setTeamGames((prev) => prev.filter((_, i) => i !== index))
-                    }
-                  >
-                    Remove Game
-                  </button>
-                )}
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-                {mode === "5p" &&
-                  "Select Team 1, Team 2, Team 3, and Team 4. Team 1 plays 3 team matches against Teams 2, 3, and 4."}
-                {mode === "4p" &&
-                  "Select Team 1 and Team 2. One 2v2 match is played for this game."}
-                {mode === "3p" &&
-                  "Select Team 1 as 2 players and Team 2 as 1 player. One 2v1 match is played for this game."}
-              </div>
-
-              {renderTeamSelectors(index)}
-
-              {duplicateError && (
-                <div style={{ marginTop: 8, color: "red" }}>
-                  Duplicate players in this game are not allowed.
-                </div>
-              )}
-              {!duplicateError && (
-  <PrimarySetupAction />
-)}
-            </div>
-          );
-        })}
-
-    
-
-  </>
-)}            </>
-            )}
-
-        <div style={{ marginBottom: 12 }}>
-          <button onClick={addMatch}>Add Match</button>
-
-           {mode === "3p" && (
-            <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
-              Add 9 Point Match
-            </button>
-          )}
-        </div>
-
-                <MatchList
-          players={players}
-          matches={matches}
-          results={matchResults}
-          birdieResults={birdieResults}
-          onAddMatch={addMatch}
-          onUpdateMatch={updateMatch}
-          onRemoveMatch={removeMatch}
-        />
-
-       
       </>
   );
 }
+          
