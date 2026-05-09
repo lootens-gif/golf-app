@@ -403,7 +403,7 @@ export default function App() {
   const [focusGameTarget, setFocusGameTarget] = useState(null);
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
-  const [showRoundSummary, setShowRoundSummary] = useState(false);
+
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
@@ -1563,7 +1563,6 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   setPendingNextGameIndex(null);
   setFocusGameTarget(null);
   setShowProjectedSettlement(false);
-  setShowRoundSummary(false);
 
   if (["setup", "live", "results"].includes(round.screen)) {
     setScreen(round.screen);
@@ -2020,17 +2019,14 @@ setTimeout(() => {
 }
 
 function backToSetup() {
-  setShowRoundSummary(false);
   setScreen("setup");
 }
 
 function goToResults() {
-  setShowRoundSummary(false);
   setScreen("results");
 }
 
 function goToLive() {
-  setShowRoundSummary(false);
   setScreen("live");
 }
 
@@ -2659,156 +2655,116 @@ const birdieSummaryText = players
   </div>
 )}
 
+        <button
+          onClick={() => {
+            setFocusGameTarget({
+              gameIndex: pendingNextGameIndex,
+              nonce: Date.now(),
+            });
+            setScreen("setup");
+            setShowProjectedSettlement(false);
+          }}
+        >
+          Choose Teams for Game {pendingNextGameIndex + 1}
+        </button>
       </>
     );
   })()}
-</div>
-
-    <button
-      onClick={() => {
-        setFocusGameTarget({
-          gameIndex: pendingNextGameIndex,
-          nonce: Date.now(),
-        });
-        setScreen("setup");
-        setShowProjectedSettlement(false);
-      }}
-    >
-      Choose Teams for Game {pendingNextGameIndex + 1}
-    </button>
+  </div>
   </div>
 )}
-
-<div className="app-card" style={{ marginBottom: 12 }}>
-  <button
-    onClick={() => setShowRoundSummary((prev) => !prev)}
-    style={{
-      width: "100%",
-      textAlign: "left",
-      fontWeight: "bold",
-      padding: 8,
-      marginBottom: showRoundSummary ? 10 : 0,
-    }}
-  >
-    {showRoundSummary ? "Hide Round Summary" : "Show Round Summary"}
-  </button>
-
-  {showRoundSummary && (
-    <div>
-      {mode === "3p" &&
-  matchResults
-    .filter(
-      ({ match, result }) =>
-        match?.gameType === "ninePoint" &&
-        result?.gameType === "ninePoint"
-    )
-    .map(({ match, result }) => {
-      const playerIds = [
-        match.p1Id,
-        match.p2Id,
-        match.p3Id,
-      ].filter(Boolean);
-
-      if (!result?.totalsByPlayerId) return null;
-
-      const getPlayerName = (id) =>
-        players.find((p) => p.id === id)?.name || id;
-
+{enableTeamGame && (
+  <div className="app-card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Team Game Standing</div>
+    {activePlayers.map((player) => {
+      let netTotal = 0;
+      teamGames.forEach((game, gameIndex) => {
+        const gameResult = teamGameResults.find((r) => r.index === gameIndex);
+        const selection = getTeamGameSelection(gameIndex);
+        (gameResult?.matches || []).forEach((matchup) => {
+          const parts = matchup.label.split(" ");
+          const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+          const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+          const teamAPlayers = selection?.[teamAKey] || [];
+          const teamBPlayers = selection?.[teamBKey] || [];
+          const units = (matchup.result || []).reduce((sum, item) => {
+            const score = item.score || 0;
+            if (score > 0) return sum + 1;
+            if (score < 0) return sum - 1;
+            return sum;
+          }, 0);
+          if (teamAPlayers.includes(player.id)) netTotal += units;
+          if (teamBPlayers.includes(player.id)) netTotal -= units;
+        });
+      });
+      const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
+      const label = netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even";
       return (
-        <div key={match.id} style={{ marginBottom: 12 }}>
-          <strong>9-Point Running Total</strong>
-
-          <div style={{ marginTop: 6 }}>
-            {playerIds.map((playerId) => (
-              <div key={playerId}>
-                {getPlayerName(playerId)}:{" "}
-                {result.totalsByPlayerId[playerId] ?? 0}
-              </div>
-            ))}
-          </div>
+        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+          <span>{player.name}</span>
+          <span style={{ fontWeight: "bold", color }}>{label}</span>
         </div>
       );
     })}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "80px 60px 60px 60px 70px",
-          gap: 8,
-          fontFamily: "monospace",
-          fontWeight: "bold",
-          marginBottom: 6,
-        }}
-      >
-        <div>Name</div>
-        <div>G1</div>
-        <div>G2</div>
-        <div>G3</div>
-        <div>Total</div>
-      </div>
+  </div>
+)}
 
-      {activePlayers.map((player) => {
-        let netTotal = 0;
-
-        const gameTotals = teamGames.map((game, gameIndex) => {
-          const gameResult = teamGameResults.find(
-            (result) => result.index === gameIndex
-          );
-
-          const selection = getTeamGameSelection(gameIndex);
-          let total = 0;
-
-          (gameResult?.matches || []).forEach((matchup) => {
-            const parts = matchup.label.split(" ");
-            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-
-            const teamAPlayers = selection?.[teamAKey] || [];
-            const teamBPlayers = selection?.[teamBKey] || [];
-
-            const units = (matchup.result || []).reduce((sum, item) => {
-              const score = item.score || 0;
-              if (score > 0) return sum + 1;
-              if (score < 0) return sum - 1;
-              return sum;
-            }, 0);
-
-            if (teamAPlayers.includes(player.id)) total += units;
-            if (teamBPlayers.includes(player.id)) total -= units;
-          });
-
-          netTotal += total;
-
-          if (total > 0) return `+${total}`;
-          if (total < 0) return `${total}`;
-          return "0";
-        });
-
+{/* ── MATCH STATUS ── */}
+{matchResults.filter(({ result }) => result && result.gameType !== "ninePoint").length > 0 && (
+  <div className="app-card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
+    {matchResults
+      .filter(({ result }) => result && result.gameType !== "ninePoint")
+      .map(({ match, result }) => {
+        const p1 = players.find((p) => p.id === match.p1Id)?.name || "P1";
+        const p2 = players.find((p) => p.id === match.p2Id)?.name || "P2";
+        let statusLine = "";
+        if (result.type === "standard" || result.type === "match_fbt") {
+          const label = result.label || result.overallLabel || "";
+          statusLine = label ? `${p1} vs ${p2}: ${label}` : `${p1} vs ${p2}`;
+        } else if (result.type === "longshort") {
+          statusLine = `${p1} vs ${p2}: Long ${result.longLabel || "-"} | Short ${result.shortLabel || "-"}`;
+        } else {
+          statusLine = `${p1} vs ${p2}: ${result.label || "-"}`;
+        }
         return (
-          <div
-            key={player.id}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "80px 60px 60px 60px 70px",
-              gap: 8,
-              fontFamily: "monospace",
-              marginBottom: 4,
-            }}
-          >
-            <div>
-              <strong>{player.name}</strong>
-            </div>
-            <div>{gameTotals[0] ?? "0"}</div>
-            <div>{gameTotals[1] ?? "0"}</div>
-            <div>{gameTotals[2] ?? "0"}</div>
-            <div style={{ fontWeight: "bold" }}>
-              {netTotal > 0 ? `+${netTotal}` : netTotal}
-            </div>
+          <div key={match.id} style={{ marginBottom: 4, fontSize: 14 }}>
+            {statusLine}
           </div>
         );
       })}
-    </div>
-  )}
-</div>
+  </div>
+)}
+
+{/* ── 9-POINT STATUS ── */}
+{matchResults.filter(({ match, result }) => match?.gameType === "ninePoint" && result?.totalsByPlayerId).length > 0 && (
+  <div className="app-card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>9-Point Standing</div>
+    {matchResults
+      .filter(({ match, result }) => match?.gameType === "ninePoint" && result?.totalsByPlayerId)
+      .map(({ match, result }) => {
+        const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+        const sorted = [...playerIds].sort(
+          (a, b) => (result.totalsByPlayerId[b] ?? 0) - (result.totalsByPlayerId[a] ?? 0)
+        );
+        return (
+          <div key={match.id}>
+            {sorted.map((playerId) => {
+              const pts = result.totalsByPlayerId[playerId] ?? 0;
+              const name = players.find((p) => p.id === playerId)?.name || playerId;
+              const color = pts > 0 ? "#137333" : pts < 0 ? "#b3261e" : "#666";
+              return (
+                <div key={playerId} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span>{name}</span>
+                  <span style={{ fontWeight: "bold", color }}>{pts > 0 ? `+${pts}` : pts} pts</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+  </div>
+)}
 
 
 {birdiesEnabled && (
@@ -2841,6 +2797,7 @@ const birdieSummaryText = players
 })}
   </div>
 )}
+
 <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
   <button className="secondary-button" onClick={backToSetup}>Edit Setup</button>
 <button className="secondary-button" onClick={goToResults}>Final Results</button>
@@ -2863,9 +2820,9 @@ const birdieSummaryText = players
     />
   </div>
 )}
-      </>
-    )}
 
+    </>
+  )}
 {screen === "results" && (
   <ResultsScreen
     players={activePlayers}
