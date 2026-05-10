@@ -756,11 +756,31 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
 
   if (!playerA || !playerB) return null;
 
-  let running = 0;
+  // Bug fix: use only the two match players as the baseline for handicap strokes
+  // so "from lowest" means lowest of the two players, not all 5
+  const matchPlayers = [playerA, playerB];
+
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const front = holes.slice(0, 9);
   const back = holes.slice(9, 18);
   const toyRule = !!match.toyRule;
+
+  // Pre-compute hole results and running total for all 18 holes
+  let runningTotal = 0;
+  const holeData = holes.map((hole) => {
+    const res = computeHoleResult({
+      hole,
+      teamA: [playerA.id],
+      teamB: [playerB.id],
+      players: matchPlayers,
+      course,
+      scores,
+      handicapMode,
+    });
+    if (res > 0) runningTotal += 1;
+    if (res < 0) runningTotal -= 1;
+    return { hole, res, running: runningTotal };
+  });
 
   // Count gross birdies per player for summary
   const birdieCounts = {
@@ -768,7 +788,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
     [playerB.id]: holes.filter(h => isGrossBirdie(scores, course, h, playerB.id)).length,
   };
 
-  const renderSection = (label, sectionHoles) => (
+  const renderSection = (label, sectionHoles) => {
+    const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
+
+    return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
 
@@ -787,9 +810,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
 
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
-                const strokes = getHandicapStrokes(player.id, hole, players, course, handicapMode);
+                // Bug fix: pass matchPlayers (2 players) not all players
+                const strokes = getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode);
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
-                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, players, course, scores, handicapMode);
+                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode);
 
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
@@ -810,24 +834,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
 
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
-            {sectionHoles.map((hole) => {
-              const res = computeHoleResult({
-                hole,
-                teamA: [playerA.id],
-                teamB: [playerB.id],
-                players,
-                course,
-                scores,
-                handicapMode,
-              });
-
-              if (res > 0) running += 1;
-              if (res < 0) running -= 1;
-
+            {sectionData.map(({ hole, res }) => {
               let color = "#666";
               if (res > 0) color = "#137333";
               if (res < 0) color = "#b3261e";
-
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
                   {res > 0 ? playerA.name[0] : res < 0 ? playerB.name[0] : "Push"}
@@ -838,14 +848,13 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
 
           <tr>
             <td style={scorecardLabelCellStyle}>Running</td>
-            {sectionHoles.map(() => {
+            {sectionData.map(({ hole, running }) => {
               let color = "#666";
               if (running > 0) color = "#137333";
               if (running < 0) color = "#b3261e";
-
               return (
-                <td style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
-                  {running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} down`}
+                <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
+                  {running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`}
                 </td>
               );
             })}
@@ -854,6 +863,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode }) {
       </table>
     </div>
   );
+  };
 
   const birdieCountA = birdieCounts[playerA.id];
   const birdieCountB = birdieCounts[playerB.id];

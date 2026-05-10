@@ -2445,142 +2445,68 @@ if (enableTeamGame && nextGameIndex >= 0) {
   mode={mode}
 />
 
-{pendingNextGameIndex != null && (
-  <div className="app-card">
-    <h3 style={{ marginTop: 0 }}>
-      Game {pendingNextGameIndex} Complete
-    </h3>
+{pendingNextGameIndex != null && (() => {
+  const completedGameIndex = pendingNextGameIndex - 1;
+  const completedGameResult = teamGameResults.find(
+    (result) => result.index === completedGameIndex
+  );
+  const selection = getTeamGameSelection(completedGameIndex);
+  const summary = {};
 
-    <div style={{ marginBottom: 8 }}>
-  {(() => {
-    const completedGameIndex = pendingNextGameIndex - 1;
-    const completedGameResult = teamGameResults.find(
-      (result) => result.index === completedGameIndex
-    );
-    const selection = getTeamGameSelection(completedGameIndex);
-    const summary = {};
-
-    players.forEach((player) => {
-      summary[player.id] = 0;
-    });
-
-    (completedGameResult?.matches || []).forEach((matchup) => {
-      const parts = matchup.label.split(" ");
-      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-
-      const teamAPlayers = selection?.[teamAKey] || [];
-      const teamBPlayers = selection?.[teamBKey] || [];
-
-      const units = (matchup.result || []).reduce((sum, item) => {
-        const score = item.score || 0;
-        if (score > 0) return sum + 1;
-        if (score < 0) return sum - 1;
-        return sum;
-      }, 0);
-
-      teamAPlayers.forEach((playerId) => {
-        summary[playerId] += units;
-      });
-
-      teamBPlayers.forEach((playerId) => {
-        summary[playerId] -= units;
-      });
-    });
-
-    const team1Ids = selection?.team1 || [];
-    const team1Names = team1Ids
-      .map((id) => players.find((p) => p.id === id)?.name || id)
-      .join(" / ");
-
-    const team1Total = team1Ids.reduce(
-      (sum, id) => sum + (summary[id] || 0),
-      0
-    );
-
-    const perPlayer =
-  team1Ids.length > 0 ? Math.abs(team1Total) / team1Ids.length : 0;
-
-    const otherPlayers = players.filter(
-      (player) => !team1Ids.includes(player.id)
-    );
-    const birdieSummary = {};
-
-players.forEach((player) => {
-  birdieSummary[player.id] = 0;
-});
-
-if (birdiesEnabled && Number(birdieBetAmount || 0) > 0) {
-  const completedGameRange = getTeamGameRange(teamGames, completedGameIndex);
-  const completedSelection = getTeamGameSelection(completedGameIndex);
-  const completedMatchups =
-    mode === "5p"
-      ? [
-          ["team1", "team2"],
-          ["team1", "team3"],
-          ["team1", "team4"],
-        ]
-      : [["team1", "team2"]];
-
-  completedMatchups.forEach(([teamAKey, teamBKey]) => {
-    const teamAIds = completedSelection?.[teamAKey] || [];
-    const teamBIds = completedSelection?.[teamBKey] || [];
-
-    for (
-      let hole = completedGameRange.start;
-      hole <= completedGameRange.end;
-      hole += 1
-    ) {
-      const par = Number(course.pars?.[hole - 1]);
-      if (!Number.isFinite(par)) continue;
-
-      const teamABirdies = teamAIds.filter((id) => {
-        const score = Number(scores[hole]?.[id]);
-        return Number.isFinite(score) && score <= par - 1;
-      }).length;
-
-      const teamBBirdies = teamBIds.filter((id) => {
-        const score = Number(scores[hole]?.[id]);
-        return Number.isFinite(score) && score <= par - 1;
-      }).length;
-
-      const diff = teamABirdies - teamBBirdies;
-      const amount = Math.abs(diff) * Number(birdieBetAmount || 0);
-
-      if (diff > 0) {
-        teamAIds.forEach((id) => {
-          birdieSummary[id] += amount;
-        });
-        teamBIds.forEach((id) => {
-          birdieSummary[id] -= amount;
-        });
-      }
-
-      if (diff < 0) {
-        teamBIds.forEach((id) => {
-          birdieSummary[id] += amount;
-        });
-        teamAIds.forEach((id) => {
-          birdieSummary[id] -= amount;
-        });
-      }
-    }
+  players.forEach((player) => {
+    summary[player.id] = 0;
   });
-}
 
-const birdieSummaryText = players
-  .filter((player) => birdieSummary[player.id] !== 0)
-  .map((player) => {
-    const value = birdieSummary[player.id];
-    return `${player.name} ${value > 0 ? "wins" : "loses"} ${Math.abs(value)}`;
-  })
-  .join(", ");
+  (completedGameResult?.matches || []).forEach((matchup) => {
+    const parts = matchup.label.split(" ");
+    const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+    const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+    const teamAPlayers = selection?.[teamAKey] || [];
+    const teamBPlayers = selection?.[teamBKey] || [];
+    const units = (matchup.result || []).reduce((sum, item) => {
+      const score = item.score || 0;
+      if (score > 0) return sum + 1;
+      if (score < 0) return sum - 1;
+      return sum;
+    }, 0);
+    teamAPlayers.forEach((id) => { summary[id] = (summary[id] || 0) + units; });
+    teamBPlayers.forEach((id) => { summary[id] = (summary[id] || 0) - units; });
+  });
 
-    return (
-      <>
+  const wheel = selection?.team1 || [];
+  const team1Names = wheel
+    .map((id) => players.find((p) => p.id === id)?.name || id)
+    .join(" / ");
+  const team1Total = wheel.reduce((sum, id) => sum + (summary[id] || 0), 0);
+  const perPlayerRaw = wheel.length > 0 ? team1Total / wheel.length : 0;
+  const perPlayer = perPlayerRaw > 0 ? `+${perPlayerRaw}` : `${perPlayerRaw}`;
+
+  const otherPlayers = activePlayers.filter((p) => !wheel.includes(p.id));
+
+  const birdieSummaryText = activePlayers
+    .map((player) => {
+      const birdieEntries = birdieResults.filter(
+        (b) =>
+          b.source === "match-birdie" &&
+          b.playerId === player.id &&
+          Number(b.amount) > 0
+      );
+      if (!birdieEntries.length) return null;
+      const value = birdieEntries.reduce((sum, b) => sum + Number(b.amount), 0);
+      return `${player.name} ${value > 0 ? "wins" : "loses"} ${Math.abs(value)}`;
+    })
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <div className="app-card">
+      <h3 style={{ marginTop: 0 }}>
+        Game {pendingNextGameIndex} Complete
+      </h3>
+
+      <div style={{ marginBottom: 8 }}>
         <div>
           <strong>
-
             {team1Names} {team1Total >= 0 ? "win" : "lose"} {Math.abs(team1Total)} bets ({perPlayer} each)
           </strong>
         </div>
@@ -2590,33 +2516,28 @@ const birdieSummaryText = players
             .map((player) => {
               const value = summary[player.id] || 0;
               if (value === 0) return `${player.name} even`;
-              return `${player.name} ${value > 0 ? "wins" : "loses"} ${Math.abs(
-                value
-              )}`;
+              return `${player.name} ${value > 0 ? "wins" : "loses"} ${Math.abs(value)}`;
             })
             .join(", ")}
         </div>
 
-          {birdieSummaryText && (
-  <div style={{ marginTop: 4 }}>
-    Birdies: {birdieSummaryText}
-  </div>
-)}    
+        {birdieSummaryText && (
+          <div style={{ marginTop: 4 }}>
+            Birdies: {birdieSummaryText}
+          </div>
+        )}
 
-                <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 8 }}>
           Review the completed game before choosing teams for the next game.
         </div>
 
-        {completedGameResult?.matches?.map((matchup, matchupIndex) => {
+        {(completedGameResult?.matches || []).map((matchup, matchupIndex) => {
           const parts = matchup.label.split(" ");
           const teamAKey = `team${parts[1] || ""}`.toLowerCase();
           const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-
           const teamA = selection?.[teamAKey] || [];
           const teamB = selection?.[teamBKey] || [];
-
           if (teamA.length === 0 || teamB.length === 0) return null;
-
           return (
             <CompletedTeamGameScorecard
               key={`${completedGameIndex}-${matchupIndex}`}
@@ -2634,45 +2555,43 @@ const birdieSummaryText = players
             />
           );
         })}
-              <button
-  onClick={() => setShowProjectedSettlement((prev) => !prev)}
-  style={{ marginTop: 8, marginRight: 8 }}
->
-  {showProjectedSettlement ? "Hide Projected Settlement" : "Projected Settlement"}
-</button>
-
-{showProjectedSettlement && (
-  <div style={{ marginTop: 8 }}>
-    {activePlayers.map((player) => {
-      const amount = leaderboard[player.id] ?? 0;
-
-      return (
-        <div key={player.id}>
-          {player.name}: ${amount}
-        </div>
-      );
-    })}
-  </div>
-)}
 
         <button
-          onClick={() => {
-            setFocusGameTarget({
-              gameIndex: pendingNextGameIndex,
-              nonce: Date.now(),
-            });
-            setScreen("setup");
-            setShowProjectedSettlement(false);
-          }}
+          onClick={() => setShowProjectedSettlement((prev) => !prev)}
+          style={{ marginTop: 8, marginRight: 8 }}
         >
-          Choose Teams for Game {pendingNextGameIndex + 1}
+          {showProjectedSettlement ? "Hide Projected Settlement" : "Projected Settlement"}
         </button>
-      </>
-    );
-  })()}
-  </div>
-  </div>
-)}
+
+        {showProjectedSettlement && (
+          <div style={{ marginTop: 8 }}>
+            {activePlayers.map((player) => {
+              const amount = leaderboard[player.id] ?? 0;
+              return (
+                <div key={player.id}>
+                  {player.name}: ${amount}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={() => {
+          setFocusGameTarget({
+            gameIndex: pendingNextGameIndex,
+            nonce: Date.now(),
+          });
+          setScreen("setup");
+          setShowProjectedSettlement(false);
+        }}
+      >
+        Choose Teams for Game {pendingNextGameIndex + 1}
+      </button>
+    </div>
+  );
+})()}
 {enableTeamGame && (
   <div className="app-card" style={{ marginBottom: 12 }}>
     <div style={{ fontWeight: "bold", marginBottom: 8 }}>Team Game Standing</div>
