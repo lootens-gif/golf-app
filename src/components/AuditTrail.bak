@@ -102,8 +102,8 @@ if (result?.type === "longshort") {
     .slice(0, longEndHole)
     .reduce((sum, value) => sum + Number(value || 0), 0);
 
-  const shortStartHole = result?.longDecidedOn ? result.longDecidedOn + 1 : null;
-  const shortUnits = shortStartHole !== null && shortStartHole <= 18
+
+    const shortUnits = shortStartHole !== null && shortStartHole <= 18
     ? holes
         .slice(shortStartHole - 1, 18)
         .reduce((sum, value) => sum + Number(value || 0), 0)
@@ -768,6 +768,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const isLongShort = match.type === "longshort";
   const longClosedOn = result?.longDecidedOn || null;
 
+  const shortStartHole = longClosedOn ? longClosedOn + 1 : 10; null;
 
 
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);

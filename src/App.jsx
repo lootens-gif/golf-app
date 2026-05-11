@@ -407,6 +407,7 @@ export default function App() {
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
+  const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
   const scoreEntryRef = useRef(null);
 
@@ -452,12 +453,14 @@ export default function App() {
       course,
       scores,      
       handicapMode,
+      noPar3TeamGame,
     }),
     [
       players,
       course,
       scores,
       handicapMode,
+      noPar3TeamGame,
     ]
   );
 
@@ -1008,6 +1011,7 @@ function addMatch() {
       birdieEnabled: false,
       birdieBet: 5,
       toyRule: false,
+      noPar3Strokes: false,
       matchPlayFront: true,
 matchPlayBack: true,
 matchPlayTotal: true,
@@ -1055,6 +1059,7 @@ function addNinePointMatch() {
       birdieEnabled: false,
       birdieBet: 1,
       toyRule: false,
+      noPar3Strokes: false,
     },
   ]);
 }
@@ -1296,6 +1301,7 @@ const computedResults = scoreRound(round, {
   getTeamGameSelection,
   mode,
   birdieResults,
+  noPar3TeamGame,
 });
 
 const leaderboard = useMemo(() => {
@@ -1497,6 +1503,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     scores,
     handicapMode,
     enableTeamGame,
+    noPar3TeamGame,
     teamGameUnitAmount,
     pressTrigger,
     birdiesEnabled,
@@ -1515,6 +1522,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   scores,
   handicapMode,
   enableTeamGame,
+  noPar3TeamGame,
   teamGameUnitAmount,
   pressTrigger,
   birdiesEnabled,
@@ -1539,6 +1547,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+  setNoPar3TeamGame(!!round.noPar3TeamGame);
   if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
 
   setPressTrigger(Number(round.pressTrigger || 1));
@@ -2327,6 +2336,8 @@ return (
     toyRule={toyRule}
     setToyRule={setToyRule}
     setBirdieBetAmount={setBirdieBetAmount}
+    noPar3TeamGame={noPar3TeamGame}
+    setNoPar3TeamGame={setNoPar3TeamGame}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
     applyPreset={applyPreset}
@@ -2759,6 +2770,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     getTeamGameSelection={getTeamGameSelection}
     handicapMode={handicapMode}
     teamGameUnitAmount={teamGameUnitAmount}
+    noPar3TeamGame={noPar3TeamGame}
     goToLive={goToLive}
     backToSetup={backToSetup}
   />
