@@ -967,7 +967,6 @@ function TeamGameAudit({
         }
 
         const selection = getTeamGameSelection?.(game.index ?? gameIndex);
-        const gameConfig = teamGames?.[game.index ?? gameIndex] || {};
 
         // Calculate net bets per player across all matches in this game
         const playerNetBets = {};
