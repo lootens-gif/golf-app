@@ -18,6 +18,7 @@ export default function ResultsScreen({
   getTeamGameSelection,
   handicapMode,
   teamGameUnitAmount,
+  noPar3TeamGame = false,
   goToLive,
   backToSetup,
 }) {
@@ -129,6 +130,7 @@ if (window.__debug) {
           course={course}
           handicapMode={handicapMode}
           teamGameUnitAmount={teamGameUnitAmount}
+          noPar3TeamGame={noPar3TeamGame}
         />
       )}
 

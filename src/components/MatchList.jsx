@@ -578,6 +578,17 @@ export default function MatchList({
   </div>
 )}
 
+<label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+  <input
+    type="checkbox"
+    checked={!!match.noPar3Strokes}
+    onChange={(e) =>
+      onUpdateMatch(match.id, { noPar3Strokes: e.target.checked })
+    }
+  />
+  <span style={{ fontSize: 12 }}>No Par 3 Strokes</span>
+</label>
+
 {match.type === "match_fbt" && (
   <div
     style={{

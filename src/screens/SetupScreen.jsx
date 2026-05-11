@@ -42,6 +42,8 @@ export default function SetupScreen({
   setBirdieBetAmount,
   toyRule,
   setToyRule,
+  noPar3TeamGame,
+  setNoPar3TeamGame,
   applyPreset,
   setTeamGames,
   teamGames,
@@ -201,6 +203,14 @@ export default function SetupScreen({
                 Toy Birdies — Net birdie ties Gross birdie
               </label>
             )}
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={!!noPar3TeamGame}
+                onChange={(e) => setNoPar3TeamGame(e.target.checked)}
+              />
+              No Par 3 Strokes (Team Games)
+            </label>
           </div>
         </div>
 
