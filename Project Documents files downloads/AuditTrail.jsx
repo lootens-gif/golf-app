@@ -220,18 +220,18 @@ function getTeamName(players, ids = []) {
   return names.length ? names.join(" / ") : "-";
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode) {
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
   const gross = getRawScore(scores, hole, playerId);
 
   if (gross === null || gross === undefined) {
     return "-";
   }
 
-  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode);
+  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode, noPar3Strokes);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
-function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode) {
+function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
   const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode);
 
   if (!best) {
@@ -244,7 +244,8 @@ function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode
     players,
     course,
     scores,
-    handicapMode
+    handicapMode,
+    noPar3Strokes
   )}`;
 }
 
@@ -326,6 +327,7 @@ function TeamGameScorecard({
   scores,
   handicapMode,
   showPressDetail = false,
+  noPar3Strokes = false,
 }) {
   const holes = Array.from(
     { length: Number(game.end || 0) - Number(game.start || 0) + 1 },
@@ -346,14 +348,15 @@ function TeamGameScorecard({
       course,
       scores,
       handicapMode,
+      noPar3Strokes,
     });
     const statuses = getBetStatusesForHole(matchup?.result || [], hole);
     const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
 
     return {
       hole,
-      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode),
-      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode),
+      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, noPar3Strokes),
+      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       pressDetail: formatPressDetail(statuses),
@@ -676,10 +679,10 @@ function NinePointScorecard({
 
       {sectionHoles.map((h) => {
         const gross = getRawScore(scores, h.hole, player.id);
-        const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode);
+        const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
         const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
         const grossBirdie = isGrossBirdie(scores, course, h.hole, player.id);
-        const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode);
+        const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
 
         return (
           <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
@@ -834,10 +837,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
-                // Bug fix: pass matchPlayers (2 players) not all players
-                const strokes = getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode);
+                const strokes = getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
-                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode);
+                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
 
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
@@ -949,6 +951,7 @@ function TeamGameAudit({
   course,
   handicapMode,
   teamGameUnitAmount,
+  noPar3TeamGame = false,
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -1003,6 +1006,7 @@ function TeamGameAudit({
                     scores={scores}
                     handicapMode={handicapMode}
                     showPressDetail
+                    noPar3Strokes={noPar3TeamGame}
                   />
                 </AuditSection>
               );
@@ -1026,6 +1030,7 @@ export default function AuditTrail({
   course,
   handicapMode,
   teamGameUnitAmount,
+  noPar3TeamGame = false,
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
@@ -1044,6 +1049,7 @@ export default function AuditTrail({
   course={course}
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
+  noPar3TeamGame={noPar3TeamGame}
 />
 
 {/* 1v1 */}
