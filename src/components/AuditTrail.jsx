@@ -502,7 +502,7 @@ function TeamGameScorecard({
         </tbody>
       </table>
 
-      {(teamABirdies > 0 || teamBBirdies > 0) && (
+      {game.birdieEnabled && (teamABirdies > 0 || teamBBirdies > 0) && (
         <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
           {teamABirdies === 0 && teamBBirdies === 0
             ? "🐦 No birdies"
@@ -969,10 +969,61 @@ function TeamGameAudit({
         const selection = getTeamGameSelection?.(game.index ?? gameIndex);
         const gameConfig = teamGames?.[game.index ?? gameIndex] || {};
 
+        // Calculate net bets per player across all matches in this game
+        const playerNetBets = {};
+        players.forEach(p => { playerNetBets[p.id] = 0; });
+
+        (game.matches || []).forEach((matchup) => {
+          const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
+          const teamA = (selection?.[teamAKey] || []).filter(Boolean);
+          const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+          const units = (matchup.result || []).reduce((sum, bet) => {
+            const score = Number(bet.score || 0);
+            if (score > 0) return sum + 1;
+            if (score < 0) return sum - 1;
+            return sum;
+          }, 0);
+          teamA.forEach(id => { if (playerNetBets[id] !== undefined) playerNetBets[id] += units; });
+          teamB.forEach(id => { if (playerNetBets[id] !== undefined) playerNetBets[id] -= units; });
+        });
+
+        // Wheel team is team1
+        const wheelIds = (selection?.team1 || []).filter(Boolean);
+        const wheelNames = wheelIds.map(id => players.find(p => p.id === id)?.name || id).join('/');
+        const wheelBets = wheelIds.length > 0 ? (playerNetBets[wheelIds[0]] || 0) : 0;
+        const wheelDollars = wheelBets * Number(teamGameUnitAmount || 0);
+
+        // Opponent players (not on wheel team)
+        const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
+
+        const gameTitle = (
+          <span>
+            <span>{game.start}-{game.end} | </span>
+            <span style={{ color: wheelBets >= 0 ? "#137333" : "#b3261e", fontWeight: 700 }}>
+              {wheelNames} {wheelBets > 0 ? "+" : ""}{wheelBets} ({formatMoney(wheelDollars)}ea)
+            </span>
+            <br />
+            <span style={{ fontSize: 12, color: "#666" }}>
+              {opponentPlayers.map((p, i) => {
+                const bets = playerNetBets[p.id] || 0;
+                const color = bets > 0 ? "#137333" : bets < 0 ? "#b3261e" : "#666";
+                return (
+                  <span key={p.id}>
+                    {i > 0 && " | "}
+                    <span style={{ color }}>
+                      {p.name} {bets > 0 ? "+" : ""}{bets}
+                    </span>
+                  </span>
+                );
+              })}
+            </span>
+          </span>
+        );
+
         return (
           <AuditSection
             key={gameIndex}
-            title={`Game ${gameIndex + 1}: holes ${game.start}-${game.end} | Press trigger ${gameConfig.pressTrigger ?? 1}`}
+            title={gameTitle}
           >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
@@ -986,11 +1037,12 @@ function TeamGameAudit({
                 if (score < 0) return sum - 1;
                 return sum;
               }, 0);
+              const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
               return (
                 <AuditSection
                   key={`${gameIndex}-${matchupIndex}`}
-                  title={`${teamAName} vs ${teamBName} | ${totalUnits > 0 ? "+" : ""}${totalUnits} units | ${formatMoney(totalUnits * Number(teamGameUnitAmount || 0))}`}
+                  title={`${teamAName} vs ${teamBName} | ${totalUnits > 0 ? "+" : ""}${totalUnits} bets | ${formatMoney(totalDollars)}`}
                 >
                   <TeamGameScorecard
                     game={game}
@@ -1036,7 +1088,7 @@ export default function AuditTrail({
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
       <h3 style={{ marginTop: 0 }}>Scorecards</h3>
       <div style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
-        Read-only scoring detail. Uses the same scoring engine outputs/functions as the round totals.
+        Tap any match to see hole-by-hole detail
       </div>
 
     {/* TEAM GAME FIRST */}
