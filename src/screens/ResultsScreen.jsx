@@ -131,6 +131,7 @@ if (window.__debug) {
           handicapMode={handicapMode}
           teamGameUnitAmount={teamGameUnitAmount}
           noPar3TeamGame={noPar3TeamGame}
+          goToLive={goToLive}
         />
       )}
 

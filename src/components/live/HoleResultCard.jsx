@@ -78,12 +78,32 @@ console.log("HOLE DEBUG", {
 
       {matchLines.length > 0 && (
         <div style={{ marginTop: 10, marginBottom: 10 }}>
-          <strong>Match Status</strong>
-          {matchLines.map((line, index) => (
-            <div key={`match-${index}`} style={{ marginTop: 4 }}>
-              {line}
-            </div>
-          ))}
+          <strong>Current Match Status</strong>
+          {matchLines.map((line, index) => {
+            if (typeof line === "string") {
+              return <div key={`match-${index}`} style={{ marginTop: 4 }}>{line}</div>;
+            }
+            const { teamAName, teamBName, netUnits, betScores } = line;
+            const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
+            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
+            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+
+            return (
+              <div key={`match-${index}`} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 4,
+                color,
+                fontSize: 13,
+              }}>
+                <span>{teamAName} {netLabel} vs {teamBName}</span>
+                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+                  {pressStr}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -40,8 +40,10 @@ function SettlementSection({
                       fontSize: 15,
                     }}
                   >
-                    <strong>{fromName}</strong> pays <strong>{toName}</strong>{" "}
-                    <span style={{ color: "#b3261e", fontWeight: 700 }}>${amount}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+  <span><strong>{fromName}</strong> pays <strong>{toName}</strong></span>
+  <span style={{ fontWeight: 700 }}>${amount}</span>
+</div>
                   </li>
                 );
               })}
@@ -68,17 +70,23 @@ function SettlementSection({
             <tbody>
 {playerLedger
   .filter((row) => players.some((player) => player.id === row.playerId))
-  .map((row) => (
-                    <tr key={row.playerId}>
-                  <td>{getPlayerName(row.playerId)}</td>
-                  <td>${Number(row.mainGame ?? 0).toFixed(2)}</td>
-                  <td>${Number(row.sideMatches ?? 0).toFixed(2)}</td>
-                  <td>${Number(row.birdies ?? 0).toFixed(2)}</td>
-                  <td>
-                    <strong>${Number(row.total ?? 0).toFixed(2)}</strong>
-                  </td>
-                </tr>
-              ))}
+  .map((row) => {
+    const total = Number(row.total ?? 0);
+    const rowColor = total > 0 ? "#137333" : total < 0 ? "#b3261e" : "#666";
+    const fmt = (val) => {
+      const n = Number(val ?? 0);
+      return n > 0 ? `+$${n.toFixed(2)}` : n < 0 ? `-$${Math.abs(n).toFixed(2)}` : "$0.00";
+    };
+    return (
+      <tr key={row.playerId} style={{ color: rowColor }}>
+        <td style={{ fontWeight: 600 }}>{getPlayerName(row.playerId)}</td>
+        <td>{fmt(row.mainGame)}</td>
+        <td>{fmt(row.sideMatches)}</td>
+        <td>{fmt(row.birdies)}</td>
+        <td><strong>{fmt(row.total)}</strong></td>
+      </tr>
+    );
+  })}
             </tbody>
           </table>
         )}

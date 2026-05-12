@@ -2143,7 +2143,6 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
   return vals.length ? Math.min(...vals) : null;
 };
 
-  const pluralBet = (n) => (n === 1 ? "bet" : "bets");
 
   const matchups =
     mode === "5p"
@@ -2216,24 +2215,19 @@ matchups.forEach(([a, b]) => {
 
   const betScore = (pressResults || []).reduce((sum, bet) => {
     const score = Number(bet.score || 0);
-
     if (score > 0) return sum + 1;
     if (score < 0) return sum - 1;
     return sum;
   }, 0);
 
-  if (betScore > 0) {
-    matchLines.push(
-      `${teamName(A)} ${betScore} ${pluralBet(betScore)} up vs ${teamName(B)}`
-    );
-  } else if (betScore < 0) {
-    const absScore = Math.abs(betScore);
-    matchLines.push(
-      `${teamName(A)} ${absScore} ${pluralBet(absScore)} down to ${teamName(B)}`
-    );
-  } else {
-    matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
-  }
+  const betScores = (pressResults || []).map(bet => Number(bet.score || 0));
+
+  matchLines.push({
+    teamAName: teamName(A),
+    teamBName: teamName(B),
+    netUnits: betScore,
+    betScores,
+  });
 });
 
 // --- BIRDIES ---
@@ -2640,29 +2634,55 @@ if (enableTeamGame && nextGameIndex >= 0) {
 )}
 
 {/* ── MATCH STATUS ── */}
-{matchResults.filter(({ result }) => result && result.gameType !== "ninePoint").length > 0 && (
+{enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
-    {matchResults
-      .filter(({ result }) => result && result.gameType !== "ninePoint")
-      .map(({ match, result }) => {
-        const p1 = players.find((p) => p.id === match.p1Id)?.name || "P1";
-        const p2 = players.find((p) => p.id === match.p2Id)?.name || "P2";
-        let statusLine = "";
-        if (result.type === "standard" || result.type === "match_fbt") {
-          const label = result.label || result.overallLabel || "";
-          statusLine = label ? `${p1} vs ${p2}: ${label}` : `${p1} vs ${p2}`;
-        } else if (result.type === "longshort") {
-          statusLine = `${p1} vs ${p2}: Long ${result.longLabel || "-"} | Short ${result.shortLabel || "-"}`;
-        } else {
-          statusLine = `${p1} vs ${p2}: ${result.label || "-"}`;
-        }
-        return (
-          <div key={match.id} style={{ marginBottom: 4, fontSize: 14 }}>
-            {statusLine}
-          </div>
-        );
-      })}
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Overall Match Status</div>
+    {teamGameResults.map((game, gameIndex) => {
+      const selection = getTeamGameSelection(gameIndex);
+      if (!selection || !(game.matches || []).length) return null;
+
+      return (
+        <div key={gameIndex} style={{ marginBottom: gameIndex < teamGameResults.length - 1 ? 12 : 0 }}>
+          {(game.matches || []).map((matchup, mIdx) => {
+            const parts = matchup.label.split(" ");
+            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+            const teamA = (selection?.[teamAKey] || []).filter(Boolean);
+            const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+            const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
+            const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
+
+            const netUnits = (matchup.result || []).reduce((sum, bet) => {
+              const score = Number(bet.score || 0);
+              if (score > 0) return sum + 1;
+              if (score < 0) return sum - 1;
+              return sum;
+            }, 0);
+
+            const betScores = (matchup.result || []).map(bet => Number(bet.score || 0));
+            const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
+            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
+            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+
+            return (
+              <div key={mIdx} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 6,
+                color,
+                fontSize: 13,
+              }}>
+                <span>{teamAName} {netLabel} vs {teamBName}</span>
+                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+                  {pressStr}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    })}
   </div>
 )}
 

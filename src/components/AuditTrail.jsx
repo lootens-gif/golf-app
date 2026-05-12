@@ -618,10 +618,18 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
 
+        const total = Number(result?.total || 0);
+        const headerColor = total > 0 ? "#137333" : total < 0 ? "#b3261e" : "#666";
+        const oneVOneTitle = (
+          <span style={{ color: headerColor }}>
+            {p1Name} vs {p2Name} | {getOneVOneGameTypeLabel(match, result)} | {getOneVOneMoneyLabel(result, p1Name, p2Name)} | {getOneVOneResultLabel(result, p1Name, p2Name)}
+          </span>
+        );
+
         return (
          <AuditSection
   key={match.id}
-title={`${p1Name} vs ${p2Name} | ${getOneVOneGameTypeLabel(match, result)} | ${getOneVOneMoneyLabel(result, p1Name, p2Name)} | ${getOneVOneResultLabel(result, p1Name, p2Name )}`}          >
+title={oneVOneTitle}          >
   <OneVOneScorecard
     match={match}
     result={result}
@@ -1053,10 +1061,17 @@ function TeamGameAudit({
               }, 0);
               const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
+              const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
+              const matchTitle = (
+                <span style={{ color: matchColor }}>
+                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}
+                </span>
+              );
+
               return (
                 <AuditSection
                   key={`${gameIndex}-${matchupIndex}`}
-                  title={`${teamAName} vs ${teamBName} | ${totalUnits > 0 ? "+" : ""}${totalUnits} bets | ${formatMoney(totalDollars)}`}
+                  title={matchTitle}
                 >
                   <TeamGameScorecard
                     game={game}
@@ -1161,7 +1176,7 @@ function ScoreCell({ gross, par, strokes }) {
   return <span>{display}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode }) {
+function TotalScorecard({ players, scores, course, handicapMode, goToLive }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(null);
 
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -1319,10 +1334,18 @@ function TotalScorecard({ players, scores, course, handicapMode }) {
   return (
     <div>
       <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>
-        Tap a player name to view their scorecard only
+        Tap a player name to view their scorecard only. Tap hole scores to edit if needed below.
       </div>
       {renderTable("Front 9", front, false)}
       {renderTable("Back 9", back, true)}
+      {goToLive && (
+        <button
+          onClick={goToLive}
+          style={{ marginTop: 8, width: "100%" }}
+        >
+          ✏️ Edit Scores
+        </button>
+      )}
     </div>
   );
 }
@@ -1340,6 +1363,7 @@ export default function AuditTrail({
   handicapMode,
   teamGameUnitAmount,
   noPar3TeamGame = false,
+  goToLive,
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
@@ -1388,6 +1412,7 @@ export default function AuditTrail({
     scores={scores}
     course={course}
     handicapMode={handicapMode}
+    goToLive={goToLive}
   />
 </AuditSection>
 
