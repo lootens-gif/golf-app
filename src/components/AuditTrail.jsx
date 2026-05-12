@@ -1171,9 +1171,6 @@ function TotalScorecard({ players, scores, course, handicapMode }) {
   const pars = course?.pars || [];
   const hcps = course?.hcp || [];
 
-  const frontPar = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
-  const backPar = back.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
-  const totalPar = frontPar + backPar;
 
   const displayPlayers = selectedPlayer
     ? players.filter(p => p.id === selectedPlayer)
