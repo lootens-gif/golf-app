@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   computeHoleResult,
   getHandicapStrokes,
@@ -414,7 +414,7 @@ function TeamGameScorecard({
           <tr>
             <td style={scorecardLabelCellStyle}>{teamAName}</td>
             {rows.map((row) => {
-              const teamAHasBirdie = teamA.filter(Boolean).some(id =>
+              const teamAHasBirdie = game.birdieEnabled && teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
@@ -432,7 +432,7 @@ function TeamGameScorecard({
           <tr>
             <td style={scorecardLabelCellStyle}>{teamBName}</td>
             {rows.map((row) => {
-              const teamBHasBirdie = teamB.filter(Boolean).some(id =>
+              const teamBHasBirdie = game.birdieEnabled && teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
@@ -502,17 +502,24 @@ function TeamGameScorecard({
         </tbody>
       </table>
 
-      {game.birdieEnabled && (teamABirdies > 0 || teamBBirdies > 0) && (
-        <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
-          {teamABirdies === 0 && teamBBirdies === 0
-            ? "🐦 No birdies"
-            : teamABirdies === teamBBirdies
-            ? `🐦 Birdies tied (${teamABirdies} each)`
-            : teamABirdies > teamBBirdies
-            ? `🐦 ${teamAName} wins birdies +${teamABirdies - teamBBirdies}`
-            : `🐦 ${teamBName} wins birdies +${teamBBirdies - teamABirdies}`}
-        </div>
-      )}
+      <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
+        {!game.birdieEnabled
+          ? "🚫 No birdies tracked"
+          : (() => {
+              const label = game.toyRule
+                ? "🐦 Toy Birdies"
+                : "🐦 Birdies tracked (gross only)";
+              const summary =
+                teamABirdies === 0 && teamBBirdies === 0
+                  ? "No birdies"
+                  : teamABirdies === teamBBirdies
+                  ? `Birdies tied (${teamABirdies} each)`
+                  : teamABirdies > teamBBirdies
+                  ? `${teamAName} wins birdies +${teamABirdies - teamBBirdies}`
+                  : `${teamBName} wins birdies +${teamBBirdies - teamABirdies}`;
+              return `${label} — ${summary}`;
+            })()}
+      </div>
     </div>
   );
 }
@@ -680,8 +687,8 @@ function NinePointScorecard({
         const gross = getRawScore(scores, h.hole, player.id);
         const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
         const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
-        const grossBirdie = isGrossBirdie(scores, course, h.hole, player.id);
-        const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
+        const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
+        const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
 
         return (
           <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
@@ -738,22 +745,24 @@ function NinePointScorecard({
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
-      {match?.birdieEnabled && (
-        <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
-          {(() => {
-            const counts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
-            const total = counts.reduce((sum, p) => sum + p.count, 0);
-            if (total === 0) return "🐦 No birdies";
-            const max = Math.max(...counts.map(p => p.count));
-            const leaders = counts.filter(p => p.count === max);
-            if (leaders.length === counts.length) return `🐦 Birdies tied (${max} each)`;
-            const leader = leaders[0];
-            const others = counts.filter(p => p.count !== max);
-            return `🐦 ${leader.name} wins birdies: ${others.map(o => `+${leader.count - o.count} over ${o.name}`).join(", ")}`;
-          })()}
-          {toyRule && <span style={{ color: "#1a73e8", marginLeft: 6 }}>(Toy Birdies ON)</span>}
-        </div>
-      )}
+      <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
+        {!match?.birdieEnabled
+          ? "🚫 No birdies tracked"
+          : (() => {
+              const label = toyRule
+                ? "🐦 Toy Birdies"
+                : "🐦 Birdies tracked (gross only)";
+              const counts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
+              const total = counts.reduce((sum, p) => sum + p.count, 0);
+              if (total === 0) return `${label} — No birdies`;
+              const max = Math.max(...counts.map(p => p.count));
+              const leaders = counts.filter(p => p.count === max);
+              if (leaders.length === counts.length) return `${label} — Birdies tied (${max} each)`;
+              const leader = leaders[0];
+              const others = counts.filter(p => p.count !== max);
+              return `${label} — ${leader.name} wins birdies: ${others.map(o => `+${leader.count - o.count} over ${o.name}`).join(", ")}`;
+            })()}
+      </div>
     </div>
   );
 }
@@ -838,8 +847,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
-                const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
-                const netBirdie = toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
+                const grossBirdie = match.birdieEnabled && isGrossBirdie(scores, course, hole, player.id);
+                const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
 
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
@@ -899,18 +908,24 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
-      {match.birdieEnabled && (
-        <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
-          {birdieCountA === 0 && birdieCountB === 0
-            ? "🐦 No birdies"
-            : birdieCountA === birdieCountB
-            ? `🐦 Birdies tied (${birdieCountA} each)`
-            : birdieCountA > birdieCountB
-            ? `🐦 ${playerA.name} wins birdies +${birdieCountA - birdieCountB}`
-            : `🐦 ${playerB.name} wins birdies +${birdieCountB - birdieCountA}`}
-          {toyRule && <span style={{ color: "#1a73e8", marginLeft: 6 }}>(Toy Birdies ON)</span>}
+      <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
+        {!match.birdieEnabled
+          ? "🚫 No birdies tracked"
+          : (() => {
+              const label = toyRule
+                ? "🐦 Toy Birdies"
+                : "🐦 Birdies tracked (gross only)";
+              const summary =
+                birdieCountA === 0 && birdieCountB === 0
+                  ? "No birdies"
+                  : birdieCountA === birdieCountB
+                  ? `Birdies tied (${birdieCountA} each)`
+                  : birdieCountA > birdieCountB
+                  ? `${playerA.name} wins birdies +${birdieCountA - birdieCountB}`
+                  : `${playerB.name} wins birdies +${birdieCountB - birdieCountA}`;
+              return `${label} — ${summary}`;
+            })()}
         </div>
-      )}
     </div>
   );
 }
@@ -1069,6 +1084,252 @@ function TeamGameAudit({
   );
 }
 
+function getScoreSymbol(gross, par) {
+  if (gross === null || gross === undefined) return null;
+  const diff = gross - par;
+
+  if (diff <= -2) return { type: "eagle", color: "#137333" };
+  if (diff === -1) return { type: "birdie", color: "#137333" };
+  if (diff === 1) return { type: "bogey", color: "#b3261e" };
+  if (diff >= 2) return { type: "double", color: "#b3261e" };
+  return null;
+}
+
+function ScoreCell({ gross, par, strokes }) {
+  if (gross === null || gross === undefined) {
+    return <span style={{ color: "#aaa" }}>-</span>;
+  }
+
+  const symbol = getScoreSymbol(gross, par);
+  const dotStr = "•".repeat(strokes);
+  const display = `${gross}${dotStr}`;
+
+  if (!symbol) {
+    return <span>{display}</span>;
+  }
+
+  if (symbol.type === "birdie") {
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 26, height: 26, lineHeight: "26px",
+        borderRadius: "50%", border: `2px solid ${symbol.color}`,
+        color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
+      }}>
+        {display}
+      </span>
+    );
+  }
+
+  if (symbol.type === "eagle") {
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 26, height: 26, lineHeight: "22px",
+        borderRadius: "50%", border: `2px solid ${symbol.color}`,
+        outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
+        color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
+      }}>
+        {display}
+      </span>
+    );
+  }
+
+  if (symbol.type === "bogey") {
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 26, height: 26, lineHeight: "26px",
+        border: `2px solid ${symbol.color}`,
+        color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
+      }}>
+        {display}
+      </span>
+    );
+  }
+
+  if (symbol.type === "double") {
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 26, height: 26, lineHeight: "22px",
+        border: `2px solid ${symbol.color}`,
+        outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
+        color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
+      }}>
+        {display}
+      </span>
+    );
+  }
+
+  return <span>{display}</span>;
+}
+
+function TotalScorecard({ players, scores, course, handicapMode }) {
+  const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+
+  const holes = Array.from({ length: 18 }, (_, i) => i + 1);
+  const front = holes.slice(0, 9);
+  const back = holes.slice(9, 18);
+
+  const pars = course?.pars || [];
+  const hcps = course?.hcp || [];
+
+  const frontPar = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
+  const backPar = back.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
+  const totalPar = frontPar + backPar;
+
+  const displayPlayers = selectedPlayer
+    ? players.filter(p => p.id === selectedPlayer)
+    : players;
+
+  const cellStyle = {
+    border: "1px solid #ddd",
+    padding: "4px 2px",
+    textAlign: "center",
+    fontSize: 11,
+    minWidth: 28,
+    whiteSpace: "nowrap",
+  };
+
+  const labelStyle = {
+    ...cellStyle,
+    textAlign: "left",
+    minWidth: 80,
+    fontWeight: 600,
+    position: "sticky",
+    left: 0,
+    background: "#fff",
+    zIndex: 1,
+    padding: "4px 6px",
+  };
+
+  const headerStyle = {
+    ...cellStyle,
+    background: "#f0f0f0",
+    fontWeight: 700,
+  };
+
+  const renderTable = (label, sectionHoles, isBack = false) => {
+    const secPar = sectionHoles.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
+    const frontPar9 = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
+
+    return (
+      <div style={{ marginBottom: 16, overflowX: "auto" }}>
+        <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>{label}</div>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <tbody>
+            {/* Hole row */}
+            <tr>
+              <td style={labelStyle}>Hole</td>
+              {sectionHoles.map(h => (
+                <td key={h} style={headerStyle}>{h}</td>
+              ))}
+              <td style={headerStyle}>{isBack ? "In" : "Out"}</td>
+              {isBack && <td style={headerStyle}>Out</td>}
+              {isBack && <td style={headerStyle}>Tot</td>}
+              {isBack && <td style={{ ...headerStyle, color: "#137333" }}>Net</td>}
+            </tr>
+
+            {/* Par row */}
+            <tr>
+              <td style={labelStyle}>Par</td>
+              {sectionHoles.map(h => (
+                <td key={h} style={cellStyle}>{pars[h - 1] || "-"}</td>
+              ))}
+              <td style={{ ...cellStyle, fontWeight: 700 }}>{secPar}</td>
+              {isBack && <td style={{ ...cellStyle, fontWeight: 700 }}>{frontPar9}</td>}
+              {isBack && <td style={{ ...cellStyle, fontWeight: 700 }}>{frontPar9 + secPar}</td>}
+              {isBack && <td style={cellStyle}></td>}
+            </tr>
+
+            {/* HCP row */}
+            <tr>
+              <td style={labelStyle}>HCP</td>
+              {sectionHoles.map(h => (
+                <td key={h} style={{ ...cellStyle, color: "#888", fontSize: 10 }}>{hcps[h - 1] || "-"}</td>
+              ))}
+              <td style={cellStyle}></td>
+              {isBack && <td style={cellStyle}></td>}
+              {isBack && <td style={cellStyle}></td>}
+              {isBack && <td style={cellStyle}></td>}
+            </tr>
+
+            {/* Player rows */}
+            {displayPlayers.map(player => {
+              const strokes = sectionHoles.map(h =>
+                getHandicapStrokes(player.id, h, players, course, handicapMode)
+              );
+              const grossScores = sectionHoles.map(h => getRawScore(scores, h, player.id));
+              const sectionTotal = grossScores.reduce((sum, g) => g !== null ? sum + g : sum, 0);
+              const hasAllBack = grossScores.every(g => g !== null);
+
+              const frontScores = front.map(h => getRawScore(scores, h, player.id));
+              const frontTotal = frontScores.reduce((sum, g) => g !== null ? sum + g : sum, 0);
+              const hasAllFront = frontScores.every(g => g !== null);
+
+              const grossTotal = frontTotal + sectionTotal;
+              const netStrokes = holes.reduce((sum, h) =>
+                sum + getHandicapStrokes(player.id, h, players, course, handicapMode), 0);
+              const netTotal = grossTotal - netStrokes;
+              const hasAll = hasAllFront && hasAllBack;
+
+              return (
+                <tr key={player.id}>
+                  <td
+                    style={{
+                      ...labelStyle,
+                      cursor: "pointer",
+                      color: selectedPlayer === player.id ? "#1a73e8" : "#000",
+                      textDecoration: selectedPlayer === player.id ? "underline" : "none",
+                    }}
+                    onClick={() => setSelectedPlayer(
+                      selectedPlayer === player.id ? null : player.id
+                    )}
+                  >
+                    {player.name} ({player.hcp})
+                  </td>
+                  {sectionHoles.map((h, i) => (
+                    <td key={h} style={cellStyle}>
+                      <ScoreCell
+                        gross={grossScores[i]}
+                        par={pars[h - 1]}
+                        strokes={strokes[i]}
+                      />
+                    </td>
+                  ))}
+                  <td style={{ ...cellStyle, fontWeight: 700 }}>
+                    {hasAllBack ? sectionTotal : "-"}
+                  </td>
+                  {isBack && <td style={{ ...cellStyle, fontWeight: 700 }}>{hasAllFront ? frontTotal : "-"}</td>}
+                  {isBack && <td style={{ ...cellStyle, fontWeight: 700 }}>{hasAll ? grossTotal : "-"}</td>}
+                  {isBack && <td style={{ ...cellStyle, fontWeight: 700, color: "#137333" }}>{hasAll ? netTotal : "-"}</td>}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {isBack && selectedPlayer && (
+          <div
+            style={{ marginTop: 8, fontSize: 12, color: "#1a73e8", textAlign: "center", cursor: "pointer" }}
+            onClick={() => setSelectedPlayer(null)}
+          >
+            ✕ Show all players
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Totals table (Out / In / Total / Net)
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: "#555", marginBottom: 8 }}>
+        Tap a player name to view their scorecard only
+      </div>
+      {renderTable("Front 9", front, false)}
+      {renderTable("Back 9", back, true)}
+    </div>
+  );
+}
+
 export default function AuditTrail({
   players,
   matches,
@@ -1122,6 +1383,17 @@ export default function AuditTrail({
   course={course}
   handicapMode={handicapMode}
 />
+
+{/* TOTAL SCORECARD */}
+<AuditSection title="Total Scorecard" defaultOpen={false}>
+  <TotalScorecard
+    players={players}
+    scores={scores}
+    course={course}
+    handicapMode={handicapMode}
+  />
+</AuditSection>
+
     </div>
   );
 }

@@ -484,7 +484,7 @@ export default function MatchList({
 
                   const num = Math.min(100, Math.max(0, Number(cleaned)));
 
-                  onUpdateMatch(match.id, { bet: num });
+                  onUpdateMatch(match.id, { bet: num, birdieBet: num });
                 }}
                 style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
               />
