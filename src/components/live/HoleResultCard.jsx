@@ -4,6 +4,8 @@ export default function HoleResultCard({
   matchResults = [],
   players = [],
   mode,
+  pendingNextGameIndex,
+  onChooseTeams,
 }) {
   if (!lastHoleSaved) return null;
 
@@ -95,16 +97,25 @@ console.log("HOLE DEBUG", {
                 alignItems: "center",
                 marginTop: 4,
                 color,
-                fontSize: 13,
+                fontSize: 14,
               }}>
                 <span>{teamAName} {netLabel} vs {teamBName}</span>
-                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
-                  {pressStr}
+                <span style={{ fontSize: 12, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+                  {pressStr} = {netLabel}
                 </span>
               </div>
             );
           })}
         </div>
+      )}
+
+      {pendingNextGameIndex != null && onChooseTeams && (
+        <button
+          onClick={onChooseTeams}
+          style={{ marginTop: 8, width: "100%" }}
+        >
+          Choose Teams for Game {pendingNextGameIndex + 1}
+        </button>
       )}
 
       {birdieLines.length > 0 && (

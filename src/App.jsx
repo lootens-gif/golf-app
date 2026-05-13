@@ -2533,6 +2533,15 @@ if (enableTeamGame && nextGameIndex >= 0) {
   matchResults={matchResults}
   players={players}
   mode={mode}
+  pendingNextGameIndex={pendingNextGameIndex}
+  onChooseTeams={pendingNextGameIndex != null ? () => {
+    setFocusGameTarget({
+      gameIndex: pendingNextGameIndex,
+      nonce: Date.now(),
+    });
+    setScreen("setup");
+    setShowProjectedSettlement(false);
+  } : null}
 />
 
 {pendingNextGameIndex != null && (() => {
@@ -2684,7 +2693,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 })()}
 {enableTeamGame && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Team Game Standing</div>
+    <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 16 }}>Team Game Standing</div>
     {activePlayers.map((player) => {
       let netTotal = 0;
       teamGames.forEach((game, gameIndex) => {
@@ -2709,9 +2718,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
       const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
       const label = netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even";
       return (
-        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>{player.name}</span>
-          <span style={{ fontWeight: "bold", color }}>{label}</span>
+        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 15 }}>{player.name}</span>
+          <span style={{ fontWeight: "bold", color, fontSize: 15 }}>{label}</span>
         </div>
       );
     })}
@@ -2721,7 +2730,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 {/* ── MATCH STATUS ── */}
 {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Round Match Status</div>
     {teamGameResults.map((game, gameIndex) => {
       const selection = getTeamGameSelection(gameIndex);
       if (!selection || !(game.matches || []).length) return null;
