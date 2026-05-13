@@ -243,9 +243,17 @@ export default function SetupScreen({
                 </button>
               </div>
 
-              {totalHoles !== 18 && (
-                <div style={{ color: "red", marginBottom: 10 }}>
-                  Total holes must equal 18 (currently {totalHoles})
+              {totalHoles > 0 && (
+                <div style={{
+                  color: totalHoles > 18 ? "#b3261e" : totalHoles === 18 ? "#137333" : "#666",
+                  marginBottom: 10,
+                  fontSize: 13,
+                }}>
+                  {totalHoles > 18
+                    ? `⚠️ Total exceeds 18 holes (${totalHoles})`
+                    : totalHoles === 18
+                    ? `✓ ${totalHoles} / 18 holes`
+                    : `${totalHoles} / 18 holes configured`}
                 </div>
               )}
             </div>
@@ -276,9 +284,11 @@ export default function SetupScreen({
                             type="number"
                             min={1}
                             max={18}
-                            value={game.holes ?? 1}
+                            value={game.holes ?? ""}
+                            placeholder="#"
                             onChange={(e) => {
-                              const value = Number(e.target.value) || 1;
+                              const raw = e.target.value;
+                              const value = raw === "" ? "" : Math.min(18, Math.max(1, Number(raw)));
                               setTeamGames((prev) =>
                                 prev.map((g, i) => i === index ? { ...g, holes: value } : g)
                               );
@@ -317,9 +327,11 @@ export default function SetupScreen({
                                 type="number"
                                 min={1}
                                 max={18}
-                                value={game.holes ?? 1}
+                                value={game.holes ?? ""}
+                                placeholder="#"
                                 onChange={(e) => {
-                                  const value = Number(e.target.value) || 1;
+                                  const raw = e.target.value;
+                                  const value = raw === "" ? "" : Math.min(18, Math.max(1, Number(raw)));
                                   setTeamGames((prev) =>
                                     prev.map((g, i) => i === index ? { ...g, holes: value } : g)
                                   );

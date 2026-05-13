@@ -415,7 +415,7 @@ export default function App() {
   function createDefaultTeamGame(index = 0) {
     return {
       id: `team-game-${Date.now()}-${index}`,
-      holes: 6,
+      holes: "",
       birdieEnabled: false,
       birdieBet: 0,
       teams: {},
@@ -1948,9 +1948,14 @@ useEffect(() => {
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-if (enableTeamGame && teamGames.length > 0 && totalHoles !== 18) {
-      setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
-    alert(`Team game holes must equal 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGames.length > 0 && totalHoles > 18) {
+      setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+    alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+    return;
+  }
+if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
+    setSetupMessage("Please set holes for at least one team game.");
+    alert("Please set holes for at least one team game.");
     return;
   }
 
