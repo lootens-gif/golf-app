@@ -57,6 +57,7 @@ export default function SetupScreen({
   modeText,
   addMatch,
   addNinePointMatch,
+  autoCreateMatches,
   matches,
   matchResults,
   birdieResults = [],
@@ -120,6 +121,8 @@ export default function SetupScreen({
           onSaveSetup={saveSetup}
           onLoadSetup={loadSetup}
           onResetSetup={resetSetup}
+          onAutoCreateMatches={autoCreateMatches}
+          teamGameUnitAmount={teamGameUnitAmount}
         />
 
         {setupMessage && (
@@ -354,6 +357,16 @@ export default function SetupScreen({
 
         {/* ── 5. MATCHES ── */}
         <div style={{ marginBottom: 12 }}>
+          {players.length >= 2 && (
+            <div style={{ marginBottom: 8 }}>
+              <button onClick={autoCreateMatches} style={{ width: "100%" }}>
+                Auto Generate {(players.length * (players.length - 1)) / 2} 1v1 Matches
+              </button>
+              <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
+  Net Holes · ${Number(teamGameUnitAmount) || 5} bet · Birdies ON — adjust any match below
+</div>
+            </div>
+          )}
           <button onClick={addMatch}>Add Match</button>
           {mode === "3p" && (
             <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>

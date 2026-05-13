@@ -68,6 +68,8 @@ export default function PlayerSetupPanel({
           Reset All
         </button>
       </div>
+
+      
     </div>
   );
 }

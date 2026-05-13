@@ -1024,6 +1024,46 @@ strokeTotal: true,
   ]);
 }
 
+function autoCreateMatches() {
+  if (players.length < 2) return;
+
+  const numCombinations = (players.length * (players.length - 1)) / 2;
+  const defaultBet = Number(teamGameUnitAmount) || 5;
+
+  if (matches.length > 0) {
+    const confirmed = window.confirm(
+      `Replace ${matches.length} existing match${matches.length === 1 ? "" : "es"} with ${numCombinations} new 1v1 matches?`
+    );
+    if (!confirmed) return;
+  }
+
+  const newMatches = [];
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      newMatches.push({
+        id: createId("match"),
+        p1Id: players[i].id,
+        p2Id: players[j].id,
+        type: "standard",
+        bet: defaultBet,
+        birdieEnabled: true,
+        birdieBet: defaultBet,
+        toyRule: false,
+        noPar3Strokes: false,
+        matchPlayFront: true,
+        matchPlayBack: true,
+        matchPlayTotal: true,
+        strokeScoring: "net",
+        strokePayoutMode: "winloss",
+        strokeFront: true,
+        strokeBack: true,
+        strokeTotal: true,
+      });
+    }
+  }
+  setMatches(newMatches);
+}
+
 function addNinePointMatch() {
     if (mode !== "3p") return;
   if (players.length < 3) return;
@@ -2346,6 +2386,7 @@ return (
     setExpandedGame={setExpandedGame}
     addMatch={addMatch}
     addNinePointMatch={addNinePointMatch}
+    autoCreateMatches={autoCreateMatches}
     matches={matches}
     matchResults={matchResults}
     birdieResults={birdieResults}
