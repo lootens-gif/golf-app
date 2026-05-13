@@ -60,18 +60,7 @@ function formatMoney(value) {
 
 
 
-function getOneVOneGameTypeLabel(match, result) {
-  if (result?.type === "standard") return "Net Holes";
-  if (result?.type === "longshort") return "Long / Short";
-if (result?.type === "match_fbt") return "Match Play";
 
-  if (result?.type === "stroke") {
-    const scoring = result.strokeScoring === "gross" ? "Gross" : "Net";
-    return `${scoring} Stroke`;
-  }
-
-  return match?.type || result?.type || "1v1";
-}
 
 function getOneVOneResultLabel(result, p1Name, p2Name) {
     if (result?.type === "standard") {
@@ -618,11 +607,47 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
 
+        // Calculate holes played for this match
+        const holesPlayed = Array.from({ length: 18 }, (_, i) => i + 1).filter(h => {
+          const s = scores?.[h] || {};
+          return Number.isFinite(s[match.p1Id]) && Number.isFinite(s[match.p2Id]);
+        }).length;
+        const isComplete = holesPlayed >= 18;
+        const throughStr = !isComplete && holesPlayed > 0 ? ` through ${holesPlayed}` : "";
+
+        // Build result label
+        let resultStr = "";
+        if (result?.type === "longshort") {
+          const longDecidedOn = result?.longDecidedOn;
+          const holes = result?.holes || [];
+          const longEndHole = Number(longDecidedOn || 18);
+          const longUnits = holes.slice(0, longEndHole).reduce((sum, v) => sum + Number(v || 0), 0);
+          const longWinner = longUnits > 0 ? p1Name : longUnits < 0 ? p2Name : null;
+
+          if (!isComplete && !longDecidedOn) {
+            // Long still open mid-round
+            const absUnits = Math.abs(longUnits);
+            resultStr = longWinner ? `${longWinner} ${absUnits} up${throughStr}` : `Even${throughStr}`;
+          } else {
+            resultStr = getOneVOneResultLabel(result, p1Name, p2Name);
+          }
+        } else if (result?.type === "standard") {
+          const units = Number(result?.units || 0);
+          if (units > 0) resultStr = `${p1Name} ${units} up${throughStr}`;
+          else if (units < 0) resultStr = `${p2Name} ${Math.abs(units)} up${throughStr}`;
+          else resultStr = `Even${throughStr}`;
+        } else {
+          resultStr = getOneVOneResultLabel(result, p1Name, p2Name);
+        }
+
+        // Money — always show "if ended now"
+        const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
+
         const total = Number(result?.total || 0);
         const headerColor = total > 0 ? "#137333" : total < 0 ? "#b3261e" : "#666";
         const oneVOneTitle = (
           <span style={{ color: headerColor }}>
-            {p1Name} vs {p2Name} | {getOneVOneGameTypeLabel(match, result)} | {getOneVOneMoneyLabel(result, p1Name, p2Name)} | {getOneVOneResultLabel(result, p1Name, p2Name)}
+            {p1Name} vs {p2Name} | {resultStr} | {moneyStr}
           </span>
         );
 

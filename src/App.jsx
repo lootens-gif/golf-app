@@ -2071,11 +2071,47 @@ function backToSetup() {
   setScreen("setup");
 }
 
+function hasValidTeamSetup() {
+  if (!enableTeamGame) return true;
+  if (teamGames.length === 0) return true;
+
+  // Only validate the first game — future games get selected as you go
+  const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
+  const requiredGameIndex = teamGames.findIndex((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return requiredHole >= range.start && requiredHole <= range.end;
+  });
+
+  const gameIndex = requiredGameIndex >= 0 ? requiredGameIndex : 0;
+  const selection = getTeamGameSelection(gameIndex);
+  if (!selection) return false;
+
+  if (mode === "5p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2 &&
+           (selection.team3 || []).filter(Boolean).length === 2 &&
+           (selection.team4 || []).filter(Boolean).length === 2;
+  } else if (mode === "4p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2;
+  }
+  return (selection.team1 || []).filter(Boolean).length === 2 &&
+         (selection.team2 || []).filter(Boolean).length === 1;
+}
+
 function goToResults() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("results");
 }
 
 function goToLive() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("live");
 }
 
@@ -2468,8 +2504,16 @@ if (enableTeamGame && nextGameIndex >= 0) {
               (selection.team2 || []).filter(Boolean).length === 1;
 
         if (!hasValidTeams) {
-          setPendingNextGameIndex(nextGameIndex);
-          return;
+          // Only show Game Complete if nextGameIndex is actually a different game
+          // from the current hole's game — prevents "Game 0 Complete" on hole 1
+          const currentGameIndex = teamGames.findIndex((game, index) => {
+            const range = getTeamGameRange(teamGames, index);
+            return currentHole >= range.start && currentHole <= range.end;
+          });
+          if (nextGameIndex !== currentGameIndex && nextGameIndex > 0) {
+            setPendingNextGameIndex(nextGameIndex);
+            return;
+          }
         }
       }
 

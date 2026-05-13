@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SettlementSection from "../components/SettlementSection";
 import AuditTrail from "../components/AuditTrail";
+
+const SCORECARD_OPEN_KEY = "results-scorecard-open";
 
 export default function ResultsScreen({
   players,
@@ -23,11 +25,22 @@ export default function ResultsScreen({
   backToSetup,
   onUpdateScore,
 }) {
-  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [showAuditTrail, setShowAuditTrail] = useState(() => {
+    try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; }
+    catch { return false; }
+  });
 
-if (window.__debug) {
-  console.log("MATCH RESULTS DEBUG", matchResults);
-}
+  useEffect(() => {
+    try { window.localStorage.setItem(SCORECARD_OPEN_KEY, showAuditTrail ? "open" : "closed"); }
+    catch {}
+  }, [showAuditTrail]);
+
+  // Check if round is complete (all 18 holes saved)
+  const holesWithScores = Object.keys(scores).filter(h => {
+    const holeScores = scores[h] || {};
+    return players.some(p => Number.isFinite(holeScores[p.id]));
+  }).length;
+  const roundComplete = holesWithScores >= 18;
 
   const grossNetRows = players.map((player) => {
   const frontGross = Array.from({ length: 9 }, (_, i) => i + 1).reduce(
@@ -50,18 +63,16 @@ if (window.__debug) {
   const handicap = Number(player.hcp || 0);
   const net = totalGross - handicap;
 
-  return {
-    player,
-    frontGross,
-    backGross,
-    totalGross,
-    net,
-  };
+  return { player, frontGross, backGross, totalGross, net };
 });
+
   return (
     <>
-      <h2 style={{ marginBottom: 16 }}>Final Results</h2>
+      <h2 style={{ marginBottom: 16 }}>
+        {roundComplete ? "Final Results" : "Current Results"}
+      </h2>
 
+      {/* 1. LEADERBOARD */}
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
         {[...players]
@@ -90,18 +101,10 @@ if (window.__debug) {
         })()}
       </div>
 
-      <SettlementSection
-        playerLedger={computedResults.playerLedger}
-        tabs={computedResults.tabs}
-        players={players}
-        roundSummaryRows={roundSummaryRows}
-        enableTeamGame={enableTeamGame}
-      />
-
-<div
-        onClick={() => setShowAuditTrail((current) => !current)}
+      {/* 2. SCORECARDS — persistent open/close */}
+      <div
+        onClick={() => setShowAuditTrail(current => !current)}
         style={{
-          marginTop: 16,
           marginBottom: 12,
           padding: "10px 12px",
           borderRadius: 8,
@@ -137,6 +140,16 @@ if (window.__debug) {
         />
       )}
 
+      {/* 3. SETTLE UP */}
+      <SettlementSection
+        playerLedger={computedResults.playerLedger}
+        tabs={computedResults.tabs}
+        players={players}
+        roundSummaryRows={roundSummaryRows}
+        enableTeamGame={enableTeamGame}
+      />
+
+      {/* 4. GHIN */}
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginTop: 16 }}>
         <h3 style={{ marginTop: 0 }}>Gross / Net for GHIN</h3>
         {grossNetRows.map(({ player, frontGross, backGross, totalGross, net }) => (
