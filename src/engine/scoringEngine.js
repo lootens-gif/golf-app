@@ -40,12 +40,8 @@ export function getHandicapStrokes(
   hole,
   players,
   course,
-  handicapMode,
-  noPar3Strokes = false
+  handicapMode
 ) {
-  // If noPar3Strokes is enabled and this hole is a par 3, no strokes allowed
-  if (noPar3Strokes && course?.pars?.[hole - 1] === 3) return 0;
-
   const player = getPlayerById(players, playerId);
   if (!player) return 0;
 
@@ -81,8 +77,7 @@ export function getNetScore(
   players,
   course,
   scores,
-  handicapMode,
-  noPar3Strokes = false
+  handicapMode
 ) {
   const raw = getRawScore(scores, hole, playerId);
   if (raw === null) return null;
@@ -92,8 +87,7 @@ export function getNetScore(
     hole,
     players,
     course,
-    handicapMode,
-    noPar3Strokes
+    handicapMode
   );
 
   return raw - strokes;
@@ -101,8 +95,8 @@ export function getNetScore(
 
 
 
-export function isNetBirdie(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
-  const net = getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes);
+export function isNetBirdie(playerId, hole, players, course, scores, handicapMode) {
+  const net = getNetScore(playerId, hole, players, course, scores, handicapMode);
   if (net === null) return false;
   const par = course.pars[hole - 1];
   return net < par;
@@ -114,12 +108,11 @@ export function getTeamNetScore(
   players,
   course,
   scores,
-  handicapMode,
-  noPar3Strokes = false
+  handicapMode
 ) {
   const netScores = team
     .map((playerId) =>
-      getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes)
+      getNetScore(playerId, hole, players, course, scores, handicapMode)
     )
     .filter((score) => score !== null);
 
@@ -151,7 +144,8 @@ export function scoreNinePointHole(
   scores,
   handicapMode,
   blitzEnabled = false,
-  noPar3Strokes = false
+  noPar3Strokes = false,
+  birdieDoublePoints = false
 ) {
   if (!Array.isArray(playerIds) || playerIds.length !== 3) {
     return {
@@ -191,6 +185,16 @@ export function scoreNinePointHole(
     scoredPlayers.map((entry) => [entry.playerId, entry.netScore])
   );
 
+  // Check if any player made a gross birdie on this hole
+  const par = course?.pars?.[hole - 1];
+  const anyBirdie = birdieDoublePoints && par != null &&
+    playerIds.some(id => {
+      const gross = scores?.[hole]?.[id];
+      return Number.isFinite(gross) && gross < par;
+    });
+
+  const multiplier = anyBirdie ? 2 : 1;
+
   const uniqueWinner = first.netScore < second.netScore;
   const blitzApplies =
     blitzEnabled &&
@@ -199,39 +203,39 @@ export function scoreNinePointHole(
     third.netScore - first.netScore >= 2;
 
   if (blitzApplies) {
-    pointsByPlayerId[first.playerId] = 9;
+    pointsByPlayerId[first.playerId] = 9 * multiplier;
     pointsByPlayerId[second.playerId] = 0;
     pointsByPlayerId[third.playerId] = 0;
 
     return {
       status: "complete",
-      mode: "blitz",
+      mode: anyBirdie ? "blitz-birdie" : "blitz",
       pointsByPlayerId,
       netScoresByPlayerId,
     };
   }
 
   if (first.netScore === second.netScore && second.netScore === third.netScore) {
-    pointsByPlayerId[first.playerId] = 3;
-    pointsByPlayerId[second.playerId] = 3;
-    pointsByPlayerId[third.playerId] = 3;
+    pointsByPlayerId[first.playerId] = 3 * multiplier;
+    pointsByPlayerId[second.playerId] = 3 * multiplier;
+    pointsByPlayerId[third.playerId] = 3 * multiplier;
   } else if (first.netScore === second.netScore) {
-    pointsByPlayerId[first.playerId] = 4;
-    pointsByPlayerId[second.playerId] = 4;
-    pointsByPlayerId[third.playerId] = 1;
+    pointsByPlayerId[first.playerId] = 4 * multiplier;
+    pointsByPlayerId[second.playerId] = 4 * multiplier;
+    pointsByPlayerId[third.playerId] = 1 * multiplier;
   } else if (second.netScore === third.netScore) {
-    pointsByPlayerId[first.playerId] = 5;
-    pointsByPlayerId[second.playerId] = 2;
-    pointsByPlayerId[third.playerId] = 2;
+    pointsByPlayerId[first.playerId] = 5 * multiplier;
+    pointsByPlayerId[second.playerId] = 2 * multiplier;
+    pointsByPlayerId[third.playerId] = 2 * multiplier;
   } else {
-    pointsByPlayerId[first.playerId] = 5;
-    pointsByPlayerId[second.playerId] = 3;
-    pointsByPlayerId[third.playerId] = 1;
+    pointsByPlayerId[first.playerId] = 5 * multiplier;
+    pointsByPlayerId[second.playerId] = 3 * multiplier;
+    pointsByPlayerId[third.playerId] = 1 * multiplier;
   }
 
   return {
     status: "complete",
-    mode: "standard",
+    mode: anyBirdie ? "birdie-double" : "standard",
     pointsByPlayerId,
     netScoresByPlayerId,
   };
@@ -313,7 +317,8 @@ export function getNinePointMatchSummary(
   blitzEnabled = false,
   dollarsPerPoint = 0,
   holeCount = 18,
-  noPar3Strokes = false
+  noPar3Strokes = false,
+  birdieDoublePoints = false
 ) {
   if (!Array.isArray(playerIds) || playerIds.length !== 3) {
     return {
@@ -344,7 +349,8 @@ export function getNinePointMatchSummary(
       scores,
       handicapMode,
       blitzEnabled,
-      noPar3Strokes
+      noPar3Strokes,
+      birdieDoublePoints
     );
 
     if (holeResult.status === "complete") {
@@ -377,7 +383,6 @@ export function computeHoleResult({
   course,
   scores,
   handicapMode,
-  noPar3Strokes = false,
 }) {
   const aScore = getTeamNetScore(
     teamA,
@@ -385,8 +390,7 @@ export function computeHoleResult({
     players,
     course,
     scores,
-    handicapMode,
-    noPar3Strokes
+    handicapMode
   );
   const bScore = getTeamNetScore(
     teamB,
@@ -394,8 +398,7 @@ export function computeHoleResult({
     players,
     course,
     scores,
-    handicapMode,
-    noPar3Strokes
+    handicapMode
   );
 
   if (aScore === null || bScore === null) {
@@ -564,11 +567,10 @@ export function playIndividualMatch(match, context) {
     handicapMode,
   } = context;
 
-  const noPar3Strokes = !!match.noPar3Strokes;
-
 // -----------------------------
 // 9 POINT MODE (3-player)
 // -----------------------------
+const noPar3Strokes = !!match.noPar3Strokes;
 if (match.gameType === "ninePoint") {
   const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
 
@@ -581,7 +583,8 @@ if (match.gameType === "ninePoint") {
     Boolean(match.blitzEnabled),
     Number(match.bet ?? 0),
     18,
-    noPar3Strokes
+    noPar3Strokes,
+    Boolean(match.birdieDoublePoints)
   );
 
 
@@ -604,7 +607,6 @@ const matchPlayers = [p1, p2].filter(Boolean);
       course,
       scores,
       handicapMode,
-      noPar3Strokes,
     });
 
     holes.push(result);
@@ -630,7 +632,8 @@ const matchPlayers = [p1, p2].filter(Boolean);
     const longUnits = signUnit(longSegment.score);
     const longResult = longUnits * match.bet;
 
-    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : null;
+    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 10;
+    if (shortStart > 18) shortStart = 19;
 
     let shortSegment = {
       score: 0,
@@ -639,7 +642,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
       decidedOn: null,
     };
 
-    if (shortStart !== null && shortStart <= 18) {
+    if (shortStart <= 18) {
       shortSegment = decideMatchPlaySegment(holes, shortStart, 18);
     }
 
@@ -805,7 +808,6 @@ export function playPressMatch({
       course: context.course,
       scores: context.scores,
       handicapMode: context.handicapMode,
-      noPar3Strokes: !!context.noPar3TeamGame,
     });
 
     if (result === null) break;

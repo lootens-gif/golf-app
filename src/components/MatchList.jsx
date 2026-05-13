@@ -484,23 +484,35 @@ export default function MatchList({
 
                   const num = Math.min(100, Math.max(0, Number(cleaned)));
 
-                  onUpdateMatch(match.id, { bet: num, birdieBet: num });
+                  onUpdateMatch(match.id, { bet: num });
                 }}
                 style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
               />
             </label>
 
               {match.gameType === "ninePoint" && (
-                <label style={{ marginLeft: 10 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!match.blitzEnabled}
-                    onChange={(e) =>
-                      onUpdateMatch(match.id, { blitzEnabled: e.target.checked })
-                    }
-                  />
-                  Blitz
-                </label>
+                <>
+                  <label style={{ marginLeft: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!match.blitzEnabled}
+                      onChange={(e) =>
+                        onUpdateMatch(match.id, { blitzEnabled: e.target.checked })
+                      }
+                    />
+                    Blitz
+                  </label>
+                  <label style={{ marginLeft: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!match.birdieDoublePoints}
+                      onChange={(e) =>
+                        onUpdateMatch(match.id, { birdieDoublePoints: e.target.checked })
+                      }
+                    />
+                    Birdie 2x Points
+                  </label>
+                </>
               )}
 
             <label>
@@ -577,17 +589,6 @@ export default function MatchList({
     </label>
   </div>
 )}
-
-<label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-  <input
-    type="checkbox"
-    checked={!!match.noPar3Strokes}
-    onChange={(e) =>
-      onUpdateMatch(match.id, { noPar3Strokes: e.target.checked })
-    }
-  />
-  <span style={{ fontSize: 12 }}>No Par 3 Strokes</span>
-</label>
 
 {match.type === "match_fbt" && (
   <div
