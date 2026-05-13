@@ -1176,8 +1176,10 @@ function ScoreCell({ gross, par, strokes }) {
   return <span>{display}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive }) {
+function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+  const [editingCell, setEditingCell] = React.useState(null); // { hole, playerId }
+  const [editValue, setEditValue] = React.useState("");
 
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const front = holes.slice(0, 9);
@@ -1297,15 +1299,49 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive }) {
                   >
                     {player.name} ({player.hcp})
                   </td>
-                  {sectionHoles.map((h, i) => (
-                    <td key={h} style={cellStyle}>
-                      <ScoreCell
-                        gross={grossScores[i]}
-                        par={pars[h - 1]}
-                        strokes={strokes[i]}
-                      />
-                    </td>
-                  ))}
+                  {sectionHoles.map((h, i) => {
+                    const isEditing = editingCell?.hole === h && editingCell?.playerId === player.id;
+                    return (
+                      <td key={h} style={cellStyle}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editValue}
+                            autoFocus
+                            onFocus={(e) => e.target.select()}
+                            style={{ width: 36, fontSize: 12, textAlign: "center", border: "1px solid #1a73e8", borderRadius: 3 }}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => {
+                              const val = editValue === "" ? null : Number(editValue);
+                              if (onUpdateScore && editValue !== "" && Number.isFinite(val)) {
+                                onUpdateScore(h, player.id, val);
+                              }
+                              setEditingCell(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.target.blur();
+                              if (e.key === "Escape") { setEditingCell(null); }
+                            }}
+                          />
+                        ) : (
+                          <span
+                            style={{ cursor: onUpdateScore ? "pointer" : "default" }}
+                            onClick={() => {
+                              if (!onUpdateScore) return;
+                              setEditingCell({ hole: h, playerId: player.id });
+                              setEditValue(grossScores[i] ?? "");
+                            }}
+                          >
+                            <ScoreCell
+                              gross={grossScores[i]}
+                              par={pars[h - 1]}
+                              strokes={strokes[i]}
+                            />
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
                   <td style={{ ...cellStyle, fontWeight: 700 }}>
                     {hasAllBack ? sectionTotal : "-"}
                   </td>
@@ -1338,13 +1374,10 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive }) {
       </div>
       {renderTable("Front 9", front, false)}
       {renderTable("Back 9", back, true)}
-      {goToLive && (
-        <button
-          onClick={goToLive}
-          style={{ marginTop: 8, width: "100%" }}
-        >
-          ✏️ Edit Scores
-        </button>
+      {onUpdateScore && (
+        <div style={{ fontSize: 12, color: "#888", marginTop: 4, textAlign: "center" }}>
+          Tap any score to edit
+        </div>
       )}
     </div>
   );
@@ -1364,6 +1397,7 @@ export default function AuditTrail({
   teamGameUnitAmount,
   noPar3TeamGame = false,
   goToLive,
+  onUpdateScore,
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
@@ -1413,6 +1447,7 @@ export default function AuditTrail({
     course={course}
     handicapMode={handicapMode}
     goToLive={goToLive}
+    onUpdateScore={onUpdateScore}
   />
 </AuditSection>
 

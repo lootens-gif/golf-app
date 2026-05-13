@@ -2636,7 +2636,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 {/* ── MATCH STATUS ── */}
 {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Overall Match Status</div>
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
     {teamGameResults.map((game, gameIndex) => {
       const selection = getTeamGameSelection(gameIndex);
       if (!selection || !(game.matches || []).length) return null;
@@ -2793,6 +2793,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     noPar3TeamGame={noPar3TeamGame}
     goToLive={goToLive}
     backToSetup={backToSetup}
+    onUpdateScore={setScore}
   />
 )}
   </div>

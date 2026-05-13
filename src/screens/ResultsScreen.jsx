@@ -21,6 +21,7 @@ export default function ResultsScreen({
   noPar3TeamGame = false,
   goToLive,
   backToSetup,
+  onUpdateScore,
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(false);
 
@@ -132,6 +133,7 @@ if (window.__debug) {
           teamGameUnitAmount={teamGameUnitAmount}
           noPar3TeamGame={noPar3TeamGame}
           goToLive={goToLive}
+          onUpdateScore={onUpdateScore}
         />
       )}
 
