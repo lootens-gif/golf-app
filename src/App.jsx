@@ -2400,20 +2400,16 @@ return (
       className="secondary-button"
       onClick={() => setScreen("join")}
       disabled={screen === "join"}
-      title="Join a live round"
-      style={{ fontSize: 18 }}
     >
-      👥
+      Join
     </button>
 
     <button
       className="secondary-button"
       onClick={shareCurrentRound}
       disabled={isSyncing}
-      title={roundCode ? `Round code: ${roundCode}` : "Share live results"}
-      style={{ fontSize: 18 }}
     >
-      📤
+      {isSyncing ? "..." : roundCode ? "Sharing" : "Share"}
     </button>
 
     {syncMessage && (

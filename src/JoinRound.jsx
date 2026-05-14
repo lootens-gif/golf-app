@@ -138,9 +138,20 @@ export default function JoinRound({ onBack }) {
     const getTeamGameSelection = (index) =>
       getTeamGameSelectionFromData(teamGames, index);
 
-    const birdieResults = buildBirdieResults(
-      matches, activePlayers, players, scores, course, handicapMode
-    );
+    const birdieResults = buildBirdieResults({
+      matches,
+      matchResults,
+      teamGames: enableTeamGame ? teamGames : [],
+      teamGameResults: enableTeamGame ? teamGameResults : [],
+      scores,
+      course,
+      getTeamGameSelection,
+      birdiesEnabled: roundData.birdiesEnabled || false,
+      birdieBetAmount: Number(roundData.birdieBetAmount) || 0,
+      toyRule: !!roundData.toyRule,
+      players,
+      handicapMode,
+    });
 
     const computedResults = scoreRound(roundData, {
       players,
@@ -160,8 +171,6 @@ export default function JoinRound({ onBack }) {
       noPar3TeamGame,
     });
 
-    console.log("JoinRound computedResults:", computedResults);
-    console.log("playerLedger:", computedResults?.playerLedger);
     return {
       activePlayers,
       matchResults,
