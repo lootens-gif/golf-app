@@ -202,7 +202,7 @@ export default function JoinRound({ onBack }) {
             type="text"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="GOLF-1234"
+            placeholder="1234"
             style={{
               flex: 1, padding: "10px 12px", fontSize: 18,
               letterSpacing: 2, border: "2px solid #ccc",

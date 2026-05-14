@@ -2,8 +2,7 @@ import { supabase } from "./supabase";
 
 // Generate a short human-readable code like "GOLF-2847"
 export function generateRoundCode() {
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `GOLF-${num}`;
+  return String(Math.floor(1000 + Math.random() * 9000));
 }
 
 // Share a round — create or update in Supabase
