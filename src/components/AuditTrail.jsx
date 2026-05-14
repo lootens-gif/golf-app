@@ -1201,8 +1201,15 @@ function ScoreCell({ gross, par, strokes }) {
   return <span>{display}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore }) {
-  const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null }) {
+  const [selectedPlayer, setSelectedPlayer] = React.useState(initialSelectedPlayer);
+
+  // Update if initialSelectedPlayer changes (from leaderboard drill-in)
+  React.useEffect(() => {
+    if (initialSelectedPlayer !== null) {
+      setSelectedPlayer(initialSelectedPlayer);
+    }
+  }, [initialSelectedPlayer]);
   const [editingCell, setEditingCell] = React.useState(null); // { hole, playerId }
   const [editValue, setEditValue] = React.useState("");
 
@@ -1423,6 +1430,7 @@ export default function AuditTrail({
   noPar3TeamGame = false,
   goToLive,
   onUpdateScore,
+  drillPlayerId = null,
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
@@ -1465,16 +1473,19 @@ export default function AuditTrail({
 />
 
 {/* TOTAL SCORECARD */}
-<AuditSection title="Total Scorecard" defaultOpen={false}>
-  <TotalScorecard
-    players={players}
-    scores={scores}
-    course={course}
-    handicapMode={handicapMode}
-    goToLive={goToLive}
-    onUpdateScore={onUpdateScore}
-  />
-</AuditSection>
+<div ref={drillPlayerId ? (el) => { if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 150); } : null}>
+  <AuditSection title="Total Scorecard" defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"}>
+    <TotalScorecard
+      players={players}
+      scores={scores}
+      course={course}
+      handicapMode={handicapMode}
+      goToLive={goToLive}
+      onUpdateScore={onUpdateScore}
+      initialSelectedPlayer={drillPlayerId}
+    />
+  </AuditSection>
+</div>
 
     </div>
   );

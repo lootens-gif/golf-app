@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import SettlementSection from "../components/SettlementSection";
 import AuditTrail from "../components/AuditTrail";
 
@@ -29,6 +29,8 @@ export default function ResultsScreen({
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; }
     catch { return false; }
   });
+  const [drillPlayerId, setDrillPlayerId] = useState(null);
+  const scorecardRef = useRef(null);
 
   useEffect(() => {
     try { window.localStorage.setItem(SCORECARD_OPEN_KEY, showAuditTrail ? "open" : "closed"); }
@@ -75,13 +77,23 @@ export default function ResultsScreen({
       {/* 1. LEADERBOARD */}
       <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
         <h3 style={{ marginTop: 0 }}>Leaderboard</h3>
+        <div style={{ fontSize: 11, color: "#888", marginBottom: 8 }}>Tap a name to see their scorecard</div>
         {[...players]
           .sort((a, b) => Number(leaderboard[b.id] ?? 0) - Number(leaderboard[a.id] ?? 0))
           .map((player) => {
           const amount = Number(leaderboard[player.id] ?? 0);
           return (
-            <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <strong>{player.name}</strong>
+            <div
+              key={player.id}
+              style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, cursor: "pointer" }}
+              onClick={() => {
+                setDrillPlayerId(player.id);
+                setShowAuditTrail(true);
+              }}
+            >
+              <strong style={{ color: drillPlayerId === player.id ? "#1a73e8" : undefined, textDecoration: drillPlayerId === player.id ? "underline" : undefined }}>
+                {player.name}
+              </strong>
               <span style={{ color: amount > 0 ? "#137333" : amount < 0 ? "#b3261e" : "#666", fontWeight: 700 }}>
                 {amount > 0 ? `+$${amount.toFixed(2)}` : amount < 0 ? `-$${Math.abs(amount).toFixed(2)}` : "Even"}
               </span>
@@ -103,6 +115,7 @@ export default function ResultsScreen({
 
       {/* 2. SCORECARDS — persistent open/close */}
       <div
+        ref={scorecardRef}
         onClick={() => setShowAuditTrail(current => !current)}
         style={{
           marginBottom: 12,
@@ -137,6 +150,7 @@ export default function ResultsScreen({
           noPar3TeamGame={noPar3TeamGame}
           goToLive={goToLive}
           onUpdateScore={onUpdateScore}
+          drillPlayerId={drillPlayerId}
         />
       )}
 

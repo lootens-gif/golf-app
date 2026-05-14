@@ -380,11 +380,11 @@ export default function SetupScreen({
             </div>
           )}
           <button onClick={addMatch}>Add Match</button>
-          {mode === "3p" && (
-            <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
-              Add 9 Point Match
-            </button>
-          )}
+          {mode === "3p" && !matches.some(m => m.gameType === "ninePoint") && (
+  <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
+    Add 9 Point Match
+  </button>
+)}
         </div>
 
         <MatchList

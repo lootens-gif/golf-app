@@ -17,6 +17,8 @@ import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
+import { shareRound, generateRoundCode } from "./lib/roundSync";
+import JoinRound from "./JoinRound";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -397,6 +399,9 @@ export default function App() {
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
+  const [roundCode, setRoundCode] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
   const [currentHole, setCurrentHole] = useState(1);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
@@ -2077,6 +2082,23 @@ function backToSetup() {
   setScreen("setup");
 }
 
+async function shareCurrentRound() {
+  try {
+    setIsSyncing(true);
+    setSyncMessage("Sharing...");
+    const code = roundCode || generateRoundCode();
+    if (!roundCode) setRoundCode(code);
+    const snapshot = buildCurrentRoundSnapshot();
+    await shareRound(code, snapshot);
+    setSyncMessage(`Code: ${code}`);
+  } catch (err) {
+    setSyncMessage("Share failed — check connection");
+    console.error("Share error:", err);
+  } finally {
+    setIsSyncing(false);
+  }
+}
+
 function hasValidTeamSetup() {
   if (!enableTeamGame) return true;
   if (teamGames.length === 0) return true;
@@ -2349,7 +2371,7 @@ return (
 >
   <h2 style={{ margin: 0 }}>Golf Betting App</h2>
 
-  <div style={{ display: "flex", gap: 8 }}>
+  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
     <button
       className="secondary-button"
       onClick={backToSetup}
@@ -2373,6 +2395,32 @@ return (
     >
       Results
     </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("join")}
+      disabled={screen === "join"}
+      title="Join a live round"
+      style={{ fontSize: 18 }}
+    >
+      👥
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={shareCurrentRound}
+      disabled={isSyncing}
+      title={roundCode ? `Round code: ${roundCode}` : "Share live results"}
+      style={{ fontSize: 18 }}
+    >
+      📤
+    </button>
+
+    {syncMessage && (
+      <span style={{ fontSize: 12, color: roundCode ? "#137333" : "#b3261e", whiteSpace: "nowrap" }}>
+        {syncMessage}
+      </span>
+    )}
   </div>
 </div>
 
@@ -2483,6 +2531,11 @@ return (
 
 setLastHoleSaved(currentHole);
 setSaveMessage(`Hole ${currentHole} saved`);
+
+// Auto-sync if round is being shared
+if (roundCode) {
+  shareCurrentRound().catch(console.error);
+}
 
       if (currentHole >= 18) {
   setCurrentHole(19);
@@ -2895,6 +2948,10 @@ if (enableTeamGame && nextGameIndex >= 0) {
     backToSetup={backToSetup}
     onUpdateScore={setScore}
   />
+)}
+
+{screen === "join" && (
+  <JoinRound onBack={() => setScreen("setup")} />
 )}
   </div>
 );
