@@ -929,7 +929,7 @@ export default function App() {
             <input
               type="number"
               value={teamGameUnitAmount}
-              onChange={(e) => setTeamGameUnitAmount(Number(e.target.value) || 1)}
+              onChange={(e) => setTeamGameUnitAmount(Number(e.target.value) || 5)}
               style={{ width: 80, marginLeft: 6 }}
             />
           </label>
@@ -941,7 +941,7 @@ export default function App() {
             <input
               type="number"
               value={birdieUnitAmount}
-              onChange={(e) => setBirdieUnitAmount(Number(e.target.value) || 1)}
+              onChange={(e) => setBirdieUnitAmount(Number(e.target.value) || 5)}
               style={{ width: 80, marginLeft: 6 }}
             />
           </label>

@@ -36,18 +36,19 @@ export function subscribeToRound(code, onUpdate) {
   const channel = supabase
     .channel(`round-${code}`)
     .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "rounds",
-        filter: `code=eq.${code.toUpperCase()}`,
-      },
-      (payload) => {
-        if (payload.new?.data) {
-          onUpdate(payload.new.data);
-        }
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "rounds",
+    },
+    (payload) => {
+      if (payload.new?.code === code.toUpperCase() && payload.new?.data) {
+        onUpdate(payload.new.data);
       }
+    }
+  
+      
     )
     .subscribe();
 
