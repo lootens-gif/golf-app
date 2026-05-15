@@ -402,7 +402,7 @@ export default function App() {
   const [roundCode, setRoundCode] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
-  const [currentHole, setCurrentHole] = useState(1);
+  const [currentHole, setCurrentHole] = useState(5);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
   const [focusGameTarget, setFocusGameTarget] = useState(null);
@@ -433,7 +433,7 @@ export default function App() {
     createDefaultTeamGame(3),
   ]);
 
-  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(1);
+  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(5);
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
   const [birdieBetAmount, setBirdieBetAmount] = useState(1);
