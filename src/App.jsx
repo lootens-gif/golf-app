@@ -436,7 +436,7 @@ export default function App() {
   const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(5);
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
-  const [birdieBetAmount, setBirdieBetAmount] = useState(1);
+  const [birdieBetAmount, setBirdieBetAmount] = useState(5);
   const [toyRule, setToyRule] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
 
@@ -1495,7 +1495,7 @@ function loadLastRound() {
 
 setPressTrigger(Number(round.pressTrigger || 1));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1599,7 +1599,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   setPressTrigger(Number(round.pressTrigger || 1));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
-  setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+  setBirdieBetAmount(Number(round.birdieBetAmount || 5));
 
   setTeamGames(
     round.teamGames.map((game, index) => ({
@@ -1682,7 +1682,7 @@ function loadNamedRound() {
 
 setPressTrigger(Number(round.pressTrigger || 1));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1801,9 +1801,9 @@ function resetSetup() {
   setAllPlayers(createDefaultAllPlayers());
   setCourse(createDefaultCourse());
   setHandicapMode("relative");
-  setTeamGameUnitAmount(1);
+  setTeamGameUnitAmount(5);
   setBirdiesEnabled(false);
-  setBirdieBetAmount(1);
+  setBirdieBetAmount(5);
   setScores({});
   setMatches([]);
   setTeamGames([
