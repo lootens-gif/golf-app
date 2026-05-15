@@ -2460,52 +2460,7 @@ return (
 
     {screen === "setup" && (
   <>
-    {/* Round Name — sits above SetupScreen */}
-    <div style={{
-      background: "#f8f9fa",
-      border: "1px solid #e0e0e0",
-      borderRadius: 10,
-      padding: "12px 16px",
-      marginBottom: 12,
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-    }}>
-      <span style={{ fontSize: 14, fontWeight: 600, color: "#555", whiteSpace: "nowrap" }}>
-        📋 Round Name
-      </span>
-      <input
-        type="text"
-        value={roundName}
-        onChange={(e) => setRoundName(e.target.value)}
-        placeholder={(() => {
-          const today = new Date();
-          const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-          return course?.name ? `${monthDay} - ${course.name}` : monthDay;
-        })()}
-        style={{
-          flex: 1,
-          fontSize: 14,
-          padding: "6px 10px",
-          border: "1px solid #ccc",
-          borderRadius: 6,
-          background: "#fff",
-        }}
-      />
-      {roundCode && (
-        <span style={{
-          fontSize: 12,
-          background: "#e8f5e9",
-          color: "#137333",
-          padding: "4px 10px",
-          borderRadius: 20,
-          whiteSpace: "nowrap",
-          fontWeight: 600,
-        }}>
-          🟢 {roundCode}
-        </span>
-      )}
-    </div>
+   
 
   <SetupScreen
     mode={mode}
