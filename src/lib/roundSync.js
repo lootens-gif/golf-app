@@ -31,24 +31,26 @@ export async function fetchRound(code) {
   return data;
 }
 
-// Subscribe to live updates for a round
+// Subscribe to live updates for a specific round.
+// Uses a DB-level filter so only changes to THIS round trigger the callback.
 export function subscribeToRound(code, onUpdate) {
+  const upperCode = code.toUpperCase();
+
   const channel = supabase
-    .channel(`round-${code}`)
+    .channel(`round-${upperCode}`)
     .on(
-    "postgres_changes",
-    {
-      event: "*",
-      schema: "public",
-      table: "rounds",
-    },
-    (payload) => {
-      if (payload.new?.code === code.toUpperCase() && payload.new?.data) {
-        onUpdate(payload.new.data);
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "rounds",
+        filter: `code=eq.${upperCode}`,
+      },
+      (payload) => {
+        if (payload.new?.data) {
+          onUpdate(payload.new.data);
+        }
       }
-    }
-  
-      
     )
     .subscribe();
 

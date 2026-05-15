@@ -15,6 +15,8 @@ export default function SetupScreen({
   resetSetup,
   saveLastRound,
   loadLastRound,
+  roundName,
+  setRoundName,
   savedRoundName,
   setSavedRoundName,
   saveNamedRound,
@@ -104,7 +106,38 @@ export default function SetupScreen({
   return (
     <>
 
-   {/* ── 1. PLAYER COUNT ── */}
+   {/* ── 0. ROUND NAME ── */}
+   <div style={{
+     display: "flex",
+     alignItems: "center",
+     gap: 10,
+     background: "#f0f7f2",
+     border: "1px solid #c3e0cc",
+     borderRadius: 10,
+     padding: "10px 14px",
+     marginBottom: 12,
+   }}>
+     <span style={{ fontSize: 16 }}>📋</span>
+     <input
+       type="text"
+       value={roundName || ""}
+       onChange={e => setRoundName && setRoundName(e.target.value)}
+       placeholder={(() => {
+         const today = new Date();
+         const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+         return `Round name (e.g. ${monthDay} - Westwood)`;
+       })()}
+       style={{
+         flex: 1,
+         fontSize: 14,
+         padding: "7px 10px",
+         border: "1px solid #c3e0cc",
+         borderRadius: 7,
+         background: "#fff",
+         color: "#1a1a1a",
+       }}
+     />
+   </div>
         <SettingsPanel
           mode={mode}
           setMode={handleModeChange}
@@ -380,8 +413,17 @@ export default function SetupScreen({
             </div>
           )}
           <button onClick={addMatch}>Add Match</button>
-          {mode === "3p" && !matches.some(m => m.gameType === "ninePoint") && (
-  <button onClick={addNinePointMatch} style={{ marginLeft: 8 }}>
+          {mode === "3p" && (
+  <button
+    onClick={addNinePointMatch}
+    disabled={matches.some(m => m.gameType === "ninePoint")}
+    title={matches.some(m => m.gameType === "ninePoint") ? "Only one 9-Point game allowed" : ""}
+    style={{
+      marginLeft: 8,
+      opacity: matches.some(m => m.gameType === "ninePoint") ? 0.4 : 1,
+      cursor: matches.some(m => m.gameType === "ninePoint") ? "not-allowed" : "pointer",
+    }}
+  >
     Add 9 Point Match
   </button>
 )}
