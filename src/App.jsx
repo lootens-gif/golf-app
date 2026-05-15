@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { defaultPlayers } from "./data/defaultPlayers";
-import { shareRound, generateRoundCode } from "./lib/roundSync";
 import {
   getActivePlayers,
   getHandicapStrokes,
@@ -18,6 +17,8 @@ import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
+import { shareRound, generateRoundCode, unsubscribeFromRound } from "./lib/roundSync";
+import JoinRound from "./JoinRound";
 
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -398,7 +399,12 @@ export default function App() {
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
-  const [currentHole, setCurrentHole] = useState(1);
+  const [roundCode, setRoundCode] = useState(null);
+  const [roundName, setRoundName] = useState("");
+  const [syncChannel] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  const [currentHole, setCurrentHole] = useState(5);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
   const [focusGameTarget, setFocusGameTarget] = useState(null);
@@ -412,16 +418,11 @@ export default function App() {
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
   const scoreEntryRef = useRef(null);
 
-  // Multiplayer / cloud sync
-  const [roundName, setRoundName] = useState("");
-  const [roundCode, setRoundCode] = useState(null);
-  const [syncMessage, setSyncMessage] = useState("");
-
 
   function createDefaultTeamGame(index = 0) {
     return {
       id: `team-game-${Date.now()}-${index}`,
-      holes: 6,
+      holes: "",
       birdieEnabled: false,
       birdieBet: 0,
       teams: {},
@@ -434,10 +435,10 @@ export default function App() {
     createDefaultTeamGame(3),
   ]);
 
-  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(1);
+  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(5);
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
-  const [birdieBetAmount, setBirdieBetAmount] = useState(1);
+  const [birdieBetAmount, setBirdieBetAmount] = useState(5);
   const [toyRule, setToyRule] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
 
@@ -1030,6 +1031,46 @@ strokeTotal: true,
   ]);
 }
 
+function autoCreateMatches() {
+  if (players.length < 2) return;
+
+  const numCombinations = (players.length * (players.length - 1)) / 2;
+  const defaultBet = Number(teamGameUnitAmount) || 5;
+
+  if (matches.length > 0) {
+    const confirmed = window.confirm(
+      `Replace ${matches.length} existing match${matches.length === 1 ? "" : "es"} with ${numCombinations} new 1v1 matches?`
+    );
+    if (!confirmed) return;
+  }
+
+  const newMatches = [];
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      newMatches.push({
+        id: createId("match"),
+        p1Id: players[i].id,
+        p2Id: players[j].id,
+        type: "standard",
+        bet: defaultBet,
+        birdieEnabled: true,
+        birdieBet: defaultBet,
+        toyRule: false,
+        noPar3Strokes: false,
+        matchPlayFront: true,
+        matchPlayBack: true,
+        matchPlayTotal: true,
+        strokeScoring: "net",
+        strokePayoutMode: "winloss",
+        strokeFront: true,
+        strokeBack: true,
+        strokeTotal: true,
+      });
+    }
+  }
+  setMatches(newMatches);
+}
+
 function addNinePointMatch() {
     if (mode !== "3p") return;
   if (players.length < 3) return;
@@ -1061,6 +1102,7 @@ function addNinePointMatch() {
       p2Id: defaultIds[1],
       p3Id: defaultIds[2],
       blitzEnabled: false,
+      birdieDoublePoints: false,
       bet: 1,
       birdieEnabled: false,
       birdieBet: 1,
@@ -1237,43 +1279,6 @@ function addNinePointMatch() {
 });
 
 
-console.log("teamGameResults sample", teamGameResults?.[0]);
-console.log("teamGameResults first match", teamGameResults?.[0]?.matches?.[0]);
-console.log(
-  "teamGameResults first match result[0]",
-  teamGameResults?.[0]?.matches?.[0]?.result?.[0]
-);
-
-
-console.log("teamGame selection 0", getTeamGameSelection(0));
-console.log(
-  "teamGame selection 0 full",
-  JSON.stringify(getTeamGameSelection(0), null, 2)
-);
-
-console.log(
-  "teamGame first match full JSON",
-  JSON.stringify(teamGameResults?.[0]?.matches?.[0], null, 2)
-);
-
-console.log(
-  "teamGame first game full JSON",
-  JSON.stringify(teamGameResults?.[0], null, 2)
-);
-
-
-
-console.log("scores full JSON", JSON.stringify(scores, null, 2));
-console.log("score keys", Object.keys(scores || {}));
-
-const firstScoreKey = Object.keys(scores || {})[0];
-console.log("first score key", firstScoreKey);
-console.log(
-  "first score entry",
-  JSON.stringify(firstScoreKey ? scores[firstScoreKey] : null, null, 2)
-);
-console.log("course shape sample", JSON.stringify(course?.holes?.[0] || course, null, 2));
-console.log("mode", mode);
 
 const birdieResults = buildBirdieResults({
   matches,
@@ -1455,7 +1460,7 @@ function loadLastRound() {
 
 setPressTrigger(Number(round.pressTrigger || 1));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1503,6 +1508,7 @@ function saveLastRound() {
 const buildCurrentRoundSnapshot = useCallback(() => {
     return {
     savedAt: new Date().toISOString(),
+    roundName,
     mode,
     allPlayers,
     course,
@@ -1522,6 +1528,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     lastHoleSaved,
   };
 }, [
+  roundName,
   mode,
   allPlayers,
   course,
@@ -1559,7 +1566,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   setPressTrigger(Number(round.pressTrigger || 1));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
-  setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+  setBirdieBetAmount(Number(round.birdieBetAmount || 5));
 
   setTeamGames(
     round.teamGames.map((game, index) => ({
@@ -1642,7 +1649,7 @@ function loadNamedRound() {
 
 setPressTrigger(Number(round.pressTrigger || 1));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1761,9 +1768,9 @@ function resetSetup() {
   setAllPlayers(createDefaultAllPlayers());
   setCourse(createDefaultCourse());
   setHandicapMode("relative");
-  setTeamGameUnitAmount(1);
+  setTeamGameUnitAmount(5);
   setBirdiesEnabled(false);
-  setBirdieBetAmount(1);
+  setBirdieBetAmount(5);
   setScores({});
   setMatches([]);
   setTeamGames([
@@ -1911,12 +1918,47 @@ useEffect(() => {
   buildCurrentRoundSnapshot,
 ]);
 
+// Auto-sync to Supabase whenever scores change (debounced 800ms)
+// Only runs when a round code exists (i.e. Start Round was tapped)
+const syncTimerRef = useRef(null);
+useEffect(() => {
+  if (!roundCode || !autoRestoreComplete) return;
+
+  clearTimeout(syncTimerRef.current);
+  syncTimerRef.current = setTimeout(async () => {
+    try {
+      setIsSyncing(true);
+      await shareRound(roundCode, buildCurrentRoundSnapshot());
+      setSyncMessage(`Synced ✓`);
+      setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
+    } catch {
+      setSyncMessage("Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, 800);
+
+  return () => clearTimeout(syncTimerRef.current);
+}, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot]);
+
+// Cleanup sync channel on unmount
+useEffect(() => {
+  return () => {
+    if (syncChannel) unsubscribeFromRound(syncChannel);
+  };
+}, [syncChannel]);
+
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-if (enableTeamGame && teamGames.length > 0 && totalHoles !== 18) {
-      setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
-    alert(`Team game holes must equal 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGames.length > 0 && totalHoles > 18) {
+      setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+    alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+    return;
+  }
+if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
+    setSetupMessage("Please set holes for at least one team game.");
+    alert("Please set holes for at least one team game.");
     return;
   }
 
@@ -2025,28 +2067,46 @@ if (!enableTeamGame) {
   setPendingNextGameIndex(null);
   setScreen("live");
 
-  // Generate round code if we don't have one yet
+  // Generate a round code if we don't have one, then push initial state
   const code = roundCode || generateRoundCode();
   if (!roundCode) setRoundCode(code);
 
-  // Auto-generate round name if left blank
+  // Auto-generate round name if blank
   const today = new Date();
   const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const autoName = course?.name ? `${monthDay} - ${course.name}` : monthDay;
   const nameToUse = roundName.trim() || autoName;
   if (!roundName.trim()) setRoundName(nameToUse);
 
-  // Push to Supabase (fire and forget)
+  // Push to Supabase (fire-and-forget; errors shown via syncMessage)
   const snapshot = {
     savedAt: new Date().toISOString(),
     roundName: nameToUse,
+    mode,
+    allPlayers,
+    course,
+    scores,
+    handicapMode,
+    enableTeamGame,
+    noPar3TeamGame,
+    teamGameUnitAmount,
+    pressTrigger,
+    birdiesEnabled,
+    birdieBetAmount,
+    toyRule,
+    teamGames,
+    matches,
     screen: "live",
     currentHole: lastHoleSaved != null ? lastHoleSaved + 1 : 1,
+    lastHoleSaved,
   };
-  setSyncMessage("Saving…");
+
+  setIsSyncing(true);
+  setSyncMessage("Saving...");
   shareRound(code, snapshot)
-    .then(() => setSyncMessage(""))
-    .catch(() => setSyncMessage("Save failed"));
+    .then(() => setSyncMessage(`Code: ${code}`))
+    .catch(() => setSyncMessage("Save failed — check connection"))
+    .finally(() => setIsSyncing(false));
 
   setTimeout(() => {
     scoreEntryRef.current?.scrollIntoView({
@@ -2060,11 +2120,64 @@ function backToSetup() {
   setScreen("setup");
 }
 
+async function shareCurrentRound() {
+  try {
+    setIsSyncing(true);
+    setSyncMessage("Sharing...");
+    const code = roundCode || generateRoundCode();
+    if (!roundCode) setRoundCode(code);
+    const snapshot = buildCurrentRoundSnapshot();
+    await shareRound(code, snapshot);
+    setSyncMessage(`Code: ${code}`);
+  } catch (err) {
+    setSyncMessage("Share failed — check connection");
+    console.error("Share error:", err);
+  } finally {
+    setIsSyncing(false);
+  }
+}
+
+function hasValidTeamSetup() {
+  if (!enableTeamGame) return true;
+  if (teamGames.length === 0) return true;
+
+  // Only validate the first game — future games get selected as you go
+  const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
+  const requiredGameIndex = teamGames.findIndex((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return requiredHole >= range.start && requiredHole <= range.end;
+  });
+
+  const gameIndex = requiredGameIndex >= 0 ? requiredGameIndex : 0;
+  const selection = getTeamGameSelection(gameIndex);
+  if (!selection) return false;
+
+  if (mode === "5p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2 &&
+           (selection.team3 || []).filter(Boolean).length === 2 &&
+           (selection.team4 || []).filter(Boolean).length === 2;
+  } else if (mode === "4p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2;
+  }
+  return (selection.team1 || []).filter(Boolean).length === 2 &&
+         (selection.team2 || []).filter(Boolean).length === 1;
+}
+
 function goToResults() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("results");
 }
 
 function goToLive() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("live");
 }
 
@@ -2172,7 +2285,6 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
   return vals.length ? Math.min(...vals) : null;
 };
 
-  const pluralBet = (n) => (n === 1 ? "bet" : "bets");
 
   const matchups =
     mode === "5p"
@@ -2245,24 +2357,19 @@ matchups.forEach(([a, b]) => {
 
   const betScore = (pressResults || []).reduce((sum, bet) => {
     const score = Number(bet.score || 0);
-
     if (score > 0) return sum + 1;
     if (score < 0) return sum - 1;
     return sum;
   }, 0);
 
-  if (betScore > 0) {
-    matchLines.push(
-      `${teamName(A)} ${betScore} ${pluralBet(betScore)} up vs ${teamName(B)}`
-    );
-  } else if (betScore < 0) {
-    const absScore = Math.abs(betScore);
-    matchLines.push(
-      `${teamName(A)} ${absScore} ${pluralBet(absScore)} down to ${teamName(B)}`
-    );
-  } else {
-    matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
-  }
+  const betScores = (pressResults || []).map(bet => Number(bet.score || 0));
+
+  matchLines.push({
+    teamAName: teamName(A),
+    teamBName: teamName(B),
+    netUnits: betScore,
+    betScores,
+  });
 });
 
 // --- BIRDIES ---
@@ -2302,7 +2409,7 @@ return (
 >
   <h2 style={{ margin: 0 }}>Golf Betting App</h2>
 
-  <div style={{ display: "flex", gap: 8 }}>
+  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
     <button
       className="secondary-button"
       onClick={backToSetup}
@@ -2326,10 +2433,80 @@ return (
     >
       Results
     </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("join")}
+      disabled={screen === "join"}
+    >
+      Join
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={shareCurrentRound}
+      disabled={isSyncing}
+    >
+      {isSyncing ? "Syncing…" : roundCode ? `🟢 ${roundCode}` : "Share"}
+    </button>
+
+    {syncMessage && !roundCode && (
+      <span style={{ fontSize: 12, color: "#b3261e", whiteSpace: "nowrap" }}>
+        {syncMessage}
+      </span>
+    )}
   </div>
 </div>
 
     {screen === "setup" && (
+  <>
+    {/* Round Name — sits above SetupScreen */}
+    <div style={{
+      background: "#f8f9fa",
+      border: "1px solid #e0e0e0",
+      borderRadius: 10,
+      padding: "12px 16px",
+      marginBottom: 12,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+    }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: "#555", whiteSpace: "nowrap" }}>
+        📋 Round Name
+      </span>
+      <input
+        type="text"
+        value={roundName}
+        onChange={(e) => setRoundName(e.target.value)}
+        placeholder={(() => {
+          const today = new Date();
+          const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          return course?.name ? `${monthDay} - ${course.name}` : monthDay;
+        })()}
+        style={{
+          flex: 1,
+          fontSize: 14,
+          padding: "6px 10px",
+          border: "1px solid #ccc",
+          borderRadius: 6,
+          background: "#fff",
+        }}
+      />
+      {roundCode && (
+        <span style={{
+          fontSize: 12,
+          background: "#e8f5e9",
+          color: "#137333",
+          padding: "4px 10px",
+          borderRadius: 20,
+          whiteSpace: "nowrap",
+          fontWeight: 600,
+        }}>
+          🟢 {roundCode}
+        </span>
+      )}
+    </div>
+
   <SetupScreen
     mode={mode}
     handleModeChange={handleModeChange}
@@ -2381,6 +2558,7 @@ return (
     setExpandedGame={setExpandedGame}
     addMatch={addMatch}
     addNinePointMatch={addNinePointMatch}
+    autoCreateMatches={autoCreateMatches}
     matches={matches}
     matchResults={matchResults}
     birdieResults={birdieResults}
@@ -2395,49 +2573,15 @@ return (
     goToResults={goToResults}
     roundName={roundName}
     setRoundName={setRoundName}
+    courseName={course?.name || ""}
    />
+  </>
 )}
 
     {screen === "live" && (
       <>
 {pendingNextGameIndex == null && (
   <>
-    {roundCode && (
-      <div
-        onClick={() => {
-          navigator.clipboard?.writeText(roundCode);
-          setSyncMessage("Copied!");
-          setTimeout(() => setSyncMessage(""), 2000);
-        }}
-        style={{
-          background: "#1a7a3c",
-          borderRadius: 12,
-          padding: "12px 16px",
-          marginBottom: 12,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        <div>
-          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>
-            🟢 Live Round Code
-          </div>
-          <div style={{ color: "#fff", fontSize: 32, fontWeight: 800, letterSpacing: 6, lineHeight: 1 }}>
-            {roundCode}
-          </div>
-          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, marginTop: 4 }}>
-            {roundName || ""} · Tap to copy
-          </div>
-        </div>
-        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 24 }}>
-          {syncMessage === "Copied!" ? "✓" : "⎘"}
-        </div>
-      </div>
-    )}
-
     {saveMessage && (
       <div
         style={{
@@ -2456,6 +2600,30 @@ return (
     Results updated below
   </div>
 </div>
+      </div>
+    )}
+
+    {roundCode && (
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        background: "#e8f5e9",
+        border: "1px solid #b7e1cd",
+        borderRadius: 8,
+        padding: "8px 14px",
+        marginBottom: 10,
+        fontSize: 13,
+      }}>
+        <span>
+          <span style={{ fontWeight: 700, color: "#137333" }}>🟢 Live</span>
+          <span style={{ color: "#555", marginLeft: 8 }}>
+            Share code <strong>{roundCode}</strong> so others can join
+          </span>
+        </span>
+        <span style={{ color: "#888", fontSize: 11 }}>
+          {isSyncing ? "Syncing…" : syncMessage}
+        </span>
       </div>
     )}
 
@@ -2499,8 +2667,16 @@ if (enableTeamGame && nextGameIndex >= 0) {
               (selection.team2 || []).filter(Boolean).length === 1;
 
         if (!hasValidTeams) {
-          setPendingNextGameIndex(nextGameIndex);
-          return;
+          // Only show Game Complete if nextGameIndex is actually a different game
+          // from the current hole's game — prevents "Game 0 Complete" on hole 1
+          const currentGameIndex = teamGames.findIndex((game, index) => {
+            const range = getTeamGameRange(teamGames, index);
+            return currentHole >= range.start && currentHole <= range.end;
+          });
+          if (nextGameIndex !== currentGameIndex && nextGameIndex > 0) {
+            setPendingNextGameIndex(nextGameIndex);
+            return;
+          }
         }
       }
 
@@ -2520,6 +2696,15 @@ if (enableTeamGame && nextGameIndex >= 0) {
   matchResults={matchResults}
   players={players}
   mode={mode}
+  pendingNextGameIndex={pendingNextGameIndex}
+  onChooseTeams={pendingNextGameIndex != null ? () => {
+    setFocusGameTarget({
+      gameIndex: pendingNextGameIndex,
+      nonce: Date.now(),
+    });
+    setScreen("setup");
+    setShowProjectedSettlement(false);
+  } : null}
 />
 
 {pendingNextGameIndex != null && (() => {
@@ -2671,7 +2856,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 })()}
 {enableTeamGame && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Team Game Standing</div>
+    <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 16 }}>Team Game Standing</div>
     {activePlayers.map((player) => {
       let netTotal = 0;
       teamGames.forEach((game, gameIndex) => {
@@ -2696,9 +2881,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
       const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
       const label = netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even";
       return (
-        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>{player.name}</span>
-          <span style={{ fontWeight: "bold", color }}>{label}</span>
+        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 15 }}>{player.name}</span>
+          <span style={{ fontWeight: "bold", color, fontSize: 15 }}>{label}</span>
         </div>
       );
     })}
@@ -2706,29 +2891,55 @@ if (enableTeamGame && nextGameIndex >= 0) {
 )}
 
 {/* ── MATCH STATUS ── */}
-{matchResults.filter(({ result }) => result && result.gameType !== "ninePoint").length > 0 && (
+{enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
-    {matchResults
-      .filter(({ result }) => result && result.gameType !== "ninePoint")
-      .map(({ match, result }) => {
-        const p1 = players.find((p) => p.id === match.p1Id)?.name || "P1";
-        const p2 = players.find((p) => p.id === match.p2Id)?.name || "P2";
-        let statusLine = "";
-        if (result.type === "standard" || result.type === "match_fbt") {
-          const label = result.label || result.overallLabel || "";
-          statusLine = label ? `${p1} vs ${p2}: ${label}` : `${p1} vs ${p2}`;
-        } else if (result.type === "longshort") {
-          statusLine = `${p1} vs ${p2}: Long ${result.longLabel || "-"} | Short ${result.shortLabel || "-"}`;
-        } else {
-          statusLine = `${p1} vs ${p2}: ${result.label || "-"}`;
-        }
-        return (
-          <div key={match.id} style={{ marginBottom: 4, fontSize: 14 }}>
-            {statusLine}
-          </div>
-        );
-      })}
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Round Match Status</div>
+    {teamGameResults.map((game, gameIndex) => {
+      const selection = getTeamGameSelection(gameIndex);
+      if (!selection || !(game.matches || []).length) return null;
+
+      return (
+        <div key={gameIndex} style={{ marginBottom: gameIndex < teamGameResults.length - 1 ? 12 : 0 }}>
+          {(game.matches || []).map((matchup, mIdx) => {
+            const parts = matchup.label.split(" ");
+            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+            const teamA = (selection?.[teamAKey] || []).filter(Boolean);
+            const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+            const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
+            const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
+
+            const netUnits = (matchup.result || []).reduce((sum, bet) => {
+              const score = Number(bet.score || 0);
+              if (score > 0) return sum + 1;
+              if (score < 0) return sum - 1;
+              return sum;
+            }, 0);
+
+            const betScores = (matchup.result || []).map(bet => Number(bet.score || 0));
+            const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
+            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
+            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+
+            return (
+              <div key={mIdx} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 6,
+                color,
+                fontSize: 13,
+              }}>
+                <span>{teamAName} {netLabel} vs {teamBName}</span>
+                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+                  {pressStr}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    })}
   </div>
 )}
 
@@ -2839,7 +3050,12 @@ if (enableTeamGame && nextGameIndex >= 0) {
     noPar3TeamGame={noPar3TeamGame}
     goToLive={goToLive}
     backToSetup={backToSetup}
+    onUpdateScore={setScore}
   />
+)}
+
+{screen === "join" && (
+  <JoinRound onBack={() => setScreen("setup")} />
 )}
   </div>
 );
