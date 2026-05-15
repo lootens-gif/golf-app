@@ -17,9 +17,8 @@ import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
-import { shareRound, generateRoundCode, unsubscribeFromRound } from "./lib/roundSync";
 import JoinRound from "./JoinRound";
-
+import { shareRound, generateRoundCode, unsubscribeFromRound } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v5";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -2407,7 +2406,10 @@ return (
     marginBottom: 12,
   }}
 >
-  <h2 style={{ margin: 0 }}>Golf Betting App</h2>
+  <h2 style={{ margin: 0 }}>
+    <span style={{ color: "#1a5c35", fontFamily: "'Georgia', serif" }}>Stopped</span><span style={{ color: "#b8952a", fontFamily: "'Georgia', serif" }}>Counting</span>
+    <span style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginLeft: 8, fontFamily: "sans-serif" }}>⛳ golf betting</span>
+  </h2>
 
   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
     <button
@@ -2459,9 +2461,6 @@ return (
 </div>
 
     {screen === "setup" && (
-  <>
-   
-
   <SetupScreen
     mode={mode}
     handleModeChange={handleModeChange}
@@ -2530,7 +2529,6 @@ return (
     setRoundName={setRoundName}
     courseName={course?.name || ""}
    />
-  </>
 )}
 
     {screen === "live" && (
