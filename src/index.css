@@ -1,6 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+* {
+  box-sizing: border-box;
+  max-width: 100%;
+}
 body {
   margin: 0;
   background: #f5f6f7;
