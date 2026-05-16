@@ -2406,13 +2406,13 @@ return (
     marginBottom: 12,
   }}
 >
-  <h2 style={{ margin: 0 }}>
-    <span style={{ color: "#1a5c35", fontFamily: "'Georgia', serif" }}>Stopped</span><span style={{ color: "#b8952a", fontFamily: "'Georgia', serif" }}>Counting</span>
-    <span style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginLeft: 8, fontFamily: "sans-serif" }}>⛳ golf betting</span>
-  </h2>
+  <h2 style={{ margin: 0, whiteSpace: "nowrap" }}>
+  <span style={{ color: "#1a5c35", fontFamily: "'Georgia', serif" }}>Stopped</span>
+  <span style={{ color: "#b8952a", fontFamily: "'Georgia', serif" }}>Counting</span>
+</h2>
 
-  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-    <button
+<div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>    
+<button
       className="secondary-button"
       onClick={backToSetup}
       disabled={screen === "setup"}

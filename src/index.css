@@ -4,6 +4,7 @@
 * {
   box-sizing: border-box;
   max-width: 100%;
+
 }
 body {
   margin: 0;
@@ -63,8 +64,8 @@ button:disabled {
 }
 
 .secondary-button {
-  padding: 12px;
-  font-size: 14px;
+  padding: 6px 10px;
+  font-size: 13px;
   background: #fff;
 }
 
