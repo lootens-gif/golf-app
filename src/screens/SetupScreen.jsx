@@ -263,7 +263,7 @@ export default function SetupScreen({
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 13, color: sc.ink, minWidth: 110 }}>Press trigger</span>
                 <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                  {[1, 2, 3].map(n => (
+                  {[1, 2].map(n => (
                     <button key={n} onClick={() => setPressTrigger(n)} style={{
                       padding: "7px 16px", border: "none",
                       background: Number(pressTrigger) === n ? sc.green : "#fff",

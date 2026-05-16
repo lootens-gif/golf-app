@@ -26,7 +26,7 @@ button:disabled {
 }
 
 .app-shell {
-  max-width: 720px;
+  max-width: 480px;
   margin: 0 auto;
   padding: 12px;
 }
@@ -87,7 +87,8 @@ td {
 
 @media (max-width: 600px) {
   .app-shell {
-    padding: 10px;
+    max-width: 100%;
+    padding: 8px;
   }
 
   .app-card,

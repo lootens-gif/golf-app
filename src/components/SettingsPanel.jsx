@@ -6,7 +6,6 @@ export default function SettingsPanel({
 }) {
   return (
     <div>
-      <h3>Settings</h3>
 
       <label>
         Players:

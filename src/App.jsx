@@ -19,7 +19,7 @@ import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
 import { shareRound, generateRoundCode, unsubscribeFromRound } from "./lib/roundSync";
-const STORAGE_KEY = "golf-betting-round-setup-v5";
+const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
