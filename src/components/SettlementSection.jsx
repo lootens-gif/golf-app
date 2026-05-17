@@ -1,98 +1,99 @@
-function SettlementSection({
-  playerLedger = [],
-  tabs = [],
-  players = [],
-  roundSummaryRows = [],
-  enableTeamGame = true,
-}) {
-  const getPlayerName = (playerId) => {
-    return players.find((player) => player.id === playerId)?.name || playerId;
-  };
+const sc = {
+  green:      "#1a5c35",
+  greenLight: "#f0f7f3",
+  gold:       "#b8952a",
+  ink:        "#1a1a1a",
+  muted:      "#6b7280",
+  border:     "#d1d5db",
+  red:        "#b3261e",
+  redLight:   "#fef2f2",
+  card:       "#ffffff",
+};
+
+function SectionLabel({ children }) {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: sc.muted, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${sc.border}` }}>
+      {children}
+    </div>
+  );
+}
+
+function fmt(val) {
+  const n = Number(val ?? 0);
+  if (n > 0) return { str: `+$${n.toFixed(2)}`, color: sc.green };
+  if (n < 0) return { str: `-$${Math.abs(n).toFixed(2)}`, color: sc.red };
+  return { str: "$0.00", color: sc.muted };
+}
+
+function SettlementSection({ playerLedger = [], tabs = [], players = [], roundSummaryRows = [], enableTeamGame = true }) {
+  const getName = (id) => players.find(p => p.id === id)?.name || id;
 
   return (
-    <section className="settlement-section">
+    <div>
 
-     
-
-      <div className="settlement-card">
-        <h3>Settle Up</h3>
-
+      {/* SETTLE UP */}
+      <div style={{ background: sc.card, border: `1px solid ${sc.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+        <SectionLabel>Settle Up</SectionLabel>
         {tabs.length === 0 ? (
-          <p style={{ color: "#137333", fontWeight: 600 }}>✓ Everyone is settled up.</p>
+          <div style={{ color: sc.green, fontWeight: 600, fontSize: 14 }}>✓ Everyone is settled up.</div>
         ) : (
-          <ul style={{ paddingLeft: 0, marginTop: 8, listStyle: "none" }}>
-            {[...tabs]
-              .sort((a, b) => b.amount - a.amount)
-              .map((tab, index) => {
-                const fromName = getPlayerName(tab.fromPlayerId);
-                const toName = getPlayerName(tab.toPlayerId);
-                const amount = Number(tab.amount).toFixed(2);
+          <div>
+            {[...tabs].sort((a, b) => b.amount - a.amount).map((tab, i) => (
+              <div key={`${tab.fromPlayerId}-${tab.toPlayerId}-${i}`} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "11px 14px", marginBottom: 8,
+                background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10,
+              }}>
+                <span style={{ fontSize: 15 }}>
+                  <strong>{getName(tab.fromPlayerId)}</strong>
+                  <span style={{ color: sc.muted, margin: "0 6px" }}>pays</span>
+                  <strong>{getName(tab.toPlayerId)}</strong>
+                </span>
+                <span style={{ fontSize: 17, fontWeight: 800, color: sc.ink }}>
+                  ${Number(tab.amount).toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
+      {/* STANDINGS */}
+      <div style={{ background: sc.card, border: `1px solid ${sc.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
+        <SectionLabel>Standings</SectionLabel>
+        {playerLedger.length === 0 ? (
+          <div style={{ color: sc.muted, fontSize: 14 }}>No results yet.</div>
+        ) : (
+          <div>
+            {/* Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 64px 72px", gap: 4, padding: "6px 8px", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase" }}>Player</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase", textAlign: "center" }}>Team</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase", textAlign: "center" }}>1v1</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase", textAlign: "center" }}>Birds</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase", textAlign: "right" }}>Total</div>
+            </div>
+            {playerLedger
+              .filter(row => players.some(p => p.id === row.playerId))
+              .sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0))
+              .map(row => {
+                const total = Number(row.total ?? 0);
+                const { str: totalStr, color: totalColor } = fmt(total);
                 return (
-                  <li
-                    key={`${tab.fromPlayerId}-${tab.toPlayerId}-${index}`}
-                    style={{
-                      marginBottom: 8,
-                      padding: "10px 12px",
-                      background: "#fff8e1",
-                      border: "1px solid #f9a825",
-                      borderRadius: 6,
-                      fontSize: 15,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-  <span><strong>{fromName}</strong> pays <strong>{toName}</strong></span>
-  <span style={{ fontWeight: 700 }}>${amount}</span>
-</div>
-                  </li>
+                  <div key={row.playerId} style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 64px 72px", gap: 4, padding: "9px 8px", borderRadius: 8, marginBottom: 4, background: total > 0 ? sc.greenLight : total < 0 ? "#fef2f2" : "#fafafa", border: `1px solid ${total > 0 ? "#c3ddd0" : total < 0 ? "#fecaca" : sc.border}` }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: sc.ink }}>{getName(row.playerId)}</div>
+                    <div style={{ fontSize: 13, textAlign: "center", color: fmt(row.mainGame).color }}>{fmt(row.mainGame).str}</div>
+                    <div style={{ fontSize: 13, textAlign: "center", color: fmt(row.sideMatches).color }}>{fmt(row.sideMatches).str}</div>
+                    <div style={{ fontSize: 13, textAlign: "center", color: fmt(row.birdies).color }}>{fmt(row.birdies).str}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, textAlign: "right", color: totalColor }}>{totalStr}</div>
+                  </div>
                 );
               })}
-          </ul>
+          </div>
         )}
       </div>
 
- <div className="settlement-card">
-        <h3>Standings</h3>
-
-        {playerLedger.length === 0 ? (
-          <p>No settled results yet.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Team Game</th>
-                <th>Side Matches</th>
-                <th>Birdies</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-{playerLedger
-  .filter((row) => players.some((player) => player.id === row.playerId))
-  .map((row) => {
-    const total = Number(row.total ?? 0);
-    const rowColor = total > 0 ? "#137333" : total < 0 ? "#b3261e" : "#666";
-    const fmt = (val) => {
-      const n = Number(val ?? 0);
-      return n > 0 ? `+$${n.toFixed(2)}` : n < 0 ? `-$${Math.abs(n).toFixed(2)}` : "$0.00";
-    };
-    return (
-      <tr key={row.playerId} style={{ color: rowColor }}>
-        <td style={{ fontWeight: 600 }}>{getPlayerName(row.playerId)}</td>
-        <td>{fmt(row.mainGame)}</td>
-        <td>{fmt(row.sideMatches)}</td>
-        <td>{fmt(row.birdies)}</td>
-        <td><strong>{fmt(row.total)}</strong></td>
-      </tr>
-    );
-  })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-    </section>
+    </div>
   );
 }
 

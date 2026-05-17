@@ -9,12 +9,13 @@ import {
 } from "../engine/scoringEngine";
 
 const scorecardCellStyle = {
-  border: "1px solid #ddd",
-  padding: "4px 3px",
+  border: "1px solid #e5e7eb",
+  padding: "5px 3px",
   textAlign: "center",
-  minWidth: 40,
-  fontSize: 10,
+  minWidth: 36,
+  fontSize: 11,
   whiteSpace: "nowrap",
+  color: "#1a1a1a",
 };
 
 const scorecardLabelCellStyle = {
@@ -24,8 +25,9 @@ const scorecardLabelCellStyle = {
   background: "#fff",
   zIndex: 1,
   textAlign: "left",
-  minWidth: 72,
+  minWidth: 80,
   fontWeight: 700,
+  borderRight: "2px solid #e5e7eb",
 };
 
 function ScorecardCell({ value, running, color }) {
@@ -61,132 +63,6 @@ function formatMoney(value) {
 
 
 
-
-function getOneVOneResultLabel(result, p1Name, p2Name) {
-    if (result?.type === "standard") {
-  const units = Number(result?.units || 0);
-
-  if (units !== 0) {
-    return `${Math.abs(units)} up`;
-  }
-
-  return "Tie";
-}
-
-if (result?.type === "longshort") {
-  const holes = result?.holes || [];
-
-  const formatClosedLabel = (winnerName, units, label, decidedOn) => {
-    if (!winnerName) return "Tie";
-
-    if (decidedOn === 18) {
-      return `${winnerName} ${Math.abs(units)} up`;
-    }
-
-    return `${winnerName} ${label || `${Math.abs(units)} up`}`;
-  };
-
-  const longEndHole = Number(result?.longDecidedOn || 18);
-  const longUnits = holes
-    .slice(0, longEndHole)
-    .reduce((sum, value) => sum + Number(value || 0), 0);
-
-  const shortStartHole = result?.longDecidedOn ? result.longDecidedOn + 1 : null;
-  const shortUnits = shortStartHole !== null && shortStartHole <= 18
-    ? holes
-        .slice(shortStartHole - 1, 18)
-        .reduce((sum, value) => sum + Number(value || 0), 0)
-    : 0;
-
-  const longWinner =
-    longUnits > 0 ? p1Name : longUnits < 0 ? p2Name : null;
-
-  const shortWinner =
-    shortUnits > 0 ? p1Name : shortUnits < 0 ? p2Name : null;
-
-  const longLabel = formatClosedLabel(
-    longWinner,
-    longUnits,
-    result.longLabel,
-    Number(result?.longDecidedOn || 18)
-  );
-
-  const shortLabel = formatClosedLabel(
-    shortWinner,
-    shortUnits,
-    result.shortLabel,
-    18
-  );
-
-  if (Number(result?.longDecidedOn || 18) >= 18) {
-  return `Long: ${longLabel}`;
-}
-
-return `Long: ${longLabel} | Short: ${shortLabel}`;
-}
-
-if (result?.type === "match_fbt") {
-  const segments = result.segments || [];
-  const hasFrontOrBack = segments.some(
-    (seg) => seg.key === "front" || seg.key === "back"
-  );
-
-  return segments
-    .map((seg) => {
-      const shortLabel =
-        seg.key === "front"
-          ? "F"
-          : seg.key === "back"
-            ? "B"
-            : seg.key === "total" && hasFrontOrBack
-              ? "T"
-              : "";
-
-      const units = Number(seg.units || 0);
-      const resultLabel = seg.resultLabel || "Tie";
-      const prefix = shortLabel ? `${shortLabel}: ` : "";
-
-      if (units > 0) {
-        return `${prefix}${p1Name} ${resultLabel}`;
-      }
-
-      if (units < 0) {
-        return `${prefix}${p2Name} ${resultLabel}`;
-      }
-
-      return `${prefix}Tie`;
-    })
-    .join(" | ");
-}
-
-  if (result?.type === "stroke") {
-  return (result.segments || [])
-    .map((seg) => {
-      const shortLabel =
-        seg.key === "front"
-          ? "F"
-          : seg.key === "back"
-            ? "B"
-            : seg.key === "total"
-              ? "T"
-              : seg.label;
-
-      const diff = Number(seg.diff || 0);
-
-      if (diff === 0) {
-        return `${shortLabel}: Tie`;
-      }
-
-      const units = Number(seg.units || 0);
-      const winnerName = units > 0 ? p1Name : p2Name;
-
-      return `${shortLabel}: ${winnerName} by ${Math.abs(diff)}`;
-    })
-    .join(" | ");
-}
-
-  return result?.label || result?.longLabel || "Result";
-}
 
 function getOneVOneMoneyLabel(result, p1Name, p2Name) {
   const total = Number(result?.total || 0);
@@ -354,12 +230,13 @@ function TeamGameScorecard({
   });
 
   const scorecardCellStyle = {
-    border: "1px solid #ddd",
-    padding: "6px 4px",
+    border: "1px solid #e5e7eb",
+    padding: "5px 3px",
     textAlign: "center",
-    minWidth: 64,
-    fontSize: 12,
+    minWidth: 48,
+    fontSize: 11,
     whiteSpace: "nowrap",
+    color: "#1a1a1a",
   };
 
   const scorecardLabelCellStyle = {
@@ -369,22 +246,23 @@ function TeamGameScorecard({
     background: "#fff",
     zIndex: 1,
     textAlign: "left",
-    minWidth: 92,
+    minWidth: 90,
     fontWeight: 700,
+    borderRight: "2px solid #e5e7eb",
   };
 
   return (
     <div
       style={{
-        border: "1px solid #ddd",
-        borderRadius: 6,
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
         marginBottom: 10,
         overflowX: "auto",
       }}
     >
-      <div style={{ padding: 8, fontSize: 13, background: "#f7f7f7" }}>
-        <strong>Scorecard View</strong>
-        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
+      <div style={{ padding: "10px 12px", fontSize: 13, background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+        <strong style={{ color: "#1a5c35" }}>Scorecard View</strong>
+        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
           Gross score shown. Dot means stroke received on that hole.
         </div>
       </div>
@@ -571,23 +449,30 @@ function AuditSection({ title, children, defaultOpen = false }) {
   };
 
   return (
-    <div style={{ border: "1px solid #ccc", borderRadius: 6, marginBottom: 10 }}>
+    <div style={{ border: "1px solid #d1d5db", borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
       <button
         type="button"
         onClick={toggleOpen}
         style={{
           width: "100%",
-          padding: 10,
+          padding: "11px 14px",
           textAlign: "left",
-          background: "#f7f7f7",
+          background: open ? "#1a5c35" : "#f9fafb",
+          color: open ? "#fff" : "#1a1a1a",
           border: 0,
-          fontWeight: 700,
+          fontWeight: 600,
+          fontSize: 14,
           cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontFamily: "inherit",
         }}
       >
-        {open ? "▾" : "▸"} {title}
+        <span>{title}</span>
+        <span style={{ fontSize: 12, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
       </button>
-      {open && <div style={{ padding: 10 }}>{children}</div>}
+      {open && <div style={{ padding: 12, background: "#fff" }}>{children}</div>}
     </div>
   );
 }
@@ -607,47 +492,15 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
 
-        // Calculate holes played for this match
-        const holesPlayed = Array.from({ length: 18 }, (_, i) => i + 1).filter(h => {
-          const s = scores?.[h] || {};
-          return Number.isFinite(s[match.p1Id]) && Number.isFinite(s[match.p2Id]);
-        }).length;
-        const isComplete = holesPlayed >= 18;
-        const throughStr = !isComplete && holesPlayed > 0 ? ` through ${holesPlayed}` : "";
-
-        // Build result label
-        let resultStr = "";
-        if (result?.type === "longshort") {
-          const longDecidedOn = result?.longDecidedOn;
-          const holes = result?.holes || [];
-          const longEndHole = Number(longDecidedOn || 18);
-          const longUnits = holes.slice(0, longEndHole).reduce((sum, v) => sum + Number(v || 0), 0);
-          const longWinner = longUnits > 0 ? p1Name : longUnits < 0 ? p2Name : null;
-
-          if (!isComplete && !longDecidedOn) {
-            // Long still open mid-round
-            const absUnits = Math.abs(longUnits);
-            resultStr = longWinner ? `${longWinner} ${absUnits} up${throughStr}` : `Even${throughStr}`;
-          } else {
-            resultStr = getOneVOneResultLabel(result, p1Name, p2Name);
-          }
-        } else if (result?.type === "standard") {
-          const units = Number(result?.units || 0);
-          if (units > 0) resultStr = `${p1Name} ${units} up${throughStr}`;
-          else if (units < 0) resultStr = `${p2Name} ${Math.abs(units)} up${throughStr}`;
-          else resultStr = `Even${throughStr}`;
-        } else {
-          resultStr = getOneVOneResultLabel(result, p1Name, p2Name);
-        }
-
         // Money — always show "if ended now"
         const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
 
         const total = Number(result?.total || 0);
-        const headerColor = total > 0 ? "#137333" : total < 0 ? "#b3261e" : "#666";
+        const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
         const oneVOneTitle = (
-          <span style={{ color: headerColor }}>
-            {p1Name} vs {p2Name} | {resultStr} | {moneyStr}
+          <span>
+            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
+            <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
           </span>
         );
 
@@ -699,8 +552,8 @@ function NinePointScorecard({
 
   const renderSection = (label, sectionHoles) => (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-
+      <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <tbody>
           <tr>
@@ -771,6 +624,7 @@ function NinePointScorecard({
 </>
         </tbody>
       </table>
+      </div>
     </div>
   );
 
@@ -1045,21 +899,18 @@ function TeamGameAudit({
 
         const gameTitle = (
           <span>
-            <span>{game.start}-{game.end} | </span>
-            <span style={{ color: wheelBets >= 0 ? "#137333" : "#b3261e", fontWeight: 700 }}>
+            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Holes {game.start}–{game.end}</span>
+            <span style={{ color: wheelBets >= 0 ? "#1a5c35" : "#b3261e", marginLeft: 8, fontWeight: 700 }}>
               {wheelNames} {wheelBets > 0 ? "+" : ""}{wheelBets} ({formatMoney(wheelDollars)}ea)
             </span>
-            <br />
-            <span style={{ fontSize: 12, color: "#666" }}>
+            <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
               {opponentPlayers.map((p, i) => {
                 const bets = playerNetBets[p.id] || 0;
-                const color = bets > 0 ? "#137333" : bets < 0 ? "#b3261e" : "#666";
+                const color = bets > 0 ? "#1a5c35" : bets < 0 ? "#b3261e" : "#6b7280";
                 return (
                   <span key={p.id}>
-                    {i > 0 && " | "}
-                    <span style={{ color }}>
-                      {p.name} {bets > 0 ? "+" : ""}{bets}
-                    </span>
+                    {i > 0 && " · "}
+                    <span style={{ color }}>{p.name} {bets > 0 ? "+" : ""}{bets}</span>
                   </span>
                 );
               })}

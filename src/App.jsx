@@ -2558,25 +2558,12 @@ return (
 
     {roundCode && (
       <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: "#e8f5e9",
-        border: "1px solid #b7e1cd",
-        borderRadius: 8,
-        padding: "8px 14px",
-        marginBottom: 10,
-        fontSize: 13,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "#e8f5e9", border: "1px solid #b7e1cd",
+        borderRadius: 8, padding: "6px 14px", marginBottom: 10, fontSize: 12,
       }}>
-        <span>
-          <span style={{ fontWeight: 700, color: "#137333" }}>🟢 Live</span>
-          <span style={{ color: "#555", marginLeft: 8 }}>
-            Share code <strong>{roundCode}</strong> so others can join
-          </span>
-        </span>
-        <span style={{ color: "#888", fontSize: 11 }}>
-          {isSyncing ? "Syncing…" : syncMessage}
-        </span>
+        <span style={{ color: "#137333", fontWeight: 600 }}>🟢 Code: {roundCode}</span>
+        <span style={{ color: "#888" }}>{isSyncing ? "Syncing…" : syncMessage}</span>
       </div>
     )}
 
@@ -2588,6 +2575,12 @@ return (
     players={activePlayers}
     scores={scores}
     setScore={setScore}
+    onPrevHole={() => {
+      if (currentHole > 1) setCurrentHole(currentHole - 1);
+    }}
+    onNextHole={() => {
+      if (currentHole < 18) setCurrentHole(currentHole + 1);
+    }}
     onSaveHole={() => {
       const nextHole = currentHole + 1;
 
