@@ -1,3 +1,4 @@
+import SettingsPanel from "../components/SettingsPanel";
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import CourseEditor from "../components/CourseEditor";
 import MatchList from "../components/MatchList";
@@ -221,47 +222,15 @@ export default function SetupScreen({
       {/* ── PLAYERS ── */}
       <Card>
         <SectionLabel>Players & Handicaps</SectionLabel>
-
-        {/* Player count */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <span style={{ fontSize: 13, color: sc.muted, minWidth: 60 }}>Players</span>
-          <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-            {["3p", "4p", "5p"].map((m, i) => (
-              <button key={m} onClick={() => handleModeChange(m)} style={{
-                padding: "7px 16px", border: "none",
-                background: mode === m ? sc.green : "#fff",
-                color: mode === m ? "#fff" : sc.ink,
-                fontWeight: 600, fontSize: 14, cursor: "pointer",
-                borderRight: i < 2 ? `1px solid ${sc.border}` : "none",
-                fontFamily: "inherit",
-              }}>{m === "3p" ? "3" : m === "4p" ? "4" : "5"}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Handicap mode */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <span style={{ fontSize: 13, color: sc.muted, minWidth: 60 }}>Strokes</span>
-          <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-            {[
-              { value: "relative", label: "Net (Lowest)" },
-              { value: "full", label: "Full HCP" },
-            ].map(({ value, label }, i) => (
-              <button key={value} onClick={() => setHandicapMode(value)} style={{
-                padding: "7px 14px", border: "none",
-                background: handicapMode === value ? sc.green : "#fff",
-                color: handicapMode === value ? "#fff" : sc.ink,
-                fontWeight: 600, fontSize: 13, cursor: "pointer",
-                borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
-                fontFamily: "inherit",
-              }}>{label}</button>
-            ))}
-          </div>
-        </div>
+        <SettingsPanel
+          mode={mode} setMode={handleModeChange}
+          handicapMode={handicapMode} setHandicapMode={setHandicapMode}
+        />
         <div style={{ marginTop: 12 }}>
           <PlayerSetupPanel
             mode={mode} players={players} onPlayerChange={handlePlayerChange}
-            onResetSetup={resetSetup}
+            onSaveSetup={saveSetup} onLoadSetup={loadSetup} onResetSetup={resetSetup}
+            onAutoCreateMatches={autoCreateMatches} teamGameUnitAmount={teamGameUnitAmount}
           />
         </div>
       </Card>
@@ -351,14 +320,11 @@ export default function SetupScreen({
       {enableTeamGame && (
         <Card>
           <SectionLabel>Team Assignments</SectionLabel>
-          <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10, lineHeight: 1.5 }}>
-            Each game covers any number of holes — just make sure they add up to 18. Most common formats below, or build your own.
-          </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <OutlineButton onClick={() => applyPreset("6-6-6")}>6 / 6 / 6</OutlineButton>
             <OutlineButton onClick={() => applyPreset("9-9")}>9 / 9</OutlineButton>
             <OutlineButton onClick={() => setTeamGames(prev => [...prev, createDefaultTeamGame(prev.length + 1)])}>
-              + Custom
+              + Add Game
             </OutlineButton>
           </div>
 
@@ -469,9 +435,6 @@ export default function SetupScreen({
       {/* ── COURSE ── */}
       <Card>
         <SectionLabel>Course Setup</SectionLabel>
-        <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10, lineHeight: 1.5 }}>
-          Westwood is pre-loaded. Course search coming soon — for now edit pars and HCPs below if needed.
-        </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 13, color: sc.muted, display: "block", marginBottom: 6 }}>Course name</label>
           <input
@@ -486,9 +449,6 @@ export default function SetupScreen({
       {/* ── SAVED ROUNDS ── */}
       <Card>
         <SectionLabel>Saved Rounds</SectionLabel>
-        <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
-          Save your group setup to reuse next time. <span style={{ color: sc.gold }}>Coming soon: load a previous round without the scores.</span>
-        </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input type="text" value={savedRoundName} onChange={(e) => setSavedRoundName(e.target.value)}
             placeholder="Name this setup to save it"

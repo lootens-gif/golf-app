@@ -2,8 +2,6 @@ export default function PlayerSetupPanel({
   mode,
   players,
   onPlayerChange,
-  onSaveSetup,
-  onLoadSetup,
   onResetSetup,
 }) {
   function handleHandicapChange(index, rawValue) {
@@ -16,8 +14,8 @@ export default function PlayerSetupPanel({
   }
 
   return (
-    <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 10, marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0, marginBottom: 8 }}>Player Setup</h3>
+    <div>
+      <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>Player Setup</h3>
 
       {players.map((player, index) => (
         <div
@@ -55,15 +53,13 @@ export default function PlayerSetupPanel({
       ))}
 
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <button onClick={onSaveSetup}>Save Players</button>
-        <button onClick={onLoadSetup}>Load Players</button>
         <button
           onClick={() => {
             if (window.confirm("Reset everything to defaults? This clears all scores, matches, and players.")) {
               onResetSetup();
             }
           }}
-          style={{ color: "#b3261e", marginLeft: "auto", fontSize: 13 }}
+          style={{ color: "#b3261e", fontSize: 13, background: "transparent", border: "1px solid #fecaca", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit" }}
         >
           Reset All
         </button>
