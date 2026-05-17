@@ -13,11 +13,6 @@ export default function HoleResultCard({
 
   const result = buildRealHoleResultLines(lastHoleSaved);
 
-console.log("HOLE DEBUG", {
-  hole: lastHoleSaved,
-  resultFromBuilder: result,
-  matchResults,
-});
 
   const isMainNinePoint = mode === "3p";
 
@@ -88,7 +83,7 @@ console.log("HOLE DEBUG", {
             const { teamAName, teamBName, netUnits, betScores } = line;
             const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
             const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
-            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+            const pressStr = betScores.map(s => s > 0 ? `+${s}` : s === 0 ? `0` : `${s}`).join("/");
 
             return (
               <div key={`match-${index}`} style={{
