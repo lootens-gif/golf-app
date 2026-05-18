@@ -45,24 +45,12 @@ export default function ResultsScreen({
   birdieResults = [], teamGames = [], teamGameResults = [],
   getTeamGameSelection, handicapMode, teamGameUnitAmount,
   noPar3TeamGame = false, goToLive, backToSetup, onUpdateScore,
-  onSaveRound, roundName, savedRounds = [],
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
   });
   const [drillPlayerId, setDrillPlayerId] = useState(null);
   const scorecardRef = useRef(null);
-  const [saveRoundName, setSaveRoundName] = useState("");
-  const [roundSaved, setRoundSaved] = useState(false);
-  const [showSaveForm, setShowSaveForm] = useState(false);
-
-  // Check if this round is already saved
-  const isAlreadySaved = savedRounds.some(r => r.data?.roundName === roundName && roundName);
-
-  useEffect(() => {
-    // Pre-fill save name from roundName prop
-    if (roundName) setSaveRoundName(roundName);
-  }, [roundName]);
 
   useEffect(() => {
     try { window.localStorage.setItem(SCORECARD_OPEN_KEY, showAuditTrail ? "open" : "closed"); } catch {}
@@ -125,80 +113,6 @@ export default function ResultsScreen({
           <span>${totalWon.toFixed(2)} won = ${totalWon.toFixed(2)} lost ✓</span>
         </div>
       </Card>
-
-      {/* SAVE THIS ROUND */}
-      {onSaveRound && (
-        <Card style={{ borderTop: `3px solid ${sc.gold}`, background: sc.goldLight }}>
-          {roundSaved || isAlreadySaved ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 20 }}>✅</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: sc.green }}>
-                Round saved — find it in Setup › Saved Rounds
-              </span>
-            </div>
-          ) : showSaveForm ? (
-            <div>
-              <SectionLabel>Save This Round</SectionLabel>
-              <input
-                type="text"
-                value={saveRoundName}
-                onChange={e => setSaveRoundName(e.target.value)}
-                placeholder="Round name"
-                style={{
-                  width: "100%", fontSize: 15, fontWeight: 600,
-                  padding: "10px 12px", border: `1px solid ${sc.border}`,
-                  borderRadius: 8, background: "#fff", color: sc.ink,
-                  fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12,
-                }}
-              />
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => {
-                    const ok = onSaveRound(saveRoundName);
-                    if (ok !== false) { setRoundSaved(true); setShowSaveForm(false); }
-                  }}
-                  style={{
-                    flex: 1, padding: 12, fontSize: 15, fontWeight: 700,
-                    background: sc.green, color: "#fff", border: "none",
-                    borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  Save Round 💾
-                </button>
-                <button
-                  onClick={() => setShowSaveForm(false)}
-                  style={{
-                    padding: "12px 16px", fontSize: 14, background: "transparent",
-                    color: sc.muted, border: `1px solid ${sc.border}`,
-                    borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: sc.ink }}>💾 Save This Round</div>
-                <div style={{ fontSize: 12, color: sc.muted, marginTop: 2 }}>
-                  {roundName || "Add to your Saved Rounds for future reference"}
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSaveForm(true)}
-                style={{
-                  padding: "9px 16px", fontSize: 13, fontWeight: 600,
-                  background: sc.gold, color: "#fff", border: "none",
-                  borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                Save
-              </button>
-            </div>
-          )}
-        </Card>
-      )}
 
       {/* SCORECARDS TOGGLE */}
       <div ref={scorecardRef} onClick={() => setShowAuditTrail(v => !v)}

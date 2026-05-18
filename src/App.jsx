@@ -412,6 +412,8 @@ export default function App() {
 
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
+  const [roundSaveName, setRoundSaveName] = useState("");
   const [enableTeamGame, setEnableTeamGame] = useState(true);
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -1593,14 +1595,36 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   return true;
 }
 
+  // Save round from Results screen or Round Complete modal
+  function saveRoundFromResults(nameOverride) {
+    const today = new Date();
+    const monthDay = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
+    const name = (nameOverride || roundName || roundSaveName || autoName).trim() || autoName;
+    try {
+      const round = {
+        id: createId('saved-round'),
+        name,
+        savedAt: new Date().toISOString(),
+        data: buildCurrentRoundSnapshot(),
+      };
+      const nextRounds = [round, ...savedRounds];
+      setSavedRounds(nextRounds);
+      localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(nextRounds));
+      setSelectedSavedRoundId(round.id);
+      setRoundName(name);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
 function saveNamedRound() {
   const trimmedName = savedRoundName.trim();
-
   if (!trimmedName) {
     setSetupMessage("Enter a round name first.");
     return;
   }
-
   try {
     const round = {
       id: createId("saved-round"),
@@ -1781,7 +1805,8 @@ function resetSetup() {
   setLastHoleSaved(null);
   setFocusGameTarget(null);
   setScreen("setup");
-
+  setRoundCode(generateRoundCode());
+  setRoundName("");
   setSetupMessage("Setup reset.");
 }
 
@@ -2533,6 +2558,81 @@ return (
 
     {screen === "live" && (
       <>
+
+      {/* ROUND COMPLETE MODAL */}
+      {showRoundCompleteModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, padding: 20,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: 24,
+            width: "100%", maxWidth: 360,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 48 }}>🏁</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#1a5c35", marginTop: 8 }}>
+                Round Complete!
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+                Save this round to access it later
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={roundSaveName}
+              onChange={e => setRoundSaveName(e.target.value)}
+              placeholder="Round name"
+              style={{
+                width: "100%", fontSize: 15, fontWeight: 600,
+                padding: "10px 12px", border: "1px solid #c3ddd0",
+                borderRadius: 8, background: "#f0f7f3",
+                color: "#1a1a1a", fontFamily: "inherit",
+                boxSizing: "border-box", marginBottom: 16,
+              }}
+            />
+
+            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 16, textAlign: "center" }}>
+              You can edit any hole score or game setup after saving
+            </div>
+
+            <button
+              onClick={() => {
+                const saved = saveRoundFromResults(roundSaveName);
+                setShowRoundCompleteModal(false);
+                setScreen("results");
+                setSaveMessage(saved ? "Round saved ✓" : null);
+              }}
+              style={{
+                width: "100%", padding: 14, fontSize: 16, fontWeight: 700,
+                background: "#1a5c35", color: "#fff", border: "none",
+                borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                marginBottom: 10,
+              }}
+            >
+              Save Round & See Results
+            </button>
+
+            <button
+              onClick={() => {
+                setShowRoundCompleteModal(false);
+                setCurrentHole(18);
+              }}
+              style={{
+                width: "100%", padding: 12, fontSize: 14, fontWeight: 600,
+                background: "transparent", color: "#6b7280",
+                border: "1px solid #d1d5db", borderRadius: 10,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Edit Hole 18 Scores
+            </button>
+          </div>
+        </div>
+      )}
 {pendingNextGameIndex == null && (
   <>
     {saveMessage && (
@@ -2589,6 +2689,12 @@ setSaveMessage(`Hole ${currentHole} saved`);
 
       if (currentHole >= 18) {
   setCurrentHole(19);
+  // Auto-suggest name for the modal
+  const today = new Date();
+  const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
+  setRoundSaveName(roundName || autoName);
+  setShowRoundCompleteModal(true);
   return;
 }
 
@@ -2997,6 +3103,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
     goToLive={goToLive}
     backToSetup={backToSetup}
     onUpdateScore={setScore}
+    onSaveRound={saveRoundFromResults}
+    roundName={roundName}
+    savedRounds={savedRounds}
   />
 )}
 
