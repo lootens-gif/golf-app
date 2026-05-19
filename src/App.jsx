@@ -19,6 +19,8 @@ import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
+import BugReportModal from "./BugReportModal";
+import QAScreen from "./QAScreen";
 import { shareRound, generateRoundCode, unsubscribeFromRound } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -415,6 +417,7 @@ export default function App() {
   const [saveMessage, setSaveMessage] = useState(null);
   const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
   const [roundSaveName, setRoundSaveName] = useState("");
+  const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -2546,6 +2549,22 @@ return (
         {syncMessage}
       </span>
     )}
+
+    <button
+      onClick={() => setShowBugReport(true)}
+      title="Report a bug"
+      style={{
+        background: "transparent",
+        border: "1px solid #d1d5db",
+        borderRadius: 6,
+        padding: "4px 8px",
+        fontSize: 16,
+        cursor: "pointer",
+        lineHeight: 1,
+      }}
+    >
+      🐛
+    </button>
   </div>
 </div>
 
@@ -3198,6 +3217,19 @@ if (enableTeamGame && nextGameIndex >= 0) {
 
 {screen === "join" && (
   <JoinRound onBack={() => setScreen("setup")} />
+)}
+
+{screen === "qa" && (
+  <QAScreen onBack={() => setScreen("setup")} roundCode={roundCode} />
+)}
+
+{/* BUG REPORT SLIDE-UP */}
+{showBugReport && (
+  <BugReportModal
+    screen={screen}
+    roundCode={roundCode}
+    onClose={() => setShowBugReport(false)}
+  />
 )}
   </div>
 );
