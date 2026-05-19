@@ -3226,10 +3226,11 @@ if (enableTeamGame && nextGameIndex >= 0) {
 {/* BUG REPORT SLIDE-UP */}
 {showBugReport && (
   <BugReportModal
-    screen={screen}
-    roundCode={roundCode}
-    onClose={() => setShowBugReport(false)}
-  />
+  screen={screen}
+  roundCode={roundCode}
+  onClose={() => setShowBugReport(false)}
+  onOpenQA={() => setScreen("qa")}
+/>
 )}
   </div>
 );

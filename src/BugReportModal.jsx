@@ -19,7 +19,7 @@ const SEVERITIES = [
   { v: "idea", l: "💡 Idea", sub: "Suggestion or improvement" },
 ];
 
-export default function BugReportModal({ screen, roundCode, onClose }) {
+export default function BugReportModal({ screen, roundCode, onClose, onOpenQA }) {
   const [testerName, setTesterName] = useState(() => localStorage.getItem("sc-tester-name") || "");
   const [bugScreen, setBugScreen] = useState(screen || "Live");
   const [severity, setSeverity] = useState("wrong");
@@ -205,7 +205,12 @@ export default function BugReportModal({ screen, roundCode, onClose }) {
                 Cancel
               </button>
               <span style={{ color: sc.border, margin: "0 8px" }}>·</span>
-              <a href="/qa" style={{ color: sc.green, fontSize: 13 }}>Run full QA test →</a>
+              <button
+  onClick={() => { onClose(); onOpenQA(); }}
+  style={{ background: "transparent", border: "none", color: sc.green, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+>
+  Run full QA test →
+</button>
             </div>
           </>
         )}
