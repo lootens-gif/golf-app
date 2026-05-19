@@ -87,12 +87,24 @@ export default function BugReportModal({ screen, roundCode, onClose, onOpenQA })
         ) : (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: sc.ink }}>🐛 Report an Issue</div>
-              <button onClick={onClose} style={{
-                background: "transparent", border: "none", fontSize: 20,
-                cursor: "pointer", color: sc.muted, padding: 4,
-              }}>✕</button>
-            </div>
+  <div style={{ fontSize: 18, fontWeight: 700, color: sc.ink }}>🐛 Report an Issue</div>
+  <button onClick={onClose} style={{
+    background: "transparent", border: "none", fontSize: 20,
+    cursor: "pointer", color: sc.muted, padding: 4,
+  }}>✕</button>
+</div>
+
+<button
+  onClick={() => { onClose(); onOpenQA(); }}
+  style={{
+    width: "100%", padding: "10px 14px", marginBottom: 20,
+    background: sc.greenLight, border: `1px solid ${sc.green}`,
+    borderRadius: 10, color: sc.green, fontWeight: 600, fontSize: 14,
+    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+  }}
+>
+  🧪 Running a full test session? Start here →
+</button>
 
             {/* Tester name */}
             <div style={{ marginBottom: 16 }}>
