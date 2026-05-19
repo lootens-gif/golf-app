@@ -46,6 +46,7 @@ export default function ResultsScreen({
   getTeamGameSelection, handicapMode, teamGameUnitAmount,
   noPar3TeamGame = false, goToLive, backToSetup, onUpdateScore,
   onSaveRound, roundName, savedRounds = [],
+  skinsResults, skinsEnabled, skinsConfig,
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
@@ -125,6 +126,82 @@ export default function ResultsScreen({
           <span>${totalWon.toFixed(2)} won = ${totalWon.toFixed(2)} lost ✓</span>
         </div>
       </Card>
+
+      {/* SKINS RESULTS */}
+      {skinsEnabled && skinsResults && (
+        <Card style={{ borderTop: `3px solid #b8952a` }}>
+          <SectionLabel>🏆 Skins</SectionLabel>
+
+          {/* Per-player summary */}
+          <div style={{ marginBottom: 14 }}>
+            {[...players]
+              .sort((a, b) => (skinsResults.ledger[b.id] || 0) - (skinsResults.ledger[a.id] || 0))
+              .map(player => {
+                const net = skinsResults.ledger[player.id] || 0;
+                const skinsWon = skinsResults.skinsWon?.[player.id] || 0;
+                const { str, color } = fmt(net);
+                return (
+                  <div key={player.id} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 10px", marginBottom: 6, borderRadius: 8,
+                    background: net > 0 ? sc.goldLight : net < 0 ? "#fef2f2" : "#fafafa",
+                    border: `1px solid ${net > 0 ? "#fcd34d" : net < 0 ? "#fecaca" : sc.border}`,
+                  }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: sc.ink }}>{player.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ fontSize: 12, color: sc.muted }}>
+                        {skinsWon} skin{skinsWon !== 1 ? "s" : ""}
+                      </span>
+                      <span style={{ fontSize: 16, fontWeight: 800, color }}>{str}</span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+
+          {/* Hole-by-hole */}
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", color: sc.muted, marginBottom: 8 }}>
+            Hole by Hole
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 11 }}>
+              <thead>
+                <tr>
+                  {["Hole", "Winner", "Value", "Carry"].map(h => (
+                    <th key={h} style={{ padding: "4px 6px", textAlign: h === "Value" || h === "Carry" ? "center" : "left", color: sc.muted, fontWeight: 600, borderBottom: `1px solid ${sc.border}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {skinsResults.holeResults?.map(h => {
+                  const winnerName = h.winnerId ? players.find(p => p.id === h.winnerId)?.name : null;
+                  return (
+                    <tr key={h.hole} style={{ background: h.winnerId ? sc.goldLight : "transparent" }}>
+                      <td style={{ padding: "4px 6px", fontWeight: 600, color: sc.ink }}>{h.hole}</td>
+                      <td style={{ padding: "4px 6px", color: h.winnerId ? sc.gold : sc.muted }}>
+                        {h.winnerId ? `${winnerName}${h.birdiDoubled ? " 🐦×2" : ""}` : h.tied ? "Tied" : "–"}
+                      </td>
+                      <td style={{ padding: "4px 6px", textAlign: "center", color: h.winnerId ? sc.ink : sc.muted }}>
+                        {h.winnerId && skinsConfig?.skinsType !== "pot" ? `$${h.value}` : h.winnerId ? "✓" : "–"}
+                      </td>
+                      <td style={{ padding: "4px 6px", textAlign: "center", color: sc.muted }}>
+                        {h.carryover > 0 ? `+${h.carryover}` : "–"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {skinsResults.totalPot != null && (
+            <div style={{ marginTop: 10, padding: "8px 12px", background: sc.greenLight, borderRadius: 8, fontSize: 12, color: sc.green, fontWeight: 600 }}>
+              Total pot: ${skinsResults.totalPot.toFixed(2)}
+              {skinsResults.valuePerSkin ? ` · $${skinsResults.valuePerSkin.toFixed(2)} per skin` : ""}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* SAVE THIS ROUND */}
       {onSaveRound && (

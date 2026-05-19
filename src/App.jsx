@@ -11,6 +11,7 @@ import {
   playPressMatch,
   scoreRound,
   buildBirdieResults,
+  settleSkinsRound,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
@@ -440,6 +441,18 @@ export default function App() {
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
   const [birdieBetAmount, setBirdieBetAmount] = useState(5);
+
+  // Skins
+  const [skinsEnabled, setSkinsEnabled] = useState(false);
+  const [skinsType, setSkinsType] = useState("value");
+  const [skinsGross, setSkinsGross] = useState(false);
+  const [skinValueAmount, setSkinValueAmount] = useState(5);
+  const [skinCarryover, setSkinCarryover] = useState(true);
+  const [skinBirdie, setSkinBirdie] = useState(false);
+  const [skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover] = useState(false);
+  const [potType, setPotType] = useState("nocarryover");
+  const [potDonation, setPotDonation] = useState(10);
+  const [potBaseUnit, setPotBaseUnit] = useState(1);
   const [toyRule, setToyRule] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
 
@@ -1334,6 +1347,26 @@ const activePlayers = useMemo(() => {
   return players.filter((player) => activePlayerIds.has(player.id));
 }, [enableTeamGame, players, matches]);
 
+const skinsConfig = useMemo(() => ({
+  skinsType,
+  skinsGross,
+  skinValueAmount: Number(skinValueAmount) || 5,
+  skinCarryover,
+  skinBirdie,
+  skinBirdieDoubleCarryover,
+  potType,
+  potDonation: Number(potDonation) || 10,
+  potBaseUnit: Number(potBaseUnit) || 1,
+}), [skinsType, skinsGross, skinValueAmount, skinCarryover,
+     skinBirdie, skinBirdieDoubleCarryover, potType, potDonation, potBaseUnit]);
+
+const skinsResults = useMemo(() => {
+  if (!skinsEnabled || !activePlayers.length) return null;
+  try {
+    return settleSkinsRound({ players: activePlayers, scores, course, handicapMode, skinsConfig });
+  } catch { return null; }
+}, [skinsEnabled, activePlayers, scores, course, handicapMode, skinsConfig]);
+
 const roundSummaryRows = activePlayers.map((player) => {
   let netTotal = 0;
 
@@ -1462,6 +1495,16 @@ function loadLastRound() {
 setPressTrigger(Number(round.pressTrigger || 1));
 setBirdiesEnabled(!!round.birdiesEnabled);
 setBirdieBetAmount(Number(round.birdieBetAmount || 5));
+  if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
+  if (round.skinsType) setSkinsType(round.skinsType);
+  if (typeof round.skinsGross === "boolean") setSkinsGross(round.skinsGross);
+  if (round.skinValueAmount != null) setSkinValueAmount(Number(round.skinValueAmount));
+  if (typeof round.skinCarryover === "boolean") setSkinCarryover(round.skinCarryover);
+  if (typeof round.skinBirdie === "boolean") setSkinBirdie(round.skinBirdie);
+  if (typeof round.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(round.skinBirdieDoubleCarryover);
+  if (round.potType) setPotType(round.potType);
+  if (round.potDonation != null) setPotDonation(Number(round.potDonation));
+  if (round.potBaseUnit != null) setPotBaseUnit(Number(round.potBaseUnit));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1522,6 +1565,16 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     birdiesEnabled,
     birdieBetAmount,
     toyRule,
+    skinsEnabled,
+    skinsType,
+    skinsGross,
+    skinValueAmount,
+    skinCarryover,
+    skinBirdie,
+    skinBirdieDoubleCarryover,
+    potType,
+    potDonation,
+    potBaseUnit,
     teamGames,
     matches,
     screen,
@@ -1542,6 +1595,16 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   birdiesEnabled,
   birdieBetAmount,
   toyRule,
+  skinsEnabled,
+  skinsType,
+  skinsGross,
+  skinValueAmount,
+  skinCarryover,
+  skinBirdie,
+  skinBirdieDoubleCarryover,
+  potType,
+  potDonation,
+  potBaseUnit,
   teamGames,
   matches,
   screen,
@@ -2525,6 +2588,26 @@ return (
     setNoPar3TeamGame={setNoPar3TeamGame}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
+    skinsEnabled={skinsEnabled}
+    setSkinsEnabled={setSkinsEnabled}
+    skinsType={skinsType}
+    setSkinsType={setSkinsType}
+    skinsGross={skinsGross}
+    setSkinsGross={setSkinsGross}
+    skinValueAmount={skinValueAmount}
+    setSkinValueAmount={setSkinValueAmount}
+    skinCarryover={skinCarryover}
+    setSkinCarryover={setSkinCarryover}
+    skinBirdie={skinBirdie}
+    setSkinBirdie={setSkinBirdie}
+    skinBirdieDoubleCarryover={skinBirdieDoubleCarryover}
+    setSkinBirdieDoubleCarryover={setSkinBirdieDoubleCarryover}
+    potType={potType}
+    setPotType={setPotType}
+    potDonation={potDonation}
+    setPotDonation={setPotDonation}
+    potBaseUnit={potBaseUnit}
+    setPotBaseUnit={setPotBaseUnit}
     applyPreset={applyPreset}
     setTeamGames={setTeamGames}
     teamGames={teamGames}
@@ -3106,6 +3189,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
     onSaveRound={saveRoundFromResults}
     roundName={roundName}
     savedRounds={savedRounds}
+    skinsResults={skinsResults}
+    skinsEnabled={skinsEnabled}
+    skinsConfig={skinsConfig}
   />
 )}
 

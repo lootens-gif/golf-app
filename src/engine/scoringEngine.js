@@ -1398,3 +1398,186 @@ function buildTabsFromLedger(playerLedger = []) {
 
   return tabs;
 }
+
+// ─── SKINS ENGINE ────────────────────────────────────────────────────────────
+
+/**
+ * Get the hole value for pot skins with escalation.
+ * escalation: "flat" | "escalating"
+ * baseUnit: $ per hole (flat) or base unit (escalating: front=1x, mid=2x, back=3x)
+ */
+export function getSkinHoleValue(hole, baseUnit, escalation) {
+  if (escalation === "escalating") {
+    if (hole <= 6) return baseUnit * 1;
+    if (hole <= 12) return baseUnit * 2;
+    return baseUnit * 3;
+  }
+  return baseUnit;
+}
+
+/**
+ * Compute skins results for a round.
+ * Returns array of { hole, winnerId, value, carryover, birdiDouble }
+ */
+export function computeSkins({
+  players,
+  scores,
+  course,
+  handicapMode,
+  skinsConfig,
+}) {
+  const {
+    skinsType,        // "value" | "pot"
+    skinsGross,       // true = gross, false = net
+    // Skin Value specific
+    skinValueAmount,  // $ per skin
+    skinCarryover,    // bool
+    skinBirdie,       // bool
+    skinBirdieDoubleCarryover, // bool (if false, double hole only)
+    // Pot specific
+    potType,          // "nocarryover" | "flat" | "escalating"
+    potBaseUnit,      // $ per hole (flat/escalating) or total donation (nocarryover)
+  } = skinsConfig;
+
+  const holeResults = [];
+  let carryoverValue = 0;
+  let carryoverCount = 0;
+
+  for (let hole = 1; hole <= 18; hole++) {
+    const par = course.pars?.[hole - 1] ?? 4;
+
+    // Get score for each player on this hole
+    const holeScores = players.map(player => {
+      const raw = scores?.[hole]?.[player.id];
+      if (raw == null || !Number.isFinite(Number(raw))) return null;
+
+      let score = Number(raw);
+      if (!skinsGross) {
+        // Net: subtract handicap strokes
+        const strokes = getHandicapStrokes(player.id, hole, players, course, handicapMode);
+        score = score - strokes;
+      }
+      return { playerId: player.id, score, raw: Number(raw) };
+    }).filter(Boolean);
+
+    // Need all players to have scored
+    if (holeScores.length < players.length) {
+      holeResults.push({ hole, winnerId: null, value: 0, carryover: carryoverCount, incomplete: true });
+      continue;
+    }
+
+    const minScore = Math.min(...holeScores.map(s => s.score));
+    const winners = holeScores.filter(s => s.score === minScore);
+
+    // Tie — no skin, carry over
+    if (winners.length !== 1) {
+      if (skinsType === "value" && skinCarryover) {
+        carryoverValue += skinValueAmount;
+        carryoverCount++;
+      } else if (skinsType === "pot" && potType !== "nocarryover") {
+        const holeVal = getSkinHoleValue(hole, potBaseUnit, potType === "escalating" ? "escalating" : "flat");
+        carryoverValue += holeVal * players.length;
+        carryoverCount++;
+      }
+      holeResults.push({ hole, winnerId: null, value: 0, carryover: carryoverCount, tied: true });
+      continue;
+    }
+
+    const winner = winners[0];
+    const isBirdie = skinsGross
+      ? Number(winner.raw) <= par - 1
+      : winner.score <= par - 1; // net birdie = net score at or below par - 1
+
+    // Calculate hole value
+    let holeValue = 0;
+    if (skinsType === "value") {
+      holeValue = skinValueAmount + (skinCarryover ? carryoverValue : 0);
+      if (skinBirdie && isBirdie) {
+        if (skinBirdieDoubleCarryover) {
+          holeValue = holeValue * 2;
+        } else {
+          holeValue = skinValueAmount * 2 + (skinCarryover ? carryoverValue : 0);
+        }
+      }
+    } else if (skinsType === "pot") {
+      if (potType === "nocarryover") {
+        holeValue = 1; // count skins, divide pot at end
+      } else {
+        const baseHoleVal = getSkinHoleValue(hole, potBaseUnit, potType === "escalating" ? "escalating" : "flat") * players.length;
+        holeValue = baseHoleVal + (potType !== "nocarryover" ? carryoverValue : 0);
+      }
+    }
+
+    holeResults.push({
+      hole,
+      winnerId: winner.playerId,
+      value: holeValue,
+      carryover: carryoverCount,
+      isBirdie,
+      birdiDoubled: skinBirdie && isBirdie,
+    });
+
+    carryoverValue = 0;
+    carryoverCount = 0;
+  }
+
+  return holeResults;
+}
+
+/**
+ * Settle skins into a player ledger.
+ * Returns { playerLedger, holeResults, totalPot }
+ */
+export function settleSkinsRound({
+  players,
+  scores,
+  course,
+  handicapMode,
+  skinsConfig,
+}) {
+  const holeResults = computeSkins({ players, scores, course, handicapMode, skinsConfig });
+
+const { skinsType, potType } = skinsConfig;
+
+  const ledger = {};
+  players.forEach(p => { ledger[p.id] = 0; });
+
+  if (skinsType === "pot" && potType === "nocarryover") {
+    // Count skins per player then divide pot
+    const skinsWon = {};
+    players.forEach(p => { skinsWon[p.id] = 0; });
+    holeResults.forEach(h => { if (h.winnerId) skinsWon[h.winnerId]++; });
+
+    const totalSkins = Object.values(skinsWon).reduce((s, v) => s + v, 0);
+    const totalPot = (skinsConfig.potDonation || 10) * players.length;
+    const valuePerSkin = totalSkins > 0 ? totalPot / totalSkins : 0;
+    const perPlayerCost = skinsConfig.potDonation || 10;
+
+    players.forEach(p => {
+      ledger[p.id] = (skinsWon[p.id] * valuePerSkin) - perPlayerCost;
+    });
+
+    return { holeResults, ledger, totalPot, valuePerSkin, skinsWon };
+  }
+
+  // Skin Value or Pot with carryover — settle hole by hole
+  const skinsWon = {};
+  players.forEach(p => { skinsWon[p.id] = 0; });
+
+  holeResults.forEach(h => {
+    if (!h.winnerId || h.value === 0) return;
+    skinsWon[h.winnerId]++;
+    // Winner collects from each other player
+    const perLoser = h.value / (players.length - 1);
+    players.forEach(p => {
+      if (p.id === h.winnerId) {
+        ledger[p.id] += h.value;
+      } else {
+        ledger[p.id] -= perLoser;
+      }
+    });
+  });
+
+  const totalPot = Object.values(ledger).filter(v => v > 0).reduce((s, v) => s + v, 0);
+  return { holeResults, ledger, totalPot, skinsWon };
+}
