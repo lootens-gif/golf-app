@@ -1335,6 +1335,7 @@ const leaderboard = useMemo(() => {
 
 const activePlayers = useMemo(() => {
   if (enableTeamGame) return players;
+  if (skinsEnabled && matches.length === 0) return players;
 
   const activePlayerIds = new Set();
 
@@ -1345,7 +1346,7 @@ const activePlayers = useMemo(() => {
   });
 
   return players.filter((player) => activePlayerIds.has(player.id));
-}, [enableTeamGame, players, matches]);
+}, [enableTeamGame, players, matches, skinsEnabled]);
 
 const skinsConfig = useMemo(() => ({
   skinsType,
@@ -2122,10 +2123,10 @@ if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
   return;
 }
 
-if (!enableTeamGame) {
+if (!enableTeamGame && !skinsEnabled) {
   if (matches.length === 0) {
-    setSetupMessage("Add at least one 1v1 match before starting.");
-    alert("Add at least one 1v1 match before starting.");
+    setSetupMessage("Add at least one 1v1 match, team game, or enable Skins before starting.");
+    alert("Add at least one 1v1 match, team game, or enable Skins before starting.");
     return;
   }
 
