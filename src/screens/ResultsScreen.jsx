@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import SettlementSection from "../components/SettlementSection";
 import AuditTrail from "../components/AuditTrail";
+import { getHandicapStrokes } from "../engine/scoringEngine";
 
 const SCORECARD_OPEN_KEY = "results-scorecard-open";
 
@@ -56,6 +57,7 @@ export default function ResultsScreen({
   const [saveRoundName, setSaveRoundName] = useState("");
   const [roundSaved, setRoundSaved] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [expandedSkinHole, setExpandedSkinHole] = useState(null);
 
   // Check if this round is already saved
   const isAlreadySaved = savedRounds.some(r => r.data?.roundName === roundName && roundName);
@@ -129,7 +131,7 @@ export default function ResultsScreen({
 
       {/* SKINS RESULTS */}
       {skinsEnabled && skinsResults && (
-        <Card style={{ borderTop: `3px solid #b8952a` }}>
+        <Card style={{ borderTop: `3px solid ${sc.gold}` }}>
           <SectionLabel>🏆 Skins</SectionLabel>
 
           {/* Per-player summary */}
@@ -159,43 +161,162 @@ export default function ResultsScreen({
               })}
           </div>
 
-          {/* Hole-by-hole */}
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", color: sc.muted, marginBottom: 8 }}>
-            Hole by Hole
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 11 }}>
-              <thead>
-                <tr>
-                  {["Hole", "Winner", "Value", "Carry"].map(h => (
-                    <th key={h} style={{ padding: "4px 6px", textAlign: h === "Value" || h === "Carry" ? "center" : "left", color: sc.muted, fontWeight: 600, borderBottom: `1px solid ${sc.border}` }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {skinsResults.holeResults?.map(h => {
-                  const winnerName = h.winnerId ? players.find(p => p.id === h.winnerId)?.name : null;
+          {/* Hole-by-hole — winners only */}
+          {(() => {
+            const hasCarryover = skinsConfig?.skinCarryover || skinsConfig?.skinsType === "tvskins";
+            const isNet = !skinsConfig?.skinsGross;
+            const winnerHoles = (skinsResults.holeResults || []).filter(h => h.winnerId);
+
+            if (winnerHoles.length === 0) return (
+              <div style={{ fontSize: 13, color: sc.muted, fontStyle: "italic" }}>No skins won yet</div>
+            );
+
+            return (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", color: sc.muted, marginBottom: 8 }}>
+                  Winners
+                </div>
+                {winnerHoles.map(h => {
+                  const winnerName = players.find(p => p.id === h.winnerId)?.name || "–";
+                  const par = course?.pars?.[h.hole - 1] ?? 4;
+                  const winnerRaw = scores?.[h.hole]?.[h.winnerId];
+                  const winnerStrokes = isNet ? getHandicapStrokes(h.winnerId, h.hole, players, course, handicapMode) : 0;
+                  const winnerNet = winnerRaw != null ? Number(winnerRaw) - winnerStrokes : null;
+                  const isGrossBirdie = winnerRaw != null && Number(winnerRaw) <= par - 1;
+                  const isNetBirdie = isNet && winnerNet != null && winnerNet <= par - 1;
+                  const isPerSkin = skinsConfig?.skinsType === "value";
+                  const isPot = skinsConfig?.skinsType === "pot";
+                  const isTvSkins = skinsConfig?.skinsType === "tvskins";
+                  const showBirdie = isPerSkin && (isGrossBirdie || isNetBirdie);
+                  const birdieLabel = isGrossBirdie ? "Birdie" : "Net Birdie";
+
+                  // Score color
+                  const scoreColor = (score, p) => {
+                    const d = score - p;
+                    if (d <= -1) return "#1a5c35";
+                    if (d === 0) return "#6b7280";
+                    return "#b3261e";
+                  };
+
+                  const isExpanded = expandedSkinHole === h.hole;
+
                   return (
-                    <tr key={h.hole} style={{ background: h.winnerId ? sc.goldLight : "transparent" }}>
-                      <td style={{ padding: "4px 6px", fontWeight: 600, color: sc.ink }}>{h.hole}</td>
-                      <td style={{ padding: "4px 6px", color: h.winnerId ? sc.gold : sc.muted }}>
-                        {h.winnerId ? `${winnerName}${h.birdiDoubled ? " 🐦×2" : ""}` : h.tied ? "Tied" : "–"}
-                      </td>
-                      <td style={{ padding: "4px 6px", textAlign: "center", color: h.winnerId ? sc.ink : sc.muted }}>
-                        {h.winnerId && skinsConfig?.skinsType !== "pot" ? `$${h.value}` : h.winnerId ? "✓" : "–"}
-                      </td>
-                      <td style={{ padding: "4px 6px", textAlign: "center", color: sc.muted }}>
-                        {h.carryover > 0 ? `+${h.carryover}` : "–"}
-                      </td>
-                    </tr>
+                    <div key={h.hole} style={{ marginBottom: 8 }}>
+                      {/* Winner row — tappable */}
+                      <div
+                        onClick={() => setExpandedSkinHole(isExpanded ? null : h.hole)}
+                        style={{
+                          display: "flex", alignItems: "center",
+                          padding: "10px 12px", borderRadius: isExpanded ? "10px 10px 0 0" : 10,
+                          background: sc.goldLight, border: `1px solid #fcd34d`,
+                          cursor: "pointer", userSelect: "none", gap: 0,
+                        }}
+                      >
+                        {/* Hole number — fixed width */}
+                        <span style={{ fontSize: 12, fontWeight: 700, color: sc.muted, width: 52, flexShrink: 0 }}>
+                          Hole {h.hole}
+                        </span>
+
+                        {/* Winner name — flex grows */}
+                        <span style={{ flex: 1, fontWeight: 600, color: sc.ink, fontSize: 14, marginRight: 8 }}>
+                          {winnerName}
+                        </span>
+
+                        {/* Score circle — fixed width so all align */}
+                        <div style={{ width: 32, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+                          {winnerRaw != null && (
+                            <span style={{
+                              width: 28, height: 28, borderRadius: "50%",
+                              background: sc.green, color: "#fff",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 13, fontWeight: 800,
+                            }}>
+                              {winnerRaw}{isNet && winnerStrokes > 0 ? "•" : ""}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Birdie label — fixed width, only for Per Skin */}
+                        <div style={{ width: 90, flexShrink: 0, marginLeft: 6 }}>
+                          {showBirdie && (
+                            <span style={{ fontSize: 11, color: sc.green, fontWeight: 700 }}>
+                              {birdieLabel}{h.birdiDoubled ? " ×2" : ""}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Value — fixed width */}
+                        <div style={{ width: 36, textAlign: "right", flexShrink: 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: sc.ink }}>
+                            {isPot ? "✓" : isTvSkins ? `$${h.value}` : `$${h.value}`}
+                          </span>
+                        </div>
+
+                        {/* Carry — only if relevant */}
+                        {hasCarryover && (
+                          <div style={{ width: 56, textAlign: "right", flexShrink: 0 }}>
+                            {h.carryover > 0 && (
+                              <span style={{ fontSize: 10, color: sc.muted }}>+{h.carryover} carry</span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Expand chevron */}
+                        <span style={{ fontSize: 11, color: sc.muted, marginLeft: 6 }}>{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+
+                      {/* Expanded — all player scores */}
+                      {isExpanded && (
+                        <div style={{
+                          background: "#fff", border: `1px solid #fcd34d`,
+                          borderTop: "none", borderRadius: "0 0 10px 10px",
+                          padding: "10px 12px",
+                        }}>
+                          {players.map(player => {
+                            const raw = scores?.[h.hole]?.[player.id];
+                            if (raw == null) return null;
+                            const strokes = isNet ? getHandicapStrokes(player.id, h.hole, players, course, handicapMode) : 0;
+                            const isWinner = player.id === h.winnerId;
+                            const color = scoreColor(Number(raw), par);
+                            const diff = Number(raw) - par;
+                            const diffLabel = diff === 0 ? "Par" : diff === -1 ? "Birdie" : diff <= -2 ? "Eagle" : diff === 1 ? "Bogey" : `+${diff}`;
+
+                            return (
+                              <div key={player.id} style={{
+                                display: "flex", justifyContent: "space-between", alignItems: "center",
+                                padding: "5px 0",
+                                borderBottom: `1px solid ${sc.border}`,
+                              }}>
+                                <span style={{ fontSize: 13, fontWeight: isWinner ? 700 : 400, color: sc.ink }}>
+                                  {player.name}
+                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: 11, color: sc.muted }}>{diffLabel}</span>
+                                  <span style={{
+                                    width: 26, height: 26, borderRadius: "50%",
+                                    background: isWinner ? sc.green : "transparent",
+                                    border: isWinner ? "none" : `1px solid ${sc.border}`,
+                                    color: isWinner ? "#fff" : color,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 13, fontWeight: 700,
+                                  }}>
+                                    {raw}{isNet && strokes > 0 ? "•" : ""}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            );
+          })()}
 
           {skinsResults.totalPot != null && (
-            <div style={{ marginTop: 10, padding: "8px 12px", background: sc.greenLight, borderRadius: 8, fontSize: 12, color: sc.green, fontWeight: 600 }}>
+            <div style={{ marginTop: 12, padding: "8px 12px", background: sc.greenLight, borderRadius: 8, fontSize: 12, color: sc.green, fontWeight: 600 }}>
               Total pot: ${skinsResults.totalPot.toFixed(2)}
               {skinsResults.valuePerSkin ? ` · $${skinsResults.valuePerSkin.toFixed(2)} per skin` : ""}
             </div>

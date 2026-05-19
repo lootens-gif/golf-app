@@ -1427,7 +1427,7 @@ export function computeSkins({
   skinsConfig,
 }) {
   const {
-    skinsType,        // "value" | "pot"
+    skinsType,        // "value" | "pot" | "tvskins"
     skinsGross,       // true = gross, false = net
     // Skin Value specific
     skinValueAmount,  // $ per skin
@@ -1500,12 +1500,10 @@ export function computeSkins({
         }
       }
     } else if (skinsType === "pot") {
-      if (potType === "nocarryover") {
-        holeValue = 1; // count skins, divide pot at end
-      } else {
-        const baseHoleVal = getSkinHoleValue(hole, potBaseUnit, potType === "escalating" ? "escalating" : "flat") * players.length;
-        holeValue = baseHoleVal + (potType !== "nocarryover" ? carryoverValue : 0);
-      }
+      holeValue = 1; // count skins, divide pot at end
+    } else if (skinsType === "tvskins") {
+      const baseHoleVal = getSkinHoleValue(hole, potBaseUnit, "escalating") * players.length;
+      holeValue = baseHoleVal + carryoverValue;
     }
 
     holeResults.push({
@@ -1537,12 +1535,12 @@ export function settleSkinsRound({
 }) {
   const holeResults = computeSkins({ players, scores, course, handicapMode, skinsConfig });
 
-const { skinsType, potType } = skinsConfig;
+const { skinsType } = skinsConfig;
 
   const ledger = {};
   players.forEach(p => { ledger[p.id] = 0; });
 
-  if (skinsType === "pot" && potType === "nocarryover") {
+  if (skinsType === "pot") {
     // Count skins per player then divide pot
     const skinsWon = {};
     players.forEach(p => { skinsWon[p.id] = 0; });

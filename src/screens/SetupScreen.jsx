@@ -131,7 +131,7 @@ function Toggle({ checked, onChange, label, sublabel }) {
   );
 }
 
-function AmountInput({ label, value, onChange, disabled }) {
+function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <span style={{ fontSize: 13, color: disabled ? sc.muted : sc.ink, minWidth: 110 }}>{label}</span>
@@ -147,9 +147,12 @@ function AmountInput({ label, value, onChange, disabled }) {
         <input
           type="number"
           value={value}
+          min={min}
+          step={step}
           disabled={disabled}
           onChange={onChange}
           onFocus={(e) => e.target.select()}
+          onClick={(e) => e.target.select()}
           style={{ width: 60, border: "none", padding: "7px 10px", fontSize: 14, fontWeight: 600, color: sc.ink, background: "#fff", outline: "none" }}
         />
       </div>
@@ -378,24 +381,28 @@ export default function SetupScreen({
                   </div>
                 </div>
 
-                {/* Skin Value or Pot */}
+                {/* Type: Per Skin | Pot | TV Skins */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Type</span>
                   <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                    {[{ v: "value", l: "Skin Value" }, { v: "pot", l: "Pot" }].map(({ v, l }, i) => (
+                    {[
+                      { v: "value", l: "Per Skin" },
+                      { v: "pot", l: "Pot" },
+                      { v: "tvskins", l: "TV Skins" },
+                    ].map(({ v, l }, i) => (
                       <button key={v} onClick={() => setSkinsType(v)} style={{
-                        padding: "6px 16px", border: "none",
+                        padding: "6px 12px", border: "none",
                         background: skinsType === v ? sc.green : "#fff",
                         color: skinsType === v ? "#fff" : sc.ink,
-                        fontWeight: 600, fontSize: 13, cursor: "pointer",
-                        borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                        fontWeight: 600, fontSize: 12, cursor: "pointer",
+                        borderRight: i < 2 ? `1px solid ${sc.border}` : "none",
                         fontFamily: "inherit",
                       }}>{l}</button>
                     ))}
                   </div>
                 </div>
 
-                {/* SKIN VALUE options */}
+                {/* PER SKIN options */}
                 {skinsType === "value" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <AmountInput
@@ -442,62 +449,34 @@ export default function SetupScreen({
                   </div>
                 )}
 
-                {/* POT options */}
+                {/* POT options — Equal split only */}
                 {skinsType === "pot" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Format</span>
-                      <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                        {[
-                          { v: "nocarryover", l: "No Carryover" },
-                          { v: "flat", l: "Carryover" },
-                          { v: "escalating", l: "TV Skins" },
-                        ].map(({ v, l }, i) => (
-                          <button key={v} onClick={() => setPotType(v)} style={{
-                            padding: "6px 12px", border: "none",
-                            background: potType === v ? sc.green : "#fff",
-                            color: potType === v ? "#fff" : sc.ink,
-                            fontWeight: 600, fontSize: 12, cursor: "pointer",
-                            borderRight: i < 2 ? `1px solid ${sc.border}` : "none",
-                            fontFamily: "inherit",
-                          }}>{l}</button>
-                        ))}
-                      </div>
+                    <AmountInput
+                      label="$ per player"
+                      value={potDonation}
+                      onChange={e => setPotDonation(Number(e.target.value || 0))}
+                    />
+                    <div style={{ fontSize: 12, color: sc.muted }}>
+                      Total pot: ${(Number(potDonation) || 0) * (players.length || 0)} · divided equally by skins won
                     </div>
+                  </div>
+                )}
 
-                    {potType === "nocarryover" && (
-                      <>
-                        <AmountInput
-                          label="$ per player"
-                          value={potDonation}
-                          onChange={e => setPotDonation(Number(e.target.value || 0))}
-                        />
-                        <div style={{ fontSize: 12, color: sc.muted }}>
-                          Total pot: ${(Number(potDonation) || 0) * (players.length || 0)} · divided equally by skins won
-                        </div>
-                      </>
-                    )}
-
-                    {(potType === "flat" || potType === "escalating") && (
-                      <>
-                        <AmountInput
-                          label="$ per hole"
-                          value={potBaseUnit}
-                          onChange={e => setPotBaseUnit(Number(e.target.value || 0))}
-                        />
-                        {potType === "escalating" && (
-                          <div style={{ fontSize: 12, color: sc.muted, background: sc.greenLight, padding: "8px 10px", borderRadius: 8 }}>
-                            Front 6: ${potBaseUnit}/hole · Mid 6: ${(potBaseUnit * 2)}/hole · Back 6: ${(potBaseUnit * 3)}/hole
-                            <br/>Each player antes: ${(Number(potBaseUnit) * 36) || 0}
-                          </div>
-                        )}
-                        {potType === "flat" && (
-                          <div style={{ fontSize: 12, color: sc.muted }}>
-                            Each player antes: ${(Number(potBaseUnit) * 18) || 0}
-                          </div>
-                        )}
-                      </>
-                    )}
+                {/* TV SKINS options */}
+                {skinsType === "tvskins" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <AmountInput
+                      label="$ base unit"
+                      value={potBaseUnit}
+                      min={0.5}
+                      step={0.5}
+                      onChange={e => setPotBaseUnit(Number(e.target.value || 0))}
+                    />
+                    <div style={{ fontSize: 12, color: sc.muted, background: sc.greenLight, padding: "8px 10px", borderRadius: 8 }}>
+                      Front 6: ${potBaseUnit}/hole · Mid 6: ${(Number(potBaseUnit) * 2)}/hole · Back 6: ${(Number(potBaseUnit) * 3)}/hole
+                      <br/>Each player antes: ${(Number(potBaseUnit) * 36) || 0} · Carryover built in
+                    </div>
                   </div>
                 )}
 
