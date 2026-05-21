@@ -21,7 +21,7 @@ import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
-import { shareRound, generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice } from "./lib/roundSync";
+import { shareRound, generateRoundCode, unsubscribeFromRound, fetchRound } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -422,9 +422,6 @@ export default function App() {
   const [enableTeamGame, setEnableTeamGame] = useState(true);
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
-  const [deviceId] = useState(() => getDeviceId());
-  const [recentRounds, setRecentRounds] = useState([]);
-  const [showRecentRounds, setShowRecentRounds] = useState(false);
   const scoreEntryRef = useRef(null);
 
 
@@ -1982,7 +1979,7 @@ useEffect(() => {
     applyRoundSnapshot(round, "Autosaved round restored.");
     setAutoRestoreComplete(true);
   } else {
-    // Try saved code first
+    // localStorage missing or stale — try Supabase fallback
     const savedCode = localStorage.getItem(ROUND_CODE_KEY);
     if (savedCode) {
       fetchRound(savedCode)
@@ -1990,37 +1987,16 @@ useEffect(() => {
           if (result?.data && isUsableRoundSnapshot(result.data)) {
             applyRoundSnapshot(result.data, "Round restored from cloud ☁️");
             setRoundCode(savedCode);
-          } else {
-            // Code exists but stale — show recent rounds picker
-            return fetchRecentRounds(deviceId).then(rounds => {
-              if (rounds.length > 0) {
-                setRecentRounds(rounds);
-                setShowRecentRounds(true);
-              }
-            });
           }
         })
         .catch(() => {
-          // Fetch recent rounds as fallback
-          fetchRecentRounds(deviceId).then(rounds => {
-            if (rounds.length > 0) {
-              setRecentRounds(rounds);
-              setShowRecentRounds(true);
-            }
-          }).catch(() => {});
+          // Silently fail — just start fresh
         })
-        .finally(() => setAutoRestoreComplete(true));
+        .finally(() => {
+          setAutoRestoreComplete(true);
+        });
     } else {
-      // No saved code — check for recent rounds
-      fetchRecentRounds(deviceId)
-        .then(rounds => {
-          if (rounds.length > 0) {
-            setRecentRounds(rounds);
-            setShowRecentRounds(true);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setAutoRestoreComplete(true));
+      setAutoRestoreComplete(true);
     }
   }
 }, []);
@@ -2068,7 +2044,7 @@ useEffect(() => {
   syncTimerRef.current = setTimeout(async () => {
     try {
       setIsSyncing(true);
-      await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      await shareRound(roundCode, buildCurrentRoundSnapshot());
       setSyncMessage(`Synced ✓`);
       setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
     } catch {
@@ -2243,7 +2219,7 @@ if (!enableTeamGame && !skinsEnabled) {
 
   setIsSyncing(true);
   setSyncMessage("Saving...");
-  shareRoundWithDevice(code, snapshot, deviceId)
+  shareRound(code, snapshot)
     .then(() => setSyncMessage(`Code: ${code}`))
     .catch(() => setSyncMessage("Save failed — check connection"))
     .finally(() => setIsSyncing(false));
@@ -2267,7 +2243,7 @@ async function shareCurrentRound() {
     const code = roundCode || generateRoundCode();
     if (!roundCode) setRoundCode(code);
     const snapshot = buildCurrentRoundSnapshot();
-    await shareRoundWithDevice(code, snapshot, deviceId);
+    await shareRound(code, snapshot);
     setSyncMessage(`Code: ${code}`);
   } catch (err) {
     setSyncMessage("Share failed — check connection");
@@ -3270,74 +3246,6 @@ if (enableTeamGame && nextGameIndex >= 0) {
 
 {screen === "qa" && (
   <QAScreen onBack={() => setScreen("setup")} roundCode={roundCode} />
-)}
-
-{/* RECENT ROUNDS MODAL */}
-{showRecentRounds && recentRounds.length > 0 && (
-  <div style={{
-    position: "fixed", inset: 0, zIndex: 2000,
-    background: "rgba(0,0,0,0.6)",
-    display: "flex", alignItems: "flex-end", justifyContent: "center",
-  }}>
-    <div style={{
-      background: "#fff", borderRadius: "16px 16px 0 0",
-      width: "100%", maxWidth: 480,
-      padding: 24, paddingBottom: 36,
-      boxShadow: "0 -4px 24px rgba(0,0,0,0.15)",
-    }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: "#1a5c35", marginBottom: 6 }}>
-        ☁️ Continue a recent round?
-      </div>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-        We found rounds from your device on this course.
-      </div>
-
-      {recentRounds.map(round => {
-        const data = round.data || {};
-        const name = data.roundName || `Round ${round.code}`;
-        const players = (data.allPlayers || []).map(p => p.name).join(", ");
-        const date = new Date(round.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-        const holesPlayed = Object.keys(data.scores || {}).length;
-
-        return (
-          <div
-            key={round.code}
-            onClick={() => {
-              applyRoundSnapshot(data, "Round restored from cloud ☁️");
-              setRoundCode(round.code);
-              localStorage.setItem(ROUND_CODE_KEY, round.code);
-              setShowRecentRounds(false);
-            }}
-            style={{
-              padding: "12px 14px", marginBottom: 8,
-              border: "1px solid #d1d5db", borderRadius: 10,
-              cursor: "pointer", background: "#f9fafb",
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a1a", marginBottom: 3 }}>{name}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
-              {date} · {holesPlayed} holes · {players}
-            </div>
-            <div style={{ fontSize: 12, color: "#1a5c35", marginTop: 2, fontWeight: 600 }}>
-              Code: {round.code}
-            </div>
-          </div>
-        );
-      })}
-
-      <button
-        onClick={() => setShowRecentRounds(false)}
-        style={{
-          width: "100%", padding: 14, marginTop: 8,
-          background: "transparent", border: "1px solid #d1d5db",
-          borderRadius: 10, fontSize: 15, fontWeight: 600,
-          color: "#6b7280", cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        Start fresh
-      </button>
-    </div>
-  </div>
 )}
 
 {/* BUG REPORT SLIDE-UP */}
