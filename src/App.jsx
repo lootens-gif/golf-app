@@ -21,7 +21,7 @@ import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
-import { shareRound, generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -2023,7 +2023,7 @@ useEffect(() => {
         .finally(() => setAutoRestoreComplete(true));
     }
   }
-}, []);
+}, [deviceId]);
 
 useEffect(() => {
   if (roundCode) {
@@ -2079,7 +2079,7 @@ useEffect(() => {
   }, 800);
 
   return () => clearTimeout(syncTimerRef.current);
-}, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot]);
+}, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
 
 // Cleanup sync channel on unmount
 useEffect(() => {
