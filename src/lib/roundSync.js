@@ -78,7 +78,6 @@ export async function fetchRecentRounds(deviceId) {
   const { data, error } = await supabase
     .from("rounds")
     .select("code, data, updated_at")
-    .eq("device_id", deviceId)
     .order("updated_at", { ascending: false })
     .limit(5);
 

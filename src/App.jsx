@@ -1992,7 +1992,7 @@ useEffect(() => {
             setRoundCode(savedCode);
           } else {
             // Code exists but stale — show recent rounds picker
-            return fetchRecentRounds(deviceId).then(rounds => {
+            return fetchRecentRounds().then(rounds => {
               if (rounds.length > 0) {
                 setRecentRounds(rounds);
                 setShowRecentRounds(true);
@@ -2002,7 +2002,7 @@ useEffect(() => {
         })
         .catch(() => {
           // Fetch recent rounds as fallback
-          fetchRecentRounds(deviceId).then(rounds => {
+          fetchRecentRounds().then(rounds => {
             if (rounds.length > 0) {
               setRecentRounds(rounds);
               setShowRecentRounds(true);
@@ -2012,7 +2012,7 @@ useEffect(() => {
         .finally(() => setAutoRestoreComplete(true));
     } else {
       // No saved code — check for recent rounds
-      fetchRecentRounds(deviceId)
+      fetchRecentRounds()
         .then(rounds => {
           if (rounds.length > 0) {
             setRecentRounds(rounds);
