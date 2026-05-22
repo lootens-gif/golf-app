@@ -2019,11 +2019,11 @@ useEffect(() => {
             setShowRecentRounds(true);
           }
         })
-        .catch(() => {})
+        .catch((err) => { console.log("Fetch error:", err); })
         .finally(() => setAutoRestoreComplete(true));
     }
   }
-}, [deviceId]);
+}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 useEffect(() => {
   if (roundCode) {
@@ -2032,6 +2032,9 @@ useEffect(() => {
 }, [roundCode]);
 
 useEffect(() => {
+  if (!autoRestoreComplete) return;
+  if (!roundCode) return;
+
   const timer = setTimeout(() => {
     safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
   }, 250);
