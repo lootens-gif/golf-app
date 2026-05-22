@@ -316,11 +316,17 @@ export default function SetupScreen({
           type="text"
           value={roundName || ""}
           onChange={e => setRoundName && setRoundName(e.target.value)}
-          placeholder={(() => {
-            const today = new Date();
-            const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-            return course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
-          })()}
+           onFocus={(e) => {
+            if (!roundName) {
+              const today = new Date();
+              const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              const auto = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
+              setRoundName && setRoundName(auto);
+              setTimeout(() => e.target.setSelectionRange(auto.length, auto.length), 0);
+            } else {
+              setTimeout(() => e.target.setSelectionRange(roundName.length, roundName.length), 0);
+            }
+          }}
           style={{
             width: "100%", fontSize: 16, fontWeight: 600, padding: "10px 12px",
             border: "1px solid #c3ddd0", borderRadius: 8, background: "#fff",
