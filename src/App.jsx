@@ -21,6 +21,7 @@ import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
+import HistoryScreen from "./screens/HistoryScreen";
 import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -2591,6 +2592,14 @@ return (
 
     <button
       className="secondary-button"
+      onClick={() => setScreen("history")}
+      disabled={screen === "history"}
+    >
+      History
+    </button>
+
+    <button
+      className="secondary-button"
       onClick={shareCurrentRound}
       disabled={isSyncing}
     >
@@ -3270,6 +3279,19 @@ if (enableTeamGame && nextGameIndex >= 0) {
 
 {screen === "join" && (
   <JoinRound onBack={() => setScreen("setup")} />
+)}
+
+{screen === "history" && (
+  <HistoryScreen
+    savedRounds={savedRounds}
+    onBack={() => setScreen("setup")}
+    onLoadRound={(round) => {
+      if (round?.data) {
+        applyRoundSnapshot(round.data);
+        setScreen("results");
+      }
+    }}
+  />
 )}
 
 {screen === "qa" && (
