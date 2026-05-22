@@ -2042,6 +2042,7 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [
   autoRestoreComplete,
+  roundCode,
   mode,
   allPlayers,
   course,
