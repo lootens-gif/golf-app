@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const sc = {
   green:      "#1a5c35",
@@ -46,17 +46,38 @@ function StatBox({ label, value, color, sub }) {
   );
 }
 
-export default function HistoryScreen({ savedRounds = [], onBack, onLoadRound }) {
+export default function HistoryScreen({ savedRounds = [], onBack, onLoadRound, fetchStatsRounds }) {
   const [selectedRound, setSelectedRound] = useState(null);
   const [view, setView] = useState("history"); // "history" | "stats"
+  const [supabaseRounds, setSupabaseRounds] = useState([]);
+  const [loadingStats, setLoadingStats] = useState(false);
 
-  // ── Compute cumulative stats across all saved rounds ──
+  // Load Supabase stats rounds when Stats tab is opened
+  useEffect(() => {
+    if (view === "stats" && fetchStatsRounds && supabaseRounds.length === 0) {
+      setLoadingStats(true);
+      fetchStatsRounds()
+        .then(rounds => setSupabaseRounds(rounds))
+        .catch(() => {})
+        .finally(() => setLoadingStats(false));
+    }
+  }, [view, fetchStatsRounds, supabaseRounds.length]);
+
+  // Use Supabase rounds for stats if available, fall back to local savedRounds
+  const statsSource = useMemo(() => {
+    if (supabaseRounds.length > 0) {
+      return supabaseRounds.map(r => ({ ...r, data: r.data, name: r.data?.roundName || `Round ${r.code}`, savedAt: r.updated_at }));
+    }
+    return savedRounds;
+  }, [supabaseRounds, savedRounds]);
+
+  // ── Compute cumulative stats ──
   const stats = useMemo(() => {
-    if (!savedRounds.length) return null;
+    if (!statsSource.length) return null;
 
     const playerMap = {}; // name → { rounds, totalMoney, wins, birdies, skins }
 
-    savedRounds.forEach(round => {
+    statsSource.forEach(round => {
       const data = round.data || {};
       const players = data.allPlayers || [];
       const leaderboard = data.playerLedger || [];
@@ -80,12 +101,12 @@ export default function HistoryScreen({ savedRounds = [], onBack, onLoadRound })
     });
 
     const players = Object.values(playerMap).sort((a, b) => b.totalMoney - a.totalMoney);
-    const totalRounds = savedRounds.length;
+    const totalRounds = statsSource.length;
     const biggestWin = players.reduce((max, p) => Math.max(max, p.totalMoney), 0);
     const mostWins = players.reduce((max, p) => Math.max(max, p.wins), 0);
 
     return { players, totalRounds, biggestWin, mostWins };
-  }, [savedRounds]);
+  }, [statsSource]);
 
   // ── Round detail view ──
   if (selectedRound) {
@@ -225,10 +246,25 @@ export default function HistoryScreen({ savedRounds = [], onBack, onLoadRound })
           })}
         </div>
 
-      ) : (
+      ) : view === "stats" ? (
 
         // ── STATS ──
         <div>
+          {loadingStats && (
+            <div style={{ textAlign: "center", padding: 24, color: sc.muted, fontSize: 14 }}>
+              Loading stats from cloud…
+            </div>
+          )}
+          {!loadingStats && supabaseRounds.length > 0 && (
+            <div style={{ fontSize: 11, color: sc.green, marginBottom: 12, padding: "6px 10px", background: sc.greenLight, borderRadius: 6 }}>
+              ☁️ Showing {supabaseRounds.length} rounds saved to History & Stats
+            </div>
+          )}
+          {!loadingStats && supabaseRounds.length === 0 && savedRounds.length > 0 && (
+            <div style={{ fontSize: 11, color: sc.muted, marginBottom: 12, padding: "6px 10px", background: "#fafafa", borderRadius: 6 }}>
+              Showing local rounds only — check "Save to History & Stats" when completing future rounds to see cumulative stats here.
+            </div>
+          )}
           {stats && (
             <>
               {/* Summary stats */}
@@ -300,7 +336,7 @@ export default function HistoryScreen({ savedRounds = [], onBack, onLoadRound })
             </>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

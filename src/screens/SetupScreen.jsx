@@ -1,7 +1,7 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import CourseEditor from "../components/CourseEditor";
 import MatchList from "../components/MatchList";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const sc = {
   green:      "#1a5c35",
@@ -160,6 +160,108 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   );
 }
 
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, players, sc }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(""); // "" | "saving" | "saved" | "error"
+  const searchTimer = useRef(null);
+
+  function handleSearch(q) {
+    setSearchQuery(q);
+    updateCourseName(q);
+    clearTimeout(searchTimer.current);
+    if (q.length < 2) { setSearchResults([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await searchCourses(q);
+        setSearchResults(results);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 400);
+  }
+
+  function loadCourse(c) {
+    updateCourseName(c.name);
+    c.pars.forEach((par, i) => updateCoursePar(i + 1, par));
+    c.hcp.forEach((hcp, i) => updateCourseHcp(i + 1, hcp));
+    setSearchResults([]);
+    setSearchQuery(c.name);
+  }
+
+  async function handleSave() {
+    if (!course.name) return;
+    setSaveStatus("saving");
+    try {
+      await saveCourseToLibrary(course, "");
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus(""), 3000);
+    } catch {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus(""), 3000);
+    }
+  }
+
+  return (
+    <Card>
+      <SectionLabel>Course Setup</SectionLabel>
+
+      {/* Search / name input */}
+      <div style={{ marginBottom: 8, position: "relative" }}>
+        <label style={{ fontSize: 13, color: sc.muted, display: "block", marginBottom: 6 }}>
+          Course name — search library or type new
+        </label>
+        <input
+          type="text"
+          value={searchQuery || course.name || ""}
+          onFocus={(e) => { e.target.select(); if (course.name) setSearchQuery(course.name); }}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Search courses or type a name…"
+          style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
+        />
+
+        {/* Search results dropdown */}
+        {searchResults.length > 0 && (
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 100, marginTop: 4 }}>
+            {searchResults.map(c => (
+              <div key={c.id} onClick={() => loadCourse(c)} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${sc.border}`, fontSize: 14 }}>
+                <div style={{ fontWeight: 600, color: sc.ink }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: sc.muted }}>{c.city}{c.state ? `, ${c.state}` : ""} · used {c.use_count} time{c.use_count !== 1 ? "s" : ""}</div>
+              </div>
+            ))}
+            <div onClick={() => setSearchResults([])} style={{ padding: "8px 14px", fontSize: 12, color: sc.muted, cursor: "pointer", textAlign: "center" }}>
+              Dismiss
+            </div>
+          </div>
+        )}
+        {searching && <div style={{ fontSize: 12, color: sc.muted, marginTop: 4 }}>Searching…</div>}
+      </div>
+
+      <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />
+
+      {/* Save to library button */}
+      <button
+        onClick={handleSave}
+        disabled={!course.name || saveStatus === "saving"}
+        style={{
+          marginTop: 12, padding: "9px 16px", fontSize: 13, fontWeight: 600,
+          background: saveStatus === "saved" ? sc.greenLight : "#fff",
+          color: saveStatus === "saved" ? sc.green : saveStatus === "error" ? "#b3261e" : sc.muted,
+          border: `1px solid ${saveStatus === "saved" ? sc.green : sc.border}`,
+          borderRadius: 8, cursor: course.name ? "pointer" : "not-allowed",
+          fontFamily: "inherit",
+        }}
+      >
+        {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved to course library" : saveStatus === "error" ? "Save failed" : "💾 Save course to shared library"}
+      </button>
+      <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
+        Once saved, anyone can search and load this course.
+      </div>
+    </Card>
+  );
+}
+
 export default function SetupScreen({
   mode, handleModeChange, handicapMode, setHandicapMode,
   players, handlePlayerChange, saveSetup, loadSetup, resetSetup,
@@ -176,6 +278,7 @@ export default function SetupScreen({
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
   skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover,
   potType, setPotType, potDonation, setPotDonation, potBaseUnit, setPotBaseUnit,
+  saveCourseToLibrary, searchCourses,
   totalHoles, getTeamGameRange, hasDuplicateSelections, getTeamGameSelection,
   renderTeamSelectors, expandedGame, setExpandedGame, modeText,
   addMatch, addNinePointMatch, autoCreateMatches, matches, matchResults,
@@ -606,21 +709,16 @@ export default function SetupScreen({
       </Card>
 
       {/* ── COURSE ── */}
-      <Card>
-        <SectionLabel>Course Setup</SectionLabel>
-        <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10, lineHeight: 1.5 }}>
-          Westwood is pre-loaded. Course search coming soon — for now edit pars and HCPs below if needed.
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 13, color: sc.muted, display: "block", marginBottom: 6 }}>Course name</label>
-          <input
-            type="text" value={course.name || ""} onFocus={(e) => e.target.select()}
-            onChange={(e) => updateCourseName(e.target.value)} placeholder="e.g. Westwood"
-            style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
-          />
-        </div>
-        <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />
-      </Card>
+      <CourseCard
+        course={course}
+        updateCourseName={updateCourseName}
+        updateCoursePar={updateCoursePar}
+        updateCourseHcp={updateCourseHcp}
+        saveCourseToLibrary={saveCourseToLibrary}
+        searchCourses={searchCourses}
+        players={players}
+        sc={sc}
+      />
 
       {/* ── SAVED ROUNDS ── */}
       <Card>

@@ -99,3 +99,67 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
 
   if (error) throw error;
 }
+
+// Save a round to Supabase stats (called when "Save to History & Stats" is checked)
+export async function saveRoundToStats(code, roundData, deviceId) {
+  const { error } = await supabase
+    .from("rounds")
+    .upsert({
+      id: code,
+      code,
+      data: roundData,
+      device_id: deviceId,
+      save_to_stats: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
+
+  if (error) throw error;
+}
+
+// Fetch all rounds marked save_to_stats for Stats screen
+export async function fetchStatsRounds() {
+  const { data, error } = await supabase
+    .from("rounds")
+    .select("code, data, updated_at")
+    .eq("save_to_stats", true)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Save a course to the course library
+export async function saveCourseToLibrary(course, createdBy) {
+  const { data, error } = await supabase
+    .from("courses")
+    .upsert({
+      name: course.name,
+      city: course.city || "",
+      state: course.state || "",
+      pars: course.pars,
+      hcp: course.hcp,
+      created_by: createdBy || "Anonymous",
+    }, { onConflict: "name" })
+    .select();
+
+  if (error) throw error;
+  return data?.[0];
+}
+
+// Search courses by name
+export async function searchCourses(query) {
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*")
+    .ilike("name", `%${query}%`)
+    .order("use_count", { ascending: false })
+    .limit(10);
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Increment use count when a course is loaded
+export async function incrementCourseUse(courseId) {
+  await supabase.rpc("increment_course_use", { course_id: courseId }).catch(() => {});
+}

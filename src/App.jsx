@@ -22,7 +22,7 @@ import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -419,6 +419,7 @@ export default function App() {
   const [saveMessage, setSaveMessage] = useState(null);
   const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
   const [roundSaveName, setRoundSaveName] = useState("");
+  const [saveToStats, setSaveToStats] = useState(true);
   const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
@@ -1668,23 +1669,30 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
 }
 
   // Save round from Results screen or Round Complete modal
-  function saveRoundFromResults(nameOverride) {
+  function saveRoundFromResults(nameOverride, toStats = saveToStats) {
     const today = new Date();
     const monthDay = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
     const name = (nameOverride || roundName || roundSaveName || autoName).trim() || autoName;
     try {
+      const snapshot = buildCurrentRoundSnapshot();
       const round = {
         id: createId('saved-round'),
         name,
         savedAt: new Date().toISOString(),
-        data: buildCurrentRoundSnapshot(),
+        data: snapshot,
       };
       const nextRounds = [round, ...savedRounds];
       setSavedRounds(nextRounds);
       localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(nextRounds));
       setSelectedSavedRoundId(round.id);
       setRoundName(name);
+
+      // Push to Supabase stats if checked
+      if (toStats && roundCode) {
+        saveRoundToStats(roundCode, { ...snapshot, roundName: name }, deviceId).catch(() => {});
+      }
+
       return true;
     } catch {
       return false;
@@ -2690,6 +2698,8 @@ return (
     setPotDonation={setPotDonation}
     potBaseUnit={potBaseUnit}
     setPotBaseUnit={setPotBaseUnit}
+    saveCourseToLibrary={saveCourseToLibrary}
+    searchCourses={searchCourses}
     applyPreset={applyPreset}
     setTeamGames={setTeamGames}
     teamGames={teamGames}
@@ -2756,9 +2766,33 @@ return (
                 padding: "10px 12px", border: "1px solid #c3ddd0",
                 borderRadius: 8, background: "#f0f7f3",
                 color: "#1a1a1a", fontFamily: "inherit",
-                boxSizing: "border-box", marginBottom: 16,
+                boxSizing: "border-box", marginBottom: 12,
               }}
             />
+
+            {/* Save to Stats checkbox */}
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 12px", marginBottom: 16,
+              background: saveToStats ? "#f0f7f3" : "#fafafa",
+              border: `1px solid ${saveToStats ? "#c3ddd0" : "#d1d5db"}`,
+              borderRadius: 8, cursor: "pointer",
+            }}>
+              <input
+                type="checkbox"
+                checked={saveToStats}
+                onChange={e => setSaveToStats(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "#1a5c35", cursor: "pointer" }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>
+                  Save to History & Stats
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>
+                  Adds to cumulative leaderboard across all rounds
+                </div>
+              </div>
+            </label>
 
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 16, textAlign: "center" }}>
               You can edit any hole score or game setup after saving
@@ -3285,6 +3319,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
   <HistoryScreen
     savedRounds={savedRounds}
     onBack={() => setScreen("setup")}
+    fetchStatsRounds={fetchStatsRounds}
     onLoadRound={(round) => {
       if (round?.data) {
         applyRoundSnapshot(round.data);
