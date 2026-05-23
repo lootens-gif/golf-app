@@ -287,9 +287,9 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle }}>
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent" }}>
                   {teamAHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
                       {row.teamAValue}
                     </span>
                   ) : row.teamAValue}
@@ -305,9 +305,9 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle }}>
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent" }}>
                   {teamBHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
                       {row.teamBValue}
                     </span>
                   ) : row.teamBValue}

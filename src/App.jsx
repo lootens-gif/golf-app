@@ -2120,6 +2120,21 @@ useEffect(() => {
   };
 }, [syncChannel]);
 
+// Re-fetch from Supabase when tab becomes visible (iOS Safari drops subscriptions)
+useEffect(() => {
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible" && roundCode) {
+      fetchRound(roundCode)
+        .then(result => {
+          if (result?.data) applyRoundSnapshot(result.data);
+        })
+        .catch(() => {});
+    }
+  }
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, [roundCode]);
+
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {

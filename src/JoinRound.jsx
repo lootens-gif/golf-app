@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { fetchRound, subscribeToRound, unsubscribeFromRound } from "./lib/roundSync";
 import ResultsScreen from "./screens/ResultsScreen";
 import {
@@ -76,12 +76,31 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   const [roundData, setRoundData] = useState(null);
   const [channel, setChannel] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const currentCodeRef = useRef(null);
 
   useEffect(() => {
     return () => {
       if (channel) unsubscribeFromRound(channel);
     };
   }, [channel]);
+
+  // Re-fetch when tab becomes visible again (fixes iOS Safari dropping subscription)
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible" && currentCodeRef.current) {
+        fetchRound(currentCodeRef.current)
+          .then(result => {
+            if (result?.data) {
+              setRoundData(result.data);
+              setLastUpdated(result.updated_at);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   async function joinRound() {
     const trimmed = code.trim().toUpperCase();
@@ -94,6 +113,7 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       setRoundData(result.data);
       setLastUpdated(result.updated_at);
       setStatus("joined");
+      currentCodeRef.current = trimmed;
 
       // Notify App so it can load the round and set isJoiner
       if (onJoinSuccess) {
@@ -129,7 +149,7 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
     const enableTeamGame = !!roundData.enableTeamGame;
 
     const activePlayers = getActivePlayers(players, mode);
-    const context = { players, course, scores, handicapMode };
+    const context = { players, course, scores, handicapMode, pressTrigger };
 
     const matchResults = matches.map((match) => ({
       match,
