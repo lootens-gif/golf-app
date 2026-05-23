@@ -126,18 +126,19 @@ function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode)
   return best;
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode) {
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
   const gross = getRawScore(scores, hole, playerId);
 
   if (gross === null || gross === undefined) {
     return "-";
   }
 
-  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode);
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const strokes = strokesFn(playerId, hole, players, course, handicapMode);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
-function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode) {
+function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
   const best = getBestBallPlayer(
     teamIds,
     hole,
@@ -155,7 +156,8 @@ function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handica
     players,
     course,
     scores,
-    handicapMode
+    handicapMode,
+    getHandicapStrokesFn
   );
 }
 
@@ -224,6 +226,7 @@ function CompletedTeamGameScorecard({
   course,
   scores,
   handicapMode,
+  getHandicapStrokesFn,
 }) {
   const holes = Array.from(
     { length: Number(end || 0) - Number(start || 0) + 1 },
@@ -244,8 +247,8 @@ function CompletedTeamGameScorecard({
 
     return {
       hole,
-      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode),
-      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode),
+      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
+      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       resultValue: holeResult,
@@ -3104,6 +3107,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
               course={course}
               scores={scores}
               handicapMode={handicapMode}
+              getHandicapStrokesFn={context.getHandicapStrokesFn}
             />
           );
         })}
