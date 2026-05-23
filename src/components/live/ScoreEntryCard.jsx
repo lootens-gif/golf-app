@@ -19,6 +19,8 @@ export default function ScoreEntryCard({
   onSaveHole,
   onPrevHole,
   onNextHole,
+  handicapMode,
+  getHandicapStrokesFn,
 }) {
   const [activePlayerId, setActivePlayerId] = useState(players?.[0]?.id ?? null);
 
@@ -113,6 +115,18 @@ export default function ScoreEntryCard({
                 <span style={{ fontSize: 16, fontWeight: isActive ? 600 : 400, color: isActive ? sc.ink : sc.muted }}>
                   {player.name}
                 </span>
+                {(() => {
+                  if (!getHandicapStrokesFn || !handicapMode) return null;
+                  const strokesThisHole = getHandicapStrokesFn(player.id, currentHole, players, course, handicapMode);
+                  const totalStrokes = Array.from({length: 18}, (_, i) => i + 1)
+                    .reduce((s, h) => s + getHandicapStrokesFn(player.id, h, players, course, handicapMode), 0);
+                  if (totalStrokes === 0) return null;
+                  return (
+                    <span style={{ fontSize: 12, color: sc.muted, fontWeight: 400 }}>
+                      ({totalStrokes}){strokesThisHole > 0 ? <span style={{ color: sc.green, fontWeight: 700 }}>{" •".repeat(strokesThisHole)}</span> : ""}
+                    </span>
+                  );
+                })()}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {label && <span style={{ fontSize: 11, color: label.color, fontWeight: 600 }}>{label.label}</span>}

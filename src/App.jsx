@@ -2911,6 +2911,8 @@ return (
     players={activePlayers}
     scores={scores}
     setScore={setScore}
+    handicapMode={handicapMode}
+    getHandicapStrokesFn={context.getHandicapStrokesFn}
     onPrevHole={() => {
       if (currentHole > 1) setCurrentHole(currentHole - 1);
     }}
@@ -3345,6 +3347,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     skinsResults={skinsResults}
     skinsEnabled={skinsEnabled}
     skinsConfig={skinsConfig}
+    getHandicapStrokesFn={context.getHandicapStrokesFn}
   />
 )}
 

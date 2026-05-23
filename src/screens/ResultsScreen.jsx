@@ -48,6 +48,7 @@ export default function ResultsScreen({
   noPar3TeamGame = false, goToLive, backToSetup, onUpdateScore,
   onSaveRound, roundName, savedRounds = [],
   skinsResults, skinsEnabled, skinsConfig,
+  getHandicapStrokesFn,
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
@@ -413,6 +414,7 @@ export default function ResultsScreen({
           handicapMode={handicapMode} teamGameUnitAmount={teamGameUnitAmount}
           noPar3TeamGame={noPar3TeamGame} goToLive={goToLive} onUpdateScore={onUpdateScore}
           drillPlayerId={drillPlayerId}
+          getHandicapStrokesFn={getHandicapStrokesFn}
         />
       )}
 

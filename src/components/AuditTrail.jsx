@@ -84,18 +84,19 @@ function getTeamName(players, ids = []) {
   return names.length ? names.join(" / ") : "-";
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false, getHandicapStrokesFn) {
   const gross = getRawScore(scores, hole, playerId);
 
   if (gross === null || gross === undefined) {
     return "-";
   }
 
-  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode, noPar3Strokes);
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const strokes = strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
-function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
+function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, noPar3Strokes = false, getHandicapStrokesFn) {
   const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode);
 
   if (!best) {
@@ -192,6 +193,7 @@ function TeamGameScorecard({
   handicapMode,
   showPressDetail = false,
   noPar3Strokes = false,
+  getHandicapStrokesFn,
 }) {
   const holes = Array.from(
     { length: Number(game.end || 0) - Number(game.start || 0) + 1 },
@@ -219,8 +221,8 @@ function TeamGameScorecard({
 
     return {
       hole,
-      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, noPar3Strokes),
-      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, noPar3Strokes),
+      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
+      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       pressDetail: formatPressDetail(statuses),
@@ -866,6 +868,7 @@ function TeamGameAudit({
   handicapMode,
   teamGameUnitAmount,
   noPar3TeamGame = false,
+  getHandicapStrokesFn,
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -976,6 +979,7 @@ function TeamGameAudit({
                     handicapMode={handicapMode}
                     showPressDetail
                     noPar3Strokes={noPar3TeamGame}
+                    getHandicapStrokesFn={getHandicapStrokesFn}
                   />
                 </AuditSection>
               );
@@ -1064,7 +1068,7 @@ function ScoreCell({ gross, par, strokes }) {
   return <span>{display}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null }) {
+function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(initialSelectedPlayer);
 
   // Update if initialSelectedPlayer changes (from leaderboard drill-in)
@@ -1162,8 +1166,9 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
             {/* Player rows */}
             {displayPlayers.map(player => {
+              const _strokesFn = getHandicapStrokesFn || getHandicapStrokes;
               const strokes = sectionHoles.map(h =>
-                getHandicapStrokes(player.id, h, players, course, handicapMode)
+                _strokesFn(player.id, h, players, course, handicapMode)
               );
               const grossScores = sectionHoles.map(h => getRawScore(scores, h, player.id));
               const sectionTotal = grossScores.reduce((sum, g) => g !== null ? sum + g : sum, 0);
@@ -1175,7 +1180,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
               const grossTotal = frontTotal + sectionTotal;
               const netStrokes = holes.reduce((sum, h) =>
-                sum + getHandicapStrokes(player.id, h, players, course, handicapMode), 0);
+                sum + _strokesFn(player.id, h, players, course, handicapMode), 0);
               const netTotal = grossTotal - netStrokes;
               const hasAll = hasAllFront && hasAllBack;
 
@@ -1294,6 +1299,7 @@ export default function AuditTrail({
   goToLive,
   onUpdateScore,
   drillPlayerId = null,
+  getHandicapStrokesFn,
 }) {
   return (
     <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
@@ -1308,6 +1314,7 @@ export default function AuditTrail({
   teamGames={teamGames}
   teamGameResults={teamGameResults}
   getTeamGameSelection={getTeamGameSelection}
+  getHandicapStrokesFn={getHandicapStrokesFn}
   scores={scores}
   course={course}
   handicapMode={handicapMode}
@@ -1346,6 +1353,7 @@ export default function AuditTrail({
       goToLive={goToLive}
       onUpdateScore={onUpdateScore}
       initialSelectedPlayer={drillPlayerId}
+      getHandicapStrokesFn={getHandicapStrokesFn}
     />
   </AuditSection>
 </div>
