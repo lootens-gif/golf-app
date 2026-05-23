@@ -19,8 +19,14 @@ const SEVERITIES = [
   { v: "idea", l: "💡 Idea", sub: "Suggestion or improvement" },
 ];
 
-export default function BugReportModal({ screen, roundCode, onClose, onOpenQA }) {
-  const [testerName, setTesterName] = useState(() => localStorage.getItem("sc-tester-name") || "");
+export default function BugReportModal({ screen, roundCode, onClose, onOpenQA, players = [] }) {
+  const [testerName, setTesterName] = useState(() => {
+    const saved = localStorage.getItem("sc-tester-name");
+    if (saved) return saved;
+    // Fall back to Player 1 name from current round
+    const p1 = players?.[0]?.name;
+    return (p1 && p1 !== "P1" && p1 !== "Player 1") ? p1 : "";
+  });
   const [bugScreen, setBugScreen] = useState(screen || "Live");
   const [severity, setSeverity] = useState("wrong");
   const [description, setDescription] = useState("");

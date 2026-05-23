@@ -3,6 +3,7 @@ import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
   getHandicapStrokes,
+  getSpreadHandicapStrokes,
   getRawScore,
   getTeamNetScore,
   computeHoleResult,
@@ -397,6 +398,7 @@ export default function App() {
   const [course, setCourse] = useState(createDefaultCourse());
   const [scores, setScores] = useState({});
   const [handicapMode, setHandicapMode] = useState("relative");
+  const [handicapDistribution, setHandicapDistribution] = useState("standard");
   const [matches, setMatches] = useState([]);
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
@@ -414,7 +416,7 @@ export default function App() {
   const [focusGameTarget, setFocusGameTarget] = useState(null);
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
-
+  const [isJoiner, setIsJoiner] = useState(false);
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
@@ -477,6 +479,10 @@ export default function App() {
     [players]
   );
 
+  const is666 = enableTeamGame &&
+    teamGames.length === 3 &&
+    teamGames.every(g => Number(g.holes) === 6);
+
   const context = useMemo(
     () => ({
       players,
@@ -484,6 +490,9 @@ export default function App() {
       scores,      
       handicapMode,
       noPar3TeamGame,
+      getHandicapStrokesFn: (is666 && handicapDistribution === "spread")
+        ? getSpreadHandicapStrokes
+        : getHandicapStrokes,
     }),
     [
       players,
@@ -491,6 +500,8 @@ export default function App() {
       scores,
       handicapMode,
       noPar3TeamGame,
+      is666,
+      handicapDistribution,
     ]
   );
 
@@ -1568,6 +1579,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     course,
     scores,
     handicapMode,
+    handicapDistribution,
     enableTeamGame,
     noPar3TeamGame,
     teamGameUnitAmount,
@@ -1598,6 +1610,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   course,
   scores,
   handicapMode,
+  handicapDistribution,
   enableTeamGame,
   noPar3TeamGame,
   teamGameUnitAmount,
@@ -1887,6 +1900,7 @@ function resetSetup() {
   setScreen("setup");
   setRoundCode(generateRoundCode());
   setRoundName("");
+  setIsJoiner(false);
   localStorage.removeItem(ROUND_CODE_KEY);
   setSetupMessage("Setup reset.");
 }
@@ -1959,6 +1973,8 @@ function resetSetup() {
     (sum, game) => sum + (Number(game.holes) || 0),
     0
   );
+
+
 
 useEffect(() => {
   if (!setupMessage) return;
@@ -2568,10 +2584,12 @@ return (
 <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>    
 <button
       className="secondary-button"
-      onClick={backToSetup}
+      onClick={isJoiner ? undefined : backToSetup}
       disabled={screen === "setup"}
+      title={isJoiner ? "You joined this round — Setup is view only" : ""}
+      style={isJoiner ? { opacity: 0.5, cursor: "default" } : {}}
     >
-      Setup
+      {isJoiner ? "👁 Setup" : "Setup"}
     </button>
 
     <button
@@ -2639,6 +2657,22 @@ return (
 </div>
 
     {screen === "setup" && (
+      <>
+        {isJoiner && (
+          <div style={{
+            background: "#fef3c7", border: "1px solid #fcd34d",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 12,
+            fontSize: 13, color: "#92400e", fontWeight: 500,
+          }}>
+            👁 You joined this round — Setup is view only.{" "}
+            <button
+              onClick={() => { setIsJoiner(false); setRoundCode(generateRoundCode()); setRoundName(""); }}
+              style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
+            >
+              Start my own round →
+            </button>
+          </div>
+        )}
   <SetupScreen
     mode={mode}
     handleModeChange={handleModeChange}
@@ -2676,6 +2710,8 @@ return (
     setBirdieBetAmount={setBirdieBetAmount}
     noPar3TeamGame={noPar3TeamGame}
     setNoPar3TeamGame={setNoPar3TeamGame}
+    handicapDistribution={handicapDistribution}
+    setHandicapDistribution={setHandicapDistribution}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
     skinsEnabled={skinsEnabled}
@@ -2729,7 +2765,8 @@ return (
     setRoundName={setRoundName}
     courseName={course?.name || ""}
    />
-)}
+      </>
+    )}
 
     {screen === "live" && (
       <>
@@ -3312,7 +3349,17 @@ if (enableTeamGame && nextGameIndex >= 0) {
 )}
 
 {screen === "join" && (
-  <JoinRound onBack={() => setScreen("setup")} />
+  <JoinRound
+    onBack={() => setScreen("setup")}
+    onJoinSuccess={(code, data) => {
+      if (data) {
+        applyRoundSnapshot(data, "Joined round loaded.");
+        setRoundCode(code);
+        setIsJoiner(true);
+        setScreen("results");
+      }
+    }}
+  />
 )}
 
 {screen === "history" && (
@@ -3408,6 +3455,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
   roundCode={roundCode}
   onClose={() => setShowBugReport(false)}
   onOpenQA={() => setScreen("qa")}
+  players={players}
 />
 )}
   </div>

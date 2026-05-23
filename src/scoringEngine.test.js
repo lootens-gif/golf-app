@@ -14,6 +14,7 @@
 
 import {
   getHandicapStrokes,
+  getSpreadHandicapStrokes,
   getNetScore,
   computeHoleResult,
   playPressMatch,
@@ -523,5 +524,105 @@ describe('edge cases', () => {
       players, course: WESTWOOD, scores, handicapMode: 'relative',
     });
     expect(result).toBe(1);
+  });
+});
+
+
+
+// Westwood HCPs: [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9]
+// Hole:           1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18
+// Seg 1 (1-6):   HCP 12,2,16,8,14,10  → hardest: hole2(2),hole4(8),hole6(10),hole1(12)
+// Seg 2 (7-12):  HCP 4,18,6,11,1,5    → hardest: hole11(1),hole7(4),hole12(5),hole9(6)
+// Seg 3 (13-18): HCP 13,3,15,7,17,9   → hardest: hole14(3),hole16(7),hole18(9),hole13(13)
+
+describe('getSpreadHandicapStrokes — Westwood 6/6/6', () => {
+  const players = (hcp) => [
+    { id: 'A', name: 'A', hcp },
+    { id: 'LOW', name: 'LOW', hcp: 0 }, // lowest — relative strokes = hcp
+  ];
+
+  test('0 strokes — scratch player gets no strokes anywhere', () => {
+    const ps = players(0);
+    for (let h = 1; h <= 18; h++) {
+      expect(getSpreadHandicapStrokes('LOW', h, ps, WESTWOOD, 'relative')).toBe(0);
+    }
+  });
+
+  test('6 strokes → 2/2/2 — correct holes in each segment', () => {
+    // Player with 6 relative strokes
+    const ps = players(6);
+    // Seg1 gets 2: hole2(HCP2), hole4(HCP8)
+    expect(getSpreadHandicapStrokes('A', 2, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 4, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 1, ps, WESTWOOD, 'relative')).toBe(0);
+    expect(getSpreadHandicapStrokes('A', 3, ps, WESTWOOD, 'relative')).toBe(0);
+    // Seg2 gets 2: hole11(HCP1), hole7(HCP4)
+    expect(getSpreadHandicapStrokes('A', 11, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 7, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 9, ps, WESTWOOD, 'relative')).toBe(0);
+    expect(getSpreadHandicapStrokes('A', 12, ps, WESTWOOD, 'relative')).toBe(0);
+    // Seg3 gets 2: hole14(HCP3), hole16(HCP7)
+    expect(getSpreadHandicapStrokes('A', 14, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 16, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 18, ps, WESTWOOD, 'relative')).toBe(0);
+  });
+
+  test('6 strokes → total strokes across 18 holes = 6', () => {
+    const ps = players(6);
+    const total = Array.from({length:18},(_,i)=>i+1)
+      .reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    expect(total).toBe(6);
+  });
+
+  test('9 strokes → 3/3/3', () => {
+    const ps = players(9);
+    const total = Array.from({length:18},(_,i)=>i+1)
+      .reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    expect(total).toBe(9);
+    // Each segment exactly 3
+    const seg1 = [1,2,3,4,5,6].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg2 = [7,8,9,10,11,12].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg3 = [13,14,15,16,17,18].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    expect(seg1).toBe(3);
+    expect(seg2).toBe(3);
+    expect(seg3).toBe(3);
+  });
+
+  test('7 strokes → 2/3/2 — middle gets the extra (has HCP1)', () => {
+    const ps = players(7);
+    const seg1 = [1,2,3,4,5,6].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg2 = [7,8,9,10,11,12].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg3 = [13,14,15,16,17,18].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    expect(seg1).toBe(2);
+    expect(seg2).toBe(3);
+    expect(seg3).toBe(2);
+  });
+
+  test('8 strokes → 3/3/2 — front and middle get extras (HCP1=hole11, HCP2=hole2)', () => {
+    const ps = players(8);
+    const seg1 = [1,2,3,4,5,6].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg2 = [7,8,9,10,11,12].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    const seg3 = [13,14,15,16,17,18].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+    expect(seg1).toBe(3);
+    expect(seg2).toBe(3);
+    expect(seg3).toBe(2);
+  });
+
+  test('standard getHandicapStrokes unchanged — hole 11 gets stroke with 1 relative', () => {
+    const ps = players(1);
+    expect(getSpreadHandicapStrokes('A', 11, ps, WESTWOOD, 'relative')).toBe(1);
+    expect(getSpreadHandicapStrokes('A', 7, ps, WESTWOOD, 'relative')).toBe(0);
+  });
+
+  test('total conservation — spread always equals original stroke count', () => {
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 18].forEach(hcp => {
+      const ps = players(hcp);
+      const spread = Array.from({length:18},(_,i)=>i+1)
+        .reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+      const standard = Array.from({length:18},(_,i)=>i+1)
+        .reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
+      expect(spread).toBe(standard);
+      expect(spread).toBe(hcp); // relative hcp = strokes for this test setup
+    });
   });
 });

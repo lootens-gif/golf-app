@@ -272,7 +272,7 @@ export default function SetupScreen({
   enableTeamGame, setEnableTeamGame, teamGameUnitAmount, setTeamGameUnitAmount,
   pressTrigger, setPressTrigger, birdiesEnabled, setBirdiesEnabled,
   birdieBetAmount, setBirdieBetAmount, toyRule, setToyRule,
-  noPar3TeamGame, setNoPar3TeamGame, applyPreset, setTeamGames, teamGames,
+  noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution, applyPreset, setTeamGames, teamGames,
   skinsEnabled, setSkinsEnabled, skinsType, setSkinsType,
   skinsGross, setSkinsGross, skinValueAmount, setSkinValueAmount,
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
@@ -619,6 +619,33 @@ export default function SetupScreen({
               {totalHoles > 18 ? `⚠️ Total exceeds 18 holes (${totalHoles})`
                 : totalHoles === 18 ? `✓ All 18 holes configured`
                 : `${totalHoles} / 18 holes configured`}
+            </div>
+          )}
+
+          {/* Handicap Distribution — only for 6/6/6 */}
+          {teamGames.length === 3 && teamGames.every(g => Number(g.holes) === 6) && (
+            <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fafafa", border: "1px solid #d1d5db", borderRadius: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
+                Handicap Distribution
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+                Spread strokes evenly across each 6-hole game — avoids one game being unfairly weighted (COD format).
+              </div>
+              <div style={{ display: "flex", border: "1px solid #1a5c35", borderRadius: 8, overflow: "hidden" }}>
+                {[
+                  { v: "standard", l: "Standard" },
+                  { v: "spread", l: "Spread (2/2/2)" },
+                ].map(({ v, l }, i) => (
+                  <button key={v} onClick={() => setHandicapDistribution(v)} style={{
+                    flex: 1, padding: "8px 12px", border: "none",
+                    background: handicapDistribution === v ? "#1a5c35" : "#fff",
+                    color: handicapDistribution === v ? "#fff" : "#1a1a1a",
+                    fontWeight: 600, fontSize: 13, cursor: "pointer",
+                    borderRight: i === 0 ? "1px solid #d1d5db" : "none",
+                    fontFamily: "inherit",
+                  }}>{l}</button>
+                ))}
+              </div>
             </div>
           )}
 

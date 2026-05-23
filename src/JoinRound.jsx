@@ -69,7 +69,7 @@ function buildTeamGameResults(teamGames, scores, players, course, handicapMode, 
   });
 }
 
-export default function JoinRound({ onBack }) {
+export default function JoinRound({ onBack, onJoinSuccess }) {
   const [code, setCode] = useState("");
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -94,6 +94,11 @@ export default function JoinRound({ onBack }) {
       setRoundData(result.data);
       setLastUpdated(result.updated_at);
       setStatus("joined");
+
+      // Notify App so it can load the round and set isJoiner
+      if (onJoinSuccess) {
+        onJoinSuccess(trimmed, result.data);
+      }
 
       const ch = subscribeToRound(trimmed, (newData) => {
         setRoundData(newData);

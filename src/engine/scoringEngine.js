@@ -13,6 +13,7 @@ export function getLowestHandicap(players) {
 
 export function getPlayerById(players, playerId) {
   return players.find((p) => p.id === playerId) || null;
+  
 }
 
 export function getPlayerName(players, playerId) {
@@ -66,6 +67,60 @@ export function getHandicapStrokes(
   return strokes;
 }
 
+
+/**
+ * getSpreadHandicapStrokes — distributes handicap strokes evenly across
+ * 6-hole segments (1-6, 7-12, 13-18) for the 6/6/6 COD format.
+ * Remainder strokes go to segments containing the globally hardest holes.
+ * Within each segment, strokes go to the hardest holes in that segment.
+ */
+export function getSpreadHandicapStrokes(playerId, hole, players, course, handicapMode) {
+  const player = getPlayerById(players, playerId);
+  if (!player) return 0;
+
+  const totalStrokes = Number(getHandicapBase(player, players, handicapMode) || 0);
+  if (totalStrokes <= 0) return 0;
+
+  const fullRounds = Math.floor(totalStrokes / 18);
+  const remainder = totalStrokes % 18;
+
+  const segments = [[1,2,3,4,5,6],[7,8,9,10,11,12],[13,14,15,16,17,18]];
+  const holeHcp = (h) => Number(course?.hcp?.[h - 1]);
+
+  const base = Math.floor(remainder / 3);
+  const extra = remainder % 3;
+
+  // Distribute extras to segments containing the globally hardest holes
+  const allHoles = Array.from({length:18},(_,i)=>i+1)
+    .filter(h => Number.isFinite(holeHcp(h)))
+    .sort((a,b) => holeHcp(a) - holeHcp(b));
+
+  const segmentExtras = [0,0,0];
+  let extrasLeft = extra;
+  for (const h of allHoles) {
+    if (extrasLeft === 0) break;
+    const segIdx = segments.findIndex(seg => seg.includes(h));
+    if (segIdx >= 0 && segmentExtras[segIdx] === 0) {
+      segmentExtras[segIdx] = 1;
+      extrasLeft--;
+    }
+  }
+
+  // For each segment pick (base + extra) hardest holes
+  const strokeHoles = new Set();
+  segments.forEach((seg, i) => {
+    const quota = base + segmentExtras[i];
+    if (quota <= 0) return;
+    [...seg]
+      .filter(h => Number.isFinite(holeHcp(h)))
+      .sort((a,b) => holeHcp(a) - holeHcp(b))
+      .slice(0, quota)
+      .forEach(h => strokeHoles.add(h));
+  });
+
+  return fullRounds + (strokeHoles.has(hole) ? 1 : 0);
+}
+
 export function getRawScore(scores, hole, playerId) {
   const value = scores[hole]?.[playerId];
   return Number.isFinite(value) ? value : null;
@@ -77,19 +132,14 @@ export function getNetScore(
   players,
   course,
   scores,
-  handicapMode
+  handicapMode,
+  noPar3Strokes,
+  getHandicapStrokesFn
 ) {
   const raw = getRawScore(scores, hole, playerId);
   if (raw === null) return null;
-
-  const strokes = getHandicapStrokes(
-    playerId,
-    hole,
-    players,
-    course,
-    handicapMode
-  );
-
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const strokes = strokesFn(playerId, hole, players, course, handicapMode);
   return raw - strokes;
 }
 
@@ -108,11 +158,13 @@ export function getTeamNetScore(
   players,
   course,
   scores,
-  handicapMode
+  handicapMode,
+  getHandicapStrokesFn
 ) {
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
   const netScores = team
     .map((playerId) =>
-      getNetScore(playerId, hole, players, course, scores, handicapMode)
+      getNetScore(playerId, hole, players, course, scores, handicapMode, false, strokesFn)
     )
     .filter((score) => score !== null);
 
@@ -383,23 +435,11 @@ export function computeHoleResult({
   course,
   scores,
   handicapMode,
+  getHandicapStrokesFn,
 }) {
-  const aScore = getTeamNetScore(
-    teamA,
-    hole,
-    players,
-    course,
-    scores,
-    handicapMode
-  );
-  const bScore = getTeamNetScore(
-    teamB,
-    hole,
-    players,
-    course,
-    scores,
-    handicapMode
-  );
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const aScore = getTeamNetScore(teamA, hole, players, course, scores, handicapMode, strokesFn);
+  const bScore = getTeamNetScore(teamB, hole, players, course, scores, handicapMode, strokesFn);
 
   if (aScore === null || bScore === null) {
     return null;
@@ -808,6 +848,7 @@ export function playPressMatch({
       course: context.course,
       scores: context.scores,
       handicapMode: context.handicapMode,
+      getHandicapStrokesFn: context.getHandicapStrokesFn,
     });
 
     if (result === null) break;
