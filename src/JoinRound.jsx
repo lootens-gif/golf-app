@@ -76,6 +76,7 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   const [roundData, setRoundData] = useState(null);
   const [channel, setChannel] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [joinedCode, setJoinedCode] = useState(null);
   const currentCodeRef = useRef(null);
 
   useEffect(() => {
@@ -83,6 +84,22 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       if (channel) unsubscribeFromRound(channel);
     };
   }, [channel]);
+
+  // 30-second polling — starts after joining, restarts if code changes
+  useEffect(() => {
+    if (!joinedCode) return;
+    const interval = setInterval(() => {
+      fetchRound(joinedCode)
+        .then(result => {
+          if (result?.data) {
+            setRoundData(result.data);
+            setLastUpdated(result.updated_at);
+          }
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [joinedCode]);
 
   // Re-fetch when tab becomes visible again (fixes iOS Safari dropping subscription)
   useEffect(() => {
@@ -114,6 +131,8 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       setLastUpdated(result.updated_at);
       setStatus("joined");
       currentCodeRef.current = trimmed;
+      setJoinedCode(trimmed);
+      setJoinedCode(trimmed);
 
       // Notify App so it can load the round and set isJoiner
       if (onJoinSuccess) {

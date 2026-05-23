@@ -581,7 +581,7 @@ function NinePointScorecard({
         return (
           <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
             {grossBirdie ? (
-              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
                 {display}
               </span>
             ) : netBirdie ? (
@@ -752,9 +752,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
 
                 return (
-                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
+                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: grossBirdie ? "#fef9c3" : "transparent" }}>
                     {grossBirdie ? (
-                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
                         {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                       </span>
                     ) : netBirdie ? (

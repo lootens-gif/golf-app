@@ -1195,6 +1195,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
+      birdieEnabled: !!game.birdieEnabled,
       matches: [],
     };
   }
@@ -1311,6 +1312,7 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
+    birdieEnabled: !!game.birdieEnabled,
     matches: teamMatches,
   };
 });
@@ -2126,14 +2128,14 @@ useEffect(() => {
     if (document.visibilityState === "visible" && roundCode) {
       fetchRound(roundCode)
         .then(result => {
-          if (result?.data) applyRoundSnapshot(result.data);
+          if (result?.data) applyRoundSnapshot(result.data, undefined, isJoiner);
         })
         .catch(() => {});
     }
   }
   document.addEventListener("visibilitychange", handleVisibilityChange);
   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-}, [roundCode]);
+}, [roundCode, isJoiner]);
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
@@ -2602,7 +2604,7 @@ return (
 <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>    
 <button
       className="secondary-button"
-      onClick={isJoiner ? undefined : backToSetup}
+      onClick={() => { if (isJoiner) { setScreen("setup"); } else { backToSetup(); } }}
       disabled={screen === "setup"}
       title={isJoiner ? "You joined this round — Setup is view only" : ""}
       style={isJoiner ? { opacity: 0.5, cursor: "default" } : {}}
