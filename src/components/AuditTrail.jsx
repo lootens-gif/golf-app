@@ -30,20 +30,7 @@ const scorecardLabelCellStyle = {
   borderRight: "2px solid #e5e7eb",
 };
 
-function ScorecardCell({ value, running, color }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontWeight: 600, color }}>
-        {value}
-      </div>
-      {running !== undefined && (
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#333" }}>
-  {running}
-</div>
-      )}
-    </div>
-  );
-}
+
 
 function isNinePointMatch(match) {
   return (
@@ -287,12 +274,8 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent" }}>
-                  {teamAHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
-                      {row.teamAValue}
-                    </span>
-                  ) : row.teamAValue}
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                  {row.teamAValue}
                 </td>
               );
             })}
@@ -305,12 +288,8 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent" }}>
-                  {teamBHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
-                      {row.teamBValue}
-                    </span>
-                  ) : row.teamBValue}
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                  {row.teamBValue}
                 </td>
               );
             })}
@@ -534,14 +513,15 @@ function NinePointScorecard({
   course,
   handicapMode,
   match,
+  teamGameUnitAmount,
 }) {
   const holes = result?.holes || [];
-
   if (!holes.length) return null;
 
   const front = holes.slice(0, 9);
   const back = holes.slice(9, 18);
   const toyRule = !!match?.toyRule;
+  const betAmt = Number(match?.bet) || Number(teamGameUnitAmount) || 1;
   const allHoleNums = holes.map(h => h.hole);
 
   // Count gross birdies per player for summary
@@ -552,95 +532,132 @@ function NinePointScorecard({
     ])
   );
 
-  const renderSection = (label, sectionHoles) => (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
-        <tbody>
-          <tr>
-            <td style={scorecardLabelCellStyle}>Hole</td>
-            {sectionHoles.map((h) => (
-              <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>{h.hole}</td>
-            ))}
-          </tr>
 
-         <>
-  {/* SCORE ROWS */}
-  {players.map((player) => (
-    <tr key={`score-${player.id}`}>
-      <td style={scorecardLabelCellStyle}>{player.name}</td>
 
-      {sectionHoles.map((h) => {
-        const gross = getRawScore(scores, h.hole, player.id);
-        const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
-        const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "-";
-        const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
-        const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
 
-        return (
-          <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
-            {grossBirdie ? (
-              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
-                {display}
-              </span>
-            ) : netBirdie ? (
-              <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
-                {display}
-              </span>
-            ) : display}
-          </td>
-        );
-      })}
-    </tr>
-  ))}
+  // First initial only for points rows
+  const initial = (p) => p.name.trim()[0]?.toUpperCase() || "?";
 
-  {/* POINTS + RUNNING */}
-  <tr>
-    <td style={{ ...scorecardLabelCellStyle, borderTop: "2px solid #ccc" }}>
-  Points
-</td>
-    <td colSpan={sectionHoles.length}></td>
-  </tr>
+  // Truncate name for score rows
+  const shortName = (name) => name.length > 10 ? name.slice(0, 9) + "…" : name;
 
-  {players.map((player) => (
-    <tr key={`points-${player.id}`}>
-      <td style={scorecardLabelCellStyle}>{player.name}</td>
+  // Point color
+  const ptColor = (pts, played) => {
+    if (!played) return { bg: "transparent", color: "#ccc" };
+    if (pts >= 5) return { bg: "#dcfce7", color: "#137333" }; // 1st - green
+    if (pts >= 3) return { bg: "#fef9c3", color: "#92400e" }; // 2nd - gold
+    return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
+  };
 
-      {sectionHoles.map((h) => {
-        // Only show points if this hole has been played
-        const hasScore = players.some(p => {
-          const s = scores?.[h.hole]?.[p.id];
-          return s != null && Number.isFinite(Number(s));
-        });
+  const renderSection = (label, sectionHoles) => {
+    // Compute section net $ for each player (running total at end of section)
+    const sectionNetPts = Object.fromEntries(players.map(p => {
+      const lastPlayed = [...sectionHoles].reverse().find(h => {
+        const s = scores?.[h.hole]?.[p.id];
+        return s != null && Number.isFinite(Number(s));
+      });
+      return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
+    }));
+    // Avg pts per player per 9 = 3pts/hole × 9 holes ÷ 3 players = 9 (each player "paid in" 3pts/hole)
+    const ptsPerPlayerPer9 = 3 * sectionHoles.length; // 3 pts average per hole
+    const sectionAvg = ptsPerPlayerPer9;
 
-        if (!hasScore) {
-          return (
-            <td key={h.hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>–</td>
-          );
-        }
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+            <tbody>
+              {/* Hole header */}
+              <tr>
+                <td style={{ ...scorecardLabelCellStyle, fontSize: 12 }}>Hole</td>
+                {sectionHoles.map((h) => (
+                  <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280" }}>{h.hole}</td>
+                ))}
+              </tr>
 
-        const pts = h.pointsByPlayerId?.[player.id] ?? 0;
-        const running = h.runningTotalsByPlayerId?.[player.id] ?? 0;
+              {/* POINTS SECTION HEADER */}
+              <tr>
+                <td colSpan={sectionHoles.length + 1} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
+                  Points {betAmt !== 1 ? `($${betAmt})` : ""}
+                </td>
+              </tr>
 
-        let color = "#666";
-        if (pts === 5) color = "#137333";
-        if (pts === 1) color = "#b3261e";
+              {/* POINTS ROWS — initial + net $ + hole values */}
+              {players.map((player) => {
+                const rawNet = sectionNetPts[player.id] !== null
+                  ? (sectionNetPts[player.id] - sectionAvg) * betAmt
+                  : null;
+                const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
+                const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
+                const netStr = netAmt === null ? "–" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
 
-        return (
-          <td key={h.hole} style={{ ...scorecardCellStyle, color: "#444" }}>
-            <ScorecardCell value={pts} running={running} color={color} />
-          </td>
-        );
-      })}
-    </tr>
-  ))}
-</>
-        </tbody>
-      </table>
+                return (
+                  <tr key={`pts-${player.id}`}>
+                    <td style={{ ...scorecardLabelCellStyle, padding: "3px 4px" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span>
+                    </td>
+                    {sectionHoles.map((h) => {
+                      const hasScore = players.some(p => {
+                        const s = scores?.[h.hole]?.[p.id];
+                        return s != null && Number.isFinite(Number(s));
+                      });
+                      if (!hasScore) return <td key={h.hole} style={{ ...scorecardCellStyle, color: "#e5e7eb", fontSize: 13 }}>–</td>;
+
+                      const pts = h.pointsByPlayerId?.[player.id] ?? 0;
+                      const dollarVal = pts * betAmt;
+                      const { bg, color } = ptColor(pts, hasScore);
+                      return (
+                        <td key={h.hole} style={{ ...scorecardCellStyle, background: bg, fontSize: 13, color: color, fontWeight: 700 }}>
+                          {hasScore ? (dollarVal > 0 ? dollarVal : "0") : "–"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+
+              {/* SCORES SECTION HEADER */}
+              <tr>
+                <td colSpan={sectionHoles.length + 1} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
+                  Scores
+                </td>
+              </tr>
+
+              {/* SCORE ROWS */}
+              {players.map((player) => (
+                <tr key={`score-${player.id}`}>
+                  <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{shortName(player.name)}</td>
+                  {sectionHoles.map((h) => {
+                    const gross = getRawScore(scores, h.hole, player.id);
+                    const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
+                    const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "–";
+                    const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
+                    const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
+                    return (
+                      <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#444" }}>
+                        {grossBirdie ? (
+                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                            {display}
+                          </span>
+                        ) : netBirdie ? (
+                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
+                            {display}
+                          </span>
+                        ) : display}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -650,9 +667,7 @@ function NinePointScorecard({
         {!match?.birdieEnabled
           ? "🚫 No birdies tracked"
           : (() => {
-              const label = toyRule
-                ? "🐦 Toy Birdies"
-                : "🐦 Birdies tracked (gross only)";
+              const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies tracked (gross only)";
               const counts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
               const total = counts.reduce((sum, p) => sum + p.count, 0);
               if (total === 0) return `${label} — No birdies`;
@@ -837,6 +852,7 @@ function NinePointAudit({
   scores,
   course,
   handicapMode,
+  teamGameUnitAmount,
 }) {
   const ninePointEntry = (matchResults || []).find((entry) =>
     isNinePointMatch(entry.match)
@@ -852,8 +868,9 @@ function NinePointAudit({
         match={ninePointEntry.match}
         scores={scores}
         course={course}
-  handicapMode={handicapMode}
-/>
+        handicapMode={handicapMode}
+        teamGameUnitAmount={teamGameUnitAmount}
+      />
     </AuditSection>
   );
 }
@@ -1340,6 +1357,7 @@ export default function AuditTrail({
   scores={scores}
   course={course}
   handicapMode={handicapMode}
+  teamGameUnitAmount={teamGameUnitAmount}
 />
 
 {/* TOTAL SCORECARD */}

@@ -514,7 +514,14 @@ export default function App() {
     setSetupMessage("Mode updated.");
   }
 
+
+  // Auto-capitalize: capitalize first letter of each word
+  function autoCapitalize(str) {
+    return str.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
+  }
+
   function handlePlayerChange(index, field, value) {
+    if (field === "name") value = autoCapitalize(value);
     setAllPlayers((prev) =>
       prev.map((player, i) => {
         if (i !== index) return player;
@@ -1195,7 +1202,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
-      birdieEnabled: !!game.birdieEnabled,
+      birdieEnabled: enableTeamGame && birdiesEnabled,
       matches: [],
     };
   }
@@ -1312,7 +1319,7 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
-    birdieEnabled: !!game.birdieEnabled,
+birdieEnabled: enableTeamGame && birdiesEnabled,
     matches: teamMatches,
   };
 });
@@ -1970,7 +1977,7 @@ function resetSetup() {
   function updateCourseName(value) {
     setCourse((prev) => ({
       ...prev,
-      name: value,
+      name: autoCapitalize(value),
     }));
   }
 
@@ -2135,6 +2142,19 @@ useEffect(() => {
   }
   document.addEventListener("visibilitychange", handleVisibilityChange);
   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, [roundCode, isJoiner]);
+
+// 30-second polling fallback — bulletproof sync for iOS Safari
+useEffect(() => {
+  if (!roundCode) return;
+  const interval = setInterval(() => {
+    fetchRound(roundCode)
+      .then(result => {
+        if (result?.data) applyRoundSnapshot(result.data, undefined, isJoiner);
+      })
+      .catch(() => {});
+  }, 30000);
+  return () => clearInterval(interval);
 }, [roundCode, isJoiner]);
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
@@ -3369,6 +3389,16 @@ if (enableTeamGame && nextGameIndex >= 0) {
     skinsEnabled={skinsEnabled}
     skinsConfig={skinsConfig}
     getHandicapStrokesFn={context.getHandicapStrokesFn}
+    isJoiner={isJoiner}
+    onRefresh={() => {
+      if (roundCode) {
+        fetchRound(roundCode)
+          .then(result => {
+            if (result?.data) applyRoundSnapshot(result.data, undefined, true);
+          })
+          .catch(() => {});
+      }
+    }}
   />
 )}
 

@@ -48,7 +48,7 @@ export default function ResultsScreen({
   noPar3TeamGame = false, goToLive, backToSetup, onUpdateScore,
   onSaveRound, roundName, savedRounds = [],
   skinsResults, skinsEnabled, skinsConfig,
-  getHandicapStrokesFn,
+  getHandicapStrokesFn, isJoiner = false, onRefresh,
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
@@ -91,6 +91,29 @@ export default function ResultsScreen({
 
   return (
     <div style={{ fontFamily: "'Georgia', serif" }}>
+
+      {/* JOINER REFRESH BANNER */}
+      {isJoiner && onRefresh && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#f0f7f3", border: "1px solid #c3ddd0", borderRadius: 8,
+          padding: "8px 12px", marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 12, color: "#1a5c35", fontWeight: 500 }}>
+            👁 Viewing live — syncs every 30 seconds
+          </span>
+          <button
+            onClick={onRefresh}
+            style={{
+              background: "#1a5c35", color: "#fff", border: "none",
+              borderRadius: 6, padding: "5px 12px", fontSize: 12,
+              fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            ↻ Refresh now
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: sc.ink }}>
