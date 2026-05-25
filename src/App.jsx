@@ -2813,7 +2813,7 @@ return (
     goToLive={goToLive}
     goToResults={goToResults}
     roundName={roundName}
-    setRoundName={setRoundName}
+    setRoundName={(v) => setRoundName(v.replace(/(?:^|\s)\S/g, c => c.toUpperCase()))}
     courseName={course?.name || ""}
    />
       </>

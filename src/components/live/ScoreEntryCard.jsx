@@ -21,6 +21,8 @@ export default function ScoreEntryCard({
   onNextHole,
   handicapMode,
   getHandicapStrokesFn,
+  isJoiner = false,
+  onRefresh,
 }) {
   const [activePlayerId, setActivePlayerId] = useState(players?.[0]?.id ?? null);
 
@@ -66,6 +68,16 @@ export default function ScoreEntryCard({
 
   return (
     <div style={{ background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 14, marginBottom: 12, overflow: "hidden" }}>
+
+      {/* JOINER BANNER */}
+      {isJoiner && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f0f7f3", borderBottom: `1px solid #c3ddd0`, padding: "6px 12px" }}>
+          <span style={{ fontSize: 11, color: "#1a5c35", fontWeight: 500 }}>👁 Viewing live — syncs every 30s</span>
+          {onRefresh && (
+            <button onClick={onRefresh} style={{ background: "#1a5c35", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>↻</button>
+          )}
+        </div>
+      )}
 
       {/* HOLE HEADER */}
       <div style={{ background: sc.green, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
