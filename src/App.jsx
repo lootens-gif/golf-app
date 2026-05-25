@@ -2656,7 +2656,7 @@ return (
       onClick={goToResults}
       disabled={screen === "results"}
     >
-      Scorecard
+      Results
     </button>
 
     <button
