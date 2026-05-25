@@ -138,6 +138,9 @@ export function getNetScore(
 ) {
   const raw = getRawScore(scores, hole, playerId);
   if (raw === null) return null;
+  // Skip strokes on par 3 holes if noPar3Strokes is enabled
+  const par = course?.pars?.[hole - 1];
+  if (noPar3Strokes && par === 3) return raw;
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
   const strokes = strokesFn(playerId, hole, players, course, handicapMode);
   return raw - strokes;
@@ -159,12 +162,13 @@ export function getTeamNetScore(
   course,
   scores,
   handicapMode,
-  getHandicapStrokesFn
+  getHandicapStrokesFn,
+  noPar3Strokes = false
 ) {
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
   const netScores = team
     .map((playerId) =>
-      getNetScore(playerId, hole, players, course, scores, handicapMode, false, strokesFn)
+      getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes, strokesFn)
     )
     .filter((score) => score !== null);
 
@@ -436,10 +440,11 @@ export function computeHoleResult({
   scores,
   handicapMode,
   getHandicapStrokesFn,
+  noPar3Strokes = false,
 }) {
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  const aScore = getTeamNetScore(teamA, hole, players, course, scores, handicapMode, strokesFn);
-  const bScore = getTeamNetScore(teamB, hole, players, course, scores, handicapMode, strokesFn);
+  const aScore = getTeamNetScore(teamA, hole, players, course, scores, handicapMode, strokesFn, noPar3Strokes);
+  const bScore = getTeamNetScore(teamB, hole, players, course, scores, handicapMode, strokesFn, noPar3Strokes);
 
   if (aScore === null || bScore === null) {
     return null;
@@ -849,6 +854,7 @@ export function playPressMatch({
       scores: context.scores,
       handicapMode: context.handicapMode,
       getHandicapStrokesFn: context.getHandicapStrokesFn,
+      noPar3Strokes: !!context.noPar3TeamGame,
     });
 
     if (result === null) break;

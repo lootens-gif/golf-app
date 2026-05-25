@@ -256,7 +256,8 @@ function TeamGameScorecard({
         </div>
       </div>
 
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
         <tbody>
           <tr>
             <td style={scorecardLabelCellStyle}>Hole</td>
@@ -349,6 +350,7 @@ function TeamGameScorecard({
           )}
         </tbody>
       </table>
+      </div>
 
       <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
         {!game.birdieEnabled
@@ -746,8 +748,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
         <tbody>
           <tr>
             <td style={scorecardLabelCellStyle}>Hole</td>
@@ -813,6 +815,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
   };
@@ -1141,9 +1144,9 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
     const frontPar9 = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
 
     return (
-      <div style={{ marginBottom: 16, overflowX: "auto" }}>
+      <div style={{ marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>{label}</div>
-        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <table style={{ borderCollapse: "collapse", minWidth: 520 }}>
           <tbody>
             {/* Hole row */}
             <tr>
