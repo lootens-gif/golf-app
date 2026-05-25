@@ -411,6 +411,7 @@ export default function App() {
   const [roundCode, setRoundCode] = useState(null);
   const [roundName, setRoundName] = useState("");
   const [syncChannel] = useState(null);
+const lastSyncedAt = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [currentHole, setCurrentHole] = useState(5);
@@ -1647,7 +1648,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   lastHoleSaved,
 ]);
 
-function applyRoundSnapshot(round, successMessage = "Round loaded.") {
+function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen = false) {
   if (!isUsableRoundSnapshot(round)) {
     setSetupMessage("Saved round data was not usable and was ignored.");
     return false;
@@ -1685,7 +1686,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   setFocusGameTarget(null);
   setShowProjectedSettlement(false);
 
-  if (["setup", "live", "results"].includes(round.screen)) {
+  if (!skipScreen && ["setup", "live", "results"].includes(round.screen)) {
     setScreen(round.screen);
   }
 
@@ -2135,7 +2136,12 @@ useEffect(() => {
     if (document.visibilityState === "visible" && roundCode) {
       fetchRound(roundCode)
         .then(result => {
-          if (result?.data) applyRoundSnapshot(result.data, undefined, isJoiner);
+          if (result?.data) {
+          if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+            lastSyncedAt.current = result.updated_at;
+            applyRoundSnapshot(result.data, undefined, true); // skipScreen always for polls
+          }
+        }
         })
         .catch(() => {});
     }
@@ -2150,7 +2156,12 @@ useEffect(() => {
   const interval = setInterval(() => {
     fetchRound(roundCode)
       .then(result => {
-        if (result?.data) applyRoundSnapshot(result.data, undefined, isJoiner);
+        if (result?.data) {
+        if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+          lastSyncedAt.current = result.updated_at;
+          applyRoundSnapshot(result.data, undefined, true); // skipScreen always for polls
+        }
+      }
       })
       .catch(() => {});
   }, 30000);
@@ -2637,7 +2648,7 @@ return (
       onClick={goToLive}
       disabled={screen === "live"}
     >
-      Live
+      Scoring
     </button>
 
     <button
@@ -2645,7 +2656,7 @@ return (
       onClick={goToResults}
       disabled={screen === "results"}
     >
-      Results
+      Scorecard
     </button>
 
     <button
@@ -3394,7 +3405,12 @@ if (enableTeamGame && nextGameIndex >= 0) {
       if (roundCode) {
         fetchRound(roundCode)
           .then(result => {
-            if (result?.data) applyRoundSnapshot(result.data, undefined, true);
+            if (result?.data) {
+              if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+                lastSyncedAt.current = result.updated_at;
+              }
+              applyRoundSnapshot(result.data, undefined, true);
+            }
           })
           .catch(() => {});
       }

@@ -168,8 +168,9 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const searchTimer = useRef(null);
 
   function handleSearch(q) {
-    setSearchQuery(q);
-    updateCourseName(q);
+    const capped = q.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
+    setSearchQuery(capped);
+    updateCourseName(capped);
     clearTimeout(searchTimer.current);
     if (q.length < 2) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
