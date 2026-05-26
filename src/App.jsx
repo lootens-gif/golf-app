@@ -2128,7 +2128,7 @@ useEffect(() => {
     } finally {
       setIsSyncing(false);
     }
-  }, 800);
+  }, 50000);
 
   return () => clearTimeout(syncTimerRef.current);
 }, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
