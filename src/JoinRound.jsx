@@ -8,6 +8,7 @@ import {
   scoreRound,
   buildBirdieResults,
   buildLeaderboard,
+  settleSkinsRound,
 } from "./engine/scoringEngine";
 
 // Inlined from App.jsx
@@ -166,6 +167,16 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
     const birdiesEnabled = !!roundData.birdiesEnabled;
     const birdieBetAmount = Number(roundData.birdieBetAmount) || 0;
     const enableTeamGame = !!roundData.enableTeamGame;
+    const skinsEnabled = !!roundData.skinsEnabled;
+    const skinsType = roundData.skinsType || "perSkin";
+    const skinsGross = !!roundData.skinsGross;
+    const skinValueAmount = Number(roundData.skinValueAmount) || 2;
+    const skinCarryover = !!roundData.skinCarryover;
+    const skinBirdie = !!roundData.skinBirdie;
+    const skinBirdieDoubleCarryover = !!roundData.skinBirdieDoubleCarryover;
+    const potType = roundData.potType || "perSkin";
+    const potDonation = Number(roundData.potDonation) || 0;
+    const potBaseUnit = Number(roundData.potBaseUnit) || 0;
 
     const activePlayers = getActivePlayers(players, mode);
     const context = { players, course, scores, handicapMode, pressTrigger };
@@ -196,6 +207,16 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       players,
       handicapMode,
     });
+
+    const skinsConfig = {
+      skinsType, skinsGross, skinValueAmount, skinCarryover,
+      skinBirdie, skinBirdieDoubleCarryover, potType, potDonation, potBaseUnit,
+      players: activePlayers,
+    };
+
+    const skinsResults = skinsEnabled && activePlayers.length
+      ? (() => { try { return settleSkinsRound({ players: activePlayers, scores, course, handicapMode, skinsConfig }); } catch { return null; } })()
+      : null;
 
     const computedResults = scoreRound(roundData, {
       players,
@@ -231,6 +252,9 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       teamGameUnitAmount,
       noPar3TeamGame,
       enableTeamGame,
+      skinsEnabled,
+      skinsResults,
+      skinsConfig,
     };
   }, [roundData]);
 
@@ -309,6 +333,17 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
           teamGameUnitAmount={computed.teamGameUnitAmount}
           noPar3TeamGame={computed.noPar3TeamGame}
           enableTeamGame={computed.enableTeamGame}
+          skinsEnabled={computed.skinsEnabled}
+          skinsResults={computed.skinsResults}
+          skinsConfig={computed.skinsConfig}
+          isJoiner={true}
+          onRefresh={() => {
+            if (joinedCode) {
+              fetchRound(joinedCode).then(r => {
+                if (r?.data) { setRoundData(r.data); setLastUpdated(r.updated_at); }
+              }).catch(() => {});
+            }
+          }}
         />
       </div>
     );
