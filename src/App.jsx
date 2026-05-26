@@ -23,6 +23,7 @@ import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
+import JOSH_DEMO_ROUND from "./data/joshDemo";
 import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -394,47 +395,6 @@ function createEmptyRound() {
     },
   };
 }
-
-
-// ─── Josh Demo Data ─────────────────────────────────────────────────────────
-const JOSH_DEMO_ROUND = {
-  allPlayers: [
-    { id: "p1", name: "Kauffman", hcp: 18, active: true },
-    { id: "p2", name: "Fryback J", hcp: 19, active: true },
-    { id: "p3", name: "Martin", hcp: 17, active: true },
-    { id: "p4", name: "Shriner", hcp: 13, active: true },
-    { id: "p5", name: "Treadway", hcp: 5, active: true },
-  ],
-  course: {
-    name: "Ironhorse GC",
-    pars: [4,4,5,3,4,3,4,5,4, 4,4,5,4,3,4,3,4,4],
-    hcp:  [3,13,17,7,5,11,9,15,1, 4,16,10,6,12,14,18,8,2],
-  },
-  scores: {
-    "1": { p1:5, p2:6, p3:5, p4:4, p5:5 },
-    "2": { p1:5, p2:6, p3:4, p4:7, p5:4 },
-    "3": { p1:7, p2:7, p3:9, p4:7, p5:7 },
-    "4": { p1:3, p2:6, p3:3, p4:3, p5:3 },
-    "5": { p1:5, p2:4, p3:8, p4:5, p5:6 },
-    "6": { p1:4, p2:5, p3:3, p4:5, p5:3 },
-    "7": { p1:6, p2:8, p3:6, p4:6, p5:4 },
-    "8": { p1:7, p2:6, p3:6, p4:5, p5:8 },
-    "9": { p1:8, p2:6, p3:5, p4:3, p5:6 },
-    "10": { p1:4, p2:7, p3:7, p4:5, p5:4 },
-    "11": { p1:5, p2:4, p3:6, p4:3, p5:5 },
-    "12": { p1:4, p2:7, p3:7, p4:6, p5:5 },
-    "13": { p1:6, p2:3, p3:7, p4:6, p5:5 },
-    "14": { p1:4, p2:5, p3:4, p4:5, p5:2 },
-    "15": { p1:5, p2:4, p3:5, p4:6, p5:6 },
-    "16": { p1:6, p2:6, p3:3, p4:4, p5:4 },
-    "17": { p1:5, p2:6, p3:5, p4:5, p5:3 },
-    "18": { p1:6, p2:5, p3:7, p4:7, p5:8 },
-  },
-  handicapMode: "full",
-  mode: "individual",
-  enableTeamGame: false,
-  screen: "results",
-};
 
 export default function App() {
   const [mode, setMode] = useState("5p");
@@ -2055,7 +2015,6 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  // Check for ?demo=josh URL parameter
   const params = new URLSearchParams(window.location.search);
   if (params.get("demo") === "josh") {
     applyRoundSnapshot(JOSH_DEMO_ROUND, "Ironhorse demo loaded!", true);
@@ -2155,12 +2114,9 @@ const syncTimerRef = useRef(null);
 useEffect(() => {
   if (!roundCode || !autoRestoreComplete) return;
 
-useEffect(() => {
-  if (!roundCode || !autoRestoreComplete) return;
-  if (new URLSearchParams(window.location.search).get('demo')) return;
-
   clearTimeout(syncTimerRef.current);
   syncTimerRef.current = setTimeout(async () => {
+    if (new URLSearchParams(window.location.search).get("demo")) return;
     try {
       setIsSyncing(true);
       const saved = await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
