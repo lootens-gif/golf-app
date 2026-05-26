@@ -2110,7 +2110,8 @@ useEffect(() => {
   syncTimerRef.current = setTimeout(async () => {
     try {
       setIsSyncing(true);
-      await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      const saved = await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      if (saved?.updated_at) lastSyncedAt.current = saved.updated_at;
       setSyncMessage(`Synced ✓`);
       setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
     } catch {
@@ -2122,6 +2123,23 @@ useEffect(() => {
 
   return () => clearTimeout(syncTimerRef.current);
 }, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
+
+// For joiners: fetch fresh data whenever they navigate to Results or Scoring screen
+useEffect(() => {
+  if (!isJoiner || !roundCode) return;
+  if (screen === "results" || screen === "live") {
+    fetchRound(roundCode)
+      .then(result => {
+        if (result?.data) {
+          if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+            lastSyncedAt.current = result.updated_at;
+            applyRoundSnapshot(result.data, undefined, true);
+          }
+        }
+      })
+      .catch(() => {});
+  }
+}, [screen, isJoiner, roundCode]);
 
 // Cleanup sync channel on unmount
 useEffect(() => {
