@@ -411,24 +411,24 @@ const JOSH_DEMO_ROUND = {
     hcp:  [3,13,17,7,5,11,9,15,1, 4,16,10,6,12,14,18,8,2],
   },
   scores: {
-    1:  { p1:5, p2:6, p3:5, p4:4, p5:5 },
-    2:  { p1:5, p2:6, p3:4, p4:7, p5:4 },
-    3:  { p1:7, p2:7, p3:9, p4:7, p5:7 },
-    4:  { p1:3, p2:6, p3:3, p4:3, p5:3 },
-    5:  { p1:5, p2:4, p3:8, p4:5, p5:6 },
-    6:  { p1:4, p2:5, p3:3, p4:5, p5:3 },
-    7:  { p1:6, p2:8, p3:6, p4:6, p5:4 },
-    8:  { p1:7, p2:6, p3:6, p4:5, p5:8 },
-    9:  { p1:8, p2:6, p3:5, p4:3, p5:6 },
-    10: { p1:4, p2:7, p3:7, p4:5, p5:4 },
-    11: { p1:5, p2:4, p3:6, p4:3, p5:5 },
-    12: { p1:4, p2:7, p3:7, p4:6, p5:5 },
-    13: { p1:6, p2:3, p3:7, p4:6, p5:5 },
-    14: { p1:4, p2:5, p3:4, p4:5, p5:2 },
-    15: { p1:5, p2:4, p3:5, p4:6, p5:6 },
-    16: { p1:6, p2:6, p3:3, p4:4, p5:4 },
-    17: { p1:5, p2:6, p3:5, p4:5, p5:3 },
-    18: { p1:6, p2:5, p3:7, p4:7, p5:8 },
+    "1": { p1:5, p2:6, p3:5, p4:4, p5:5 },
+    "2": { p1:5, p2:6, p3:4, p4:7, p5:4 },
+    "3": { p1:7, p2:7, p3:9, p4:7, p5:7 },
+    "4": { p1:3, p2:6, p3:3, p4:3, p5:3 },
+    "5": { p1:5, p2:4, p3:8, p4:5, p5:6 },
+    "6": { p1:4, p2:5, p3:3, p4:5, p5:3 },
+    "7": { p1:6, p2:8, p3:6, p4:6, p5:4 },
+    "8": { p1:7, p2:6, p3:6, p4:5, p5:8 },
+    "9": { p1:8, p2:6, p3:5, p4:3, p5:6 },
+    "10": { p1:4, p2:7, p3:7, p4:5, p5:4 },
+    "11": { p1:5, p2:4, p3:6, p4:3, p5:5 },
+    "12": { p1:4, p2:7, p3:7, p4:6, p5:5 },
+    "13": { p1:6, p2:3, p3:7, p4:6, p5:5 },
+    "14": { p1:4, p2:5, p3:4, p4:5, p5:2 },
+    "15": { p1:5, p2:4, p3:5, p4:6, p5:6 },
+    "16": { p1:6, p2:6, p3:3, p4:4, p5:4 },
+    "17": { p1:5, p2:6, p3:5, p4:5, p5:3 },
+    "18": { p1:6, p2:5, p3:7, p4:7, p5:8 },
   },
   handicapMode: "full",
   mode: "individual",
@@ -2058,7 +2058,7 @@ useEffect(() => {
   // Check for ?demo=josh URL parameter
   const params = new URLSearchParams(window.location.search);
   if (params.get("demo") === "josh") {
-    applyRoundSnapshot(JOSH_DEMO_ROUND, "Ironhorse demo loaded! 🏌️", true);
+    applyRoundSnapshot(JOSH_DEMO_ROUND, "Ironhorse demo loaded!", true);
     setAutoRestoreComplete(true);
     return;
   }
