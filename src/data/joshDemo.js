@@ -32,9 +32,11 @@ const JOSH_DEMO_ROUND = {
     "18": { p1:6, p2:5, p3:7, p4:7, p5:8 },
   },
   handicapMode: "full",
-  mode: "individual",
   enableTeamGame: false,
+  mode: "individual",
   screen: "results",
+  teamGames: [],
+  matches: [],
 };
 
 export default JOSH_DEMO_ROUND;
