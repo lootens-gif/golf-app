@@ -79,9 +79,7 @@ function formatScoreWithStrokeDots(playerId, hole, players, course, scores, hand
   }
 
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  // No dots on par 3 holes when noPar3Strokes is enabled
-  const par = course?.pars?.[hole - 1];
-  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode);
+  const strokes = strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
@@ -442,9 +440,9 @@ function AuditSection({ title, children, defaultOpen = false }) {
           width: "100%",
           padding: "11px 14px",
           textAlign: "left",
-          background: open ? "#f0f7f3" : "#f9fafb",
-          color: "#1a1a1a",
-          borderLeft: open ? "3px solid #1a5c35" : "3px solid transparent",
+          background: open ? "#1a5c35" : "#f9fafb",
+          color: open ? "#fff" : "#1a1a1a",
+          border: 0,
           fontWeight: 600,
           fontSize: 14,
           cursor: "pointer",

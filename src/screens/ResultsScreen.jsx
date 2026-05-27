@@ -50,11 +50,9 @@ export default function ResultsScreen({
   skinsResults, skinsEnabled, skinsConfig,
   getHandicapStrokesFn, isJoiner = false, onRefresh,
 }) {
-  const [scoresVerified, setScoresVerified] = useState(false);
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
   });
-  const [showFullResults, setShowFullResults] = useState(false);
   const [drillPlayerId, setDrillPlayerId] = useState(null);
   const scorecardRef = useRef(null);
   const [saveRoundName, setSaveRoundName] = useState("");
@@ -128,24 +126,6 @@ export default function ResultsScreen({
         )}
       </div>
 
-      {/* ON COURSE / FULL RESULTS TOGGLE */}
-      {!roundComplete && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setShowFullResults(false)} style={{
-            flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${sc.green}`,
-            background: !showFullResults ? sc.green : "#fff",
-            color: !showFullResults ? "#fff" : sc.ink,
-            fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}>⛳ On Course</button>
-          <button onClick={() => setShowFullResults(true)} style={{
-            flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${sc.green}`,
-            background: showFullResults ? sc.green : "#fff",
-            color: showFullResults ? "#fff" : sc.ink,
-            fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}>📊 Full Results</button>
-        </div>
-      )}
-
       {/* LEADERBOARD */}
       <Card style={{ borderTop: `3px solid ${sc.green}` }}>
         <SectionLabel>Leaderboard</SectionLabel>
@@ -173,8 +153,8 @@ export default function ResultsScreen({
         </div>
       </Card>
 
-      {/* FULL RESULTS - hidden on course unless expanded or round complete */}
-      {(showFullResults || roundComplete) && skinsEnabled && skinsResults && (
+      {/* SKINS RESULTS */}
+      {skinsEnabled && skinsResults && (
         <Card style={{ borderTop: `3px solid ${sc.gold}` }}>
           <SectionLabel>🏆 Skins</SectionLabel>
 
@@ -368,7 +348,8 @@ export default function ResultsScreen({
         </Card>
       )}
 
-      {(showFullResults || roundComplete) && onSaveRound && (
+      {/* SAVE THIS ROUND */}
+      {onSaveRound && (
         <Card style={{ borderTop: `3px solid ${sc.gold}`, background: sc.goldLight }}>
           {roundSaved || isAlreadySaved ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -441,51 +422,23 @@ export default function ResultsScreen({
         </Card>
       )}
 
-      {(showFullResults || roundComplete) && (
-        <>
-          {/* SCORECARDS TOGGLE */}
-          <div ref={scorecardRef} onClick={() => setShowAuditTrail(v => !v)}
-            style={{ marginBottom: 12, padding: "12px 16px", borderRadius: 10, border: `2px solid ${showAuditTrail ? sc.green : sc.border}`, background: showAuditTrail ? sc.greenLight : "#fafafa", color: sc.ink, fontWeight: 600, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
-            <span>Scorecards & Match Detail</span>
-            <span>{showAuditTrail ? "▲" : "▼"}</span>
-          </div>
+      {/* SCORECARDS TOGGLE */}
+      <div ref={scorecardRef} onClick={() => setShowAuditTrail(v => !v)}
+        style={{ marginBottom: 12, padding: "12px 16px", borderRadius: 10, border: `1px solid ${sc.border}`, background: showAuditTrail ? sc.green : "#fafafa", color: showAuditTrail ? "#fff" : sc.ink, fontWeight: 600, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+        <span>Scorecards & Match Detail</span>
+        <span>{showAuditTrail ? "▲" : "▼"}</span>
+      </div>
 
-          {showAuditTrail && (
-            <AuditTrail
-              players={players} matches={matches} matchResults={matchResults}
-              birdieResults={birdieResults} teamGames={teamGames} teamGameResults={teamGameResults}
-              getTeamGameSelection={getTeamGameSelection} scores={scores} course={course}
-              handicapMode={handicapMode} teamGameUnitAmount={teamGameUnitAmount}
-              noPar3TeamGame={noPar3TeamGame} goToLive={goToLive} onUpdateScore={onUpdateScore}
-              drillPlayerId={drillPlayerId}
-              getHandicapStrokesFn={getHandicapStrokesFn}
-            />
-          )}
-        </>
-      )}
-
-      {/* SCORE VERIFICATION BANNER */}
-      {!scoresVerified && (
-        <div style={{
-          marginBottom: 12, padding: "12px 14px", borderRadius: 10,
-          background: "#fef9c3", border: "1px solid #fcd34d",
-          display: "flex", alignItems: "flex-start", gap: 10,
-        }}>
-          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e", marginBottom: 3 }}>
-              Verify scores before settling up
-            </div>
-            <div style={{ fontSize: 12, color: "#92400e", marginBottom: 8 }}>
-              Each player should confirm their partner's scorecard — like a USGA event.
-            </div>
-            <button onClick={() => setScoresVerified(true)} style={{
-              padding: "6px 14px", fontSize: 12, fontWeight: 700,
-              background: "#92400e", color: "#fff", border: "none",
-              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-            }}>✓ Scores verified — show settlement</button>
-          </div>
-        </div>
+      {showAuditTrail && (
+        <AuditTrail
+          players={players} matches={matches} matchResults={matchResults}
+          birdieResults={birdieResults} teamGames={teamGames} teamGameResults={teamGameResults}
+          getTeamGameSelection={getTeamGameSelection} scores={scores} course={course}
+          handicapMode={handicapMode} teamGameUnitAmount={teamGameUnitAmount}
+          noPar3TeamGame={noPar3TeamGame} goToLive={goToLive} onUpdateScore={onUpdateScore}
+          drillPlayerId={drillPlayerId}
+          getHandicapStrokesFn={getHandicapStrokesFn}
+        />
       )}
 
       {/* SETTLE UP */}

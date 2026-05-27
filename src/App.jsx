@@ -23,7 +23,6 @@ import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
-import JOSH_DEMO_ROUND from "./data/joshDemo";
 import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -2015,13 +2014,6 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("demo") === "josh") {
-    applyRoundSnapshot(JOSH_DEMO_ROUND, "Ironhorse demo loaded!", true);
-    setAutoRestoreComplete(true);
-    return;
-  }
-
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
 
   if (round && isUsableRoundSnapshot(round)) {
@@ -2116,11 +2108,9 @@ useEffect(() => {
 
   clearTimeout(syncTimerRef.current);
   syncTimerRef.current = setTimeout(async () => {
-    if (new URLSearchParams(window.location.search).get("demo")) return;
     try {
       setIsSyncing(true);
-      const saved = await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
-      if (saved?.updated_at) lastSyncedAt.current = saved.updated_at;
+      await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
       setSyncMessage(`Synced ✓`);
       setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
     } catch {
@@ -2128,27 +2118,10 @@ useEffect(() => {
     } finally {
       setIsSyncing(false);
     }
-  }, 50000);
+  }, 800);
 
   return () => clearTimeout(syncTimerRef.current);
 }, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
-
-// For joiners: fetch fresh data whenever they navigate to Results or Scoring screen
-// useEffect(() => {
-//   if (!isJoiner || !roundCode) return;
-//   if (screen === "results" || screen === "live") {
-//     fetchRound(roundCode)
-//       .then(result => {
-//         if (result?.data) {
-//           if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
-//             lastSyncedAt.current = result.updated_at;
-//             applyRoundSnapshot(result.data, undefined, true);
-//           }
-//         }
-//       })
-//       .catch(() => {});
-//   }
-// }, [screen, isJoiner, roundCode]);
 
 // Cleanup sync channel on unmount
 useEffect(() => {
@@ -2178,22 +2151,22 @@ useEffect(() => {
 }, [roundCode, isJoiner]);
 
 // 30-second polling fallback — bulletproof sync for iOS Safari
-//useEffect(() => {
-//  if (!roundCode) return;
-//  const interval = setInterval(() => {
-//    fetchRound(roundCode)
-//      .then(result => {
-//        if (result?.data) {
-//        if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
-//          lastSyncedAt.current = result.updated_at;
-//          applyRoundSnapshot(result.data, undefined, true); // skipScreen always for polls
-//        }
-//      }
-//      })
-//      .catch(() => {});
-//  }, 30000);
-//  return () => clearInterval(interval);
-// }, [roundCode, isJoiner]);
+useEffect(() => {
+  if (!roundCode) return;
+  const interval = setInterval(() => {
+    fetchRound(roundCode)
+      .then(result => {
+        if (result?.data) {
+        if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+          lastSyncedAt.current = result.updated_at;
+          applyRoundSnapshot(result.data, undefined, true); // skipScreen always for polls
+        }
+      }
+      })
+      .catch(() => {});
+  }, 30000);
+  return () => clearInterval(interval);
+}, [roundCode, isJoiner]);
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
