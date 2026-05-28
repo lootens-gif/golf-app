@@ -432,7 +432,7 @@ export default function ResultsScreen({
       {showAuditTrail && (
         <AuditTrail
           players={players} matches={matches} matchResults={matchResults}
-          birdieResults={birdieResults} teamGames={teamGames} teamGameResults={teamGameResults}
+          birdieResults={birdieResults} teamGames={teamGames} teamGameResults={enableTeamGame ? teamGameResults : []}
           getTeamGameSelection={getTeamGameSelection} scores={scores} course={course}
           handicapMode={handicapMode} teamGameUnitAmount={teamGameUnitAmount}
           noPar3TeamGame={noPar3TeamGame} goToLive={goToLive} onUpdateScore={onUpdateScore}

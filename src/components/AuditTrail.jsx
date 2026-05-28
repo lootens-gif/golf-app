@@ -79,7 +79,9 @@ function formatScoreWithStrokeDots(playerId, hole, players, course, scores, hand
   }
 
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  const strokes = strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
+  // noPar3Strokes handled here, not in strokesFn (spread fn doesn't accept it)
+  const par = course?.pars?.[hole - 1];
+  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
@@ -202,6 +204,7 @@ function TeamGameScorecard({
       scores,
       handicapMode,
       noPar3Strokes,
+      getHandicapStrokesFn,
     });
     const statuses = getBetStatusesForHole(matchup?.result || [], hole);
     const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
