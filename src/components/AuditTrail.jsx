@@ -100,6 +100,8 @@ function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode
     scores,
     handicapMode,
     noPar3Strokes
+    getHandicapStrokesFn
+
   )}`;
 }
 
