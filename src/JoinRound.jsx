@@ -167,7 +167,9 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
     const birdiesEnabled = !!roundData.birdiesEnabled;
     const birdieBetAmount = Number(roundData.birdieBetAmount) || 0;
     const enableTeamGame = !!roundData.enableTeamGame;
-    const skinsEnabled = !!roundData.skinsEnabled;
+    const activePlayers = getActivePlayers(players, mode);
+
+        const skinsEnabled = !!roundData.skinsEnabled;
     const skinsConfig = {
       skinsType: roundData.skinsType || "perSkin",
       skinsGross: !!roundData.skinsGross,
@@ -184,7 +186,6 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       ? (() => { try { return settleSkinsRound({ players: activePlayers, scores, course, handicapMode, skinsConfig }); } catch { return null; } })()
       : null;
 
-    const activePlayers = getActivePlayers(players, mode);
     const context = { players, course, scores, handicapMode, pressTrigger };
 
     const matchResults = matches.map((match) => ({
