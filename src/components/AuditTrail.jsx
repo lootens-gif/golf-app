@@ -99,7 +99,7 @@ function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode
     course,
     scores,
     handicapMode,
-    noPar3Strokes
+    noPar3Strokes,
     getHandicapStrokesFn
 
   )}`;
