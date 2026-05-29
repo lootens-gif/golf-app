@@ -335,13 +335,30 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
   function handleSearch(q) {
     setSearchQuery(q);
     clearTimeout(searchTimer.current);
-    if (q.length < 2) { setSearchResults([]); return; }
+    if (q.length < 1) {
+      // Load all public templates when field is empty
+      searchTimer.current = setTimeout(async () => {
+        setSearching(true);
+        try {
+          const results = await onSearchTemplates("%");
+          setSearchResults(results);
+        } catch(e) {
+          console.error("Template search error:", e);
+          setSearchResults([]);
+        }
+        finally { setSearching(false); }
+      }, 200);
+      return;
+    }
     searchTimer.current = setTimeout(async () => {
       setSearching(true);
       try {
         const results = await onSearchTemplates(q);
         setSearchResults(results);
-      } catch { setSearchResults([]); }
+      } catch(e) {
+        console.error("Template search error:", e);
+        setSearchResults([]);
+      }
       finally { setSearching(false); }
     }, 400);
   }
@@ -364,7 +381,11 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
       {/* Tab toggle */}
       <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden", marginBottom: 14 }}>
         {[{ v: "mine", l: "My Templates" }, { v: "search", l: "Search Public" }].map(({ v, l }, i) => (
-          <button key={v} onClick={() => { setView(v); if (v === "mine" && !hasLoaded) handleOpen(); }} style={{
+          <button key={v} onClick={() => {
+            setView(v);
+            if (v === "mine" && !hasLoaded) handleOpen();
+            if (v === "search" && searchResults.length === 0) handleSearch("");
+          }} style={{
             flex: 1, padding: "8px", border: "none",
             background: view === v ? sc.green : "#fff",
             color: view === v ? "#fff" : sc.ink,
@@ -534,7 +555,7 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
                 </div>
               ))}
             </div>
-          ) : searchQuery.length >= 2 && !searching ? (
+          ) : searchQuery.length >= 1 && !searching ? (
             <div style={{ fontSize: 13, color: sc.muted, textAlign: "center", padding: "10px 0" }}>No public templates found.</div>
           ) : null}
         </div>
