@@ -165,7 +165,13 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [saveStatus, setSaveStatus] = useState(""); // "" | "saving" | "saved" | "error"
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveCity, setSaveCity] = useState("");
+  const [saveState, setSaveState] = useState("");
   const searchTimer = useRef(null);
+
+  // Get Player 1 name for "Saved by"
+  const savedBy = players?.[0]?.name && players[0].name !== "P1" ? players[0].name : "Anonymous";
 
   function handleSearch(q) {
     const capped = q.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
@@ -192,10 +198,11 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   }
 
   async function handleSave() {
-    if (!course.name) return;
+    if (!course.name || !saveCity.trim() || !saveState.trim()) return;
     setSaveStatus("saving");
+    setShowSaveForm(false);
     try {
-      await saveCourseToLibrary(course, "");
+      await saveCourseToLibrary({ ...course, city: saveCity.trim(), state: saveState.trim() }, savedBy);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus(""), 3000);
     } catch {
@@ -241,21 +248,63 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
 
       <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />
 
-      {/* Save to library button */}
-      <button
-        onClick={handleSave}
-        disabled={!course.name || saveStatus === "saving"}
-        style={{
-          marginTop: 12, padding: "9px 16px", fontSize: 13, fontWeight: 600,
-          background: saveStatus === "saved" ? sc.greenLight : "#fff",
-          color: saveStatus === "saved" ? sc.green : saveStatus === "error" ? "#b3261e" : sc.muted,
-          border: `1px solid ${saveStatus === "saved" ? sc.green : sc.border}`,
-          borderRadius: 8, cursor: course.name ? "pointer" : "not-allowed",
-          fontFamily: "inherit",
-        }}
-      >
-        {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved to course library" : saveStatus === "error" ? "Save failed" : "💾 Save course to shared library"}
-      </button>
+      {/* Save to library */}
+      {saveStatus === "saved" ? (
+        <div style={{ marginTop: 12, fontSize: 13, color: sc.green, fontWeight: 600 }}>✓ Saved to course library</div>
+      ) : saveStatus === "error" ? (
+        <div style={{ marginTop: 12, fontSize: 13, color: "#b3261e" }}>Save failed — try again</div>
+      ) : showSaveForm ? (
+        <div style={{ marginTop: 12, padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: sc.ink }}>Save to shared library</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input
+              type="text"
+              value={saveCity}
+              onChange={e => setSaveCity(e.target.value)}
+              placeholder="City *"
+              style={{ flex: 1, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}
+            />
+            <input
+              type="text"
+              value={saveState}
+              onChange={e => setSaveState(e.target.value.toUpperCase())}
+              placeholder="ST *"
+              maxLength={2}
+              style={{ width: 50, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit", textTransform: "uppercase" }}
+            />
+          </div>
+          <div style={{ fontSize: 11, color: sc.muted, marginBottom: 8 }}>Saved by: {savedBy}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={handleSave}
+              disabled={!saveCity.trim() || !saveState.trim() || saveStatus === "saving"}
+              style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, background: sc.green, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", opacity: (!saveCity.trim() || !saveState.trim()) ? 0.5 : 1 }}
+            >
+              {saveStatus === "saving" ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => setShowSaveForm(false)}
+              style={{ padding: "8px 12px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowSaveForm(true)}
+          disabled={!course.name}
+          style={{
+            marginTop: 12, padding: "9px 16px", fontSize: 13, fontWeight: 600,
+            background: "#fff", color: sc.muted,
+            border: `1px solid ${sc.border}`,
+            borderRadius: 8, cursor: course.name ? "pointer" : "not-allowed",
+            fontFamily: "inherit",
+          }}
+        >
+          💾 Save course to shared library
+        </button>
+      )}
       <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
         Once saved, anyone can search and load this course.
       </div>

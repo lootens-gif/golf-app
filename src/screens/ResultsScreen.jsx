@@ -349,7 +349,7 @@ export default function ResultsScreen({
       )}
 
       {/* SAVE THIS ROUND */}
-      {onSaveRound && (
+      {onSaveRound && roundComplete && (
         <Card style={{ borderTop: `3px solid ${sc.gold}`, background: sc.goldLight }}>
           {roundSaved || isAlreadySaved ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
