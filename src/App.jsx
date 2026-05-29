@@ -1926,6 +1926,21 @@ async function handleToggleTemplateVisibility(template) {
   }
 }
 
+async function handleUpdateTemplate(template) {
+  try {
+    const updated = {
+      ...buildTemplatePayload(template.name, template.is_public),
+      id: template.id,
+      use_count: template.use_count || 0,
+    };
+    await saveTemplate(updated, deviceId);
+    setMyTemplates(prev => prev.map(t => t.id === template.id ? updated : t));
+    setSetupMessage(`Template "${template.name}" updated.`);
+  } catch {
+    setSetupMessage("Could not update template.");
+  }
+}
+
 async function loadMyTemplates() {
   try {
     const templates = await fetchMyTemplates(deviceId);
@@ -2942,6 +2957,7 @@ return (
     onLoadTemplate={handleLoadTemplate}
     onDeleteTemplate={handleDeleteTemplate}
     onToggleTemplateVisibility={handleToggleTemplateVisibility}
+    onUpdateTemplate={handleUpdateTemplate}
     onSearchTemplates={searchTemplates}
     onLoadMyTemplates={loadMyTemplates}
    />

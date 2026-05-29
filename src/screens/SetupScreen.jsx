@@ -312,7 +312,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   );
 }
 
-function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onSearchTemplates, onLoadMyTemplates, sc }) {
+function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onUpdateTemplate, onSearchTemplates, onLoadMyTemplates, sc }) {
   const [view, setView] = useState("mine"); // "mine" | "search"
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -321,6 +321,7 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
   const [isPublic, setIsPublic] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmUpdateId, setConfirmUpdateId] = useState(null);
   const searchTimer = useRef(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
@@ -402,6 +403,27 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
                       background: sc.green, color: "#fff", border: "none",
                       borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
                     }}>Load</button>
+                    {confirmUpdateId === t.id ? (
+                      <>
+                        <button onClick={() => { onUpdateTemplate?.(t); setConfirmUpdateId(null); }} style={{
+                          padding: "6px 10px", fontSize: 12, fontWeight: 600,
+                          background: sc.gold, color: "#fff", border: "none",
+                          borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                        }}>Confirm?</button>
+                        <button onClick={() => setConfirmUpdateId(null)} style={{
+                          padding: "6px 10px", fontSize: 12, background: "transparent",
+                          color: sc.muted, border: `1px solid ${sc.border}`,
+                          borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                        }}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirmUpdateId(t.id)} title="Overwrite with current setup" style={{
+                        padding: "6px 10px", fontSize: 12, fontWeight: 600,
+                        background: "transparent", color: sc.gold,
+                        border: `1px solid ${sc.gold}`,
+                        borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                      }}>Update</button>
+                    )}
                     <button
                       onClick={() => onToggleTemplateVisibility?.(t)}
                       title={t.is_public ? "Make private" : "Make public"}
@@ -544,7 +566,7 @@ export default function SetupScreen({
   birdieResults = [], updateMatch, removeMatch, startRound,
   createDefaultTeamGame, focusGameTarget, goToLive, goToResults,
   roundName, setRoundName,
-  myTemplates = [], templateStatus = "", onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onSearchTemplates, onLoadMyTemplates,
+  myTemplates = [], templateStatus = "", onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onUpdateTemplate, onSearchTemplates, onLoadMyTemplates,
 }) {
   const teamGameRefs = useRef({});
   const hasNinePoint = matches.some(m => m.gameType === "ninePoint");
@@ -1009,6 +1031,7 @@ export default function SetupScreen({
         onLoadTemplate={onLoadTemplate}
         onDeleteTemplate={onDeleteTemplate}
         onToggleTemplateVisibility={onToggleTemplateVisibility}
+        onUpdateTemplate={onUpdateTemplate}
         onSearchTemplates={onSearchTemplates}
         onLoadMyTemplates={onLoadMyTemplates}
         sc={sc}
