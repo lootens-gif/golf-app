@@ -530,8 +530,9 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
             value={searchQuery}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search public templates…"
-            style={{ width: "100%", fontSize: 14, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
+            style={{ width: "100%", fontSize: 14, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 4 }}
           />
+          <div style={{ fontSize: 11, color: sc.muted, marginBottom: 8 }}>Load a template to apply it — then save your own copy under My Templates.</div>
           {searching && <div style={{ fontSize: 12, color: sc.muted, marginBottom: 8 }}>Searching…</div>}
           {searchResults.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -547,7 +548,7 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
                       {t.use_count > 0 ? ` · used ${t.use_count}×` : ""}
                     </div>
                   </div>
-                  <button onClick={() => onLoadTemplate?.(t)} style={{
+                  <button onClick={() => { onLoadTemplate?.(t); setView("mine"); if (!hasLoaded) { onLoadMyTemplates?.(); setHasLoaded(true); } }} style={{
                     padding: "6px 12px", fontSize: 12, fontWeight: 600,
                     background: sc.green, color: "#fff", border: "none",
                     borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
