@@ -1914,6 +1914,7 @@ function resetSetup() {
   setRoundCode(generateRoundCode());
   setRoundName("");
   setIsJoiner(false);
+  localStorage.removeItem("golf-betting-is-joiner-v1");
   localStorage.removeItem(ROUND_CODE_KEY);
   setSetupMessage("Setup reset.");
 }
@@ -2014,6 +2015,11 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  // Restore isJoiner state from localStorage (survives iOS Safari page reload)
+  if (localStorage.getItem("golf-betting-is-joiner-v1") === "true") {
+    setIsJoiner(true);
+  }
+
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
 
   if (round && isUsableRoundSnapshot(round)) {
@@ -2717,7 +2723,7 @@ return (
           }}>
             👁 You joined this round — Setup is view only.{" "}
             <button
-              onClick={() => { setIsJoiner(false); setRoundCode(generateRoundCode()); setRoundName(""); }}
+              onClick={() => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(generateRoundCode()); setRoundName(""); }}
               style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
             >
               Start my own round →
@@ -3426,6 +3432,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
         applyRoundSnapshot(data, "Joined round loaded.");
         setRoundCode(code);
         setIsJoiner(true);
+        localStorage.setItem("golf-betting-is-joiner-v1", "true");
         setScreen("results");
       }
     }}
