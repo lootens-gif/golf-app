@@ -163,3 +163,62 @@ export async function searchCourses(query) {
 export async function incrementCourseUse(courseId) {
   await supabase.rpc("increment_course_use", { course_id: courseId }).catch(() => {});
 }
+
+// ── GROUP TEMPLATES ──────────────────────────────────────────────────────────
+
+// Save a group template to Supabase
+export async function saveTemplate(template, deviceId) {
+  const { data, error } = await supabase
+    .from("group_templates")
+    .upsert({
+      ...template,
+      device_id: deviceId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" })
+    .select();
+
+  if (error) throw error;
+  return data?.[0];
+}
+
+// Fetch private templates for this device
+export async function fetchMyTemplates(deviceId) {
+  const { data, error } = await supabase
+    .from("group_templates")
+    .select("*")
+    .eq("device_id", deviceId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Search public templates by name
+export async function searchTemplates(query) {
+  const { data, error } = await supabase
+    .from("group_templates")
+    .select("*")
+    .eq("is_public", true)
+    .ilike("name", `%${query}%`)
+    .order("use_count", { ascending: false })
+    .limit(10);
+
+  if (error) throw error;
+  return data || [];
+}
+
+// Increment use count for a template
+export async function incrementTemplateUse(templateId) {
+  await supabase.rpc("increment_template_use", { template_id: templateId }).catch(() => {});
+}
+
+// Delete a template
+export async function deleteTemplate(templateId, deviceId) {
+  const { error } = await supabase
+    .from("group_templates")
+    .delete()
+    .eq("id", templateId)
+    .eq("device_id", deviceId);
+
+  if (error) throw error;
+}

@@ -23,7 +23,7 @@ import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -406,6 +406,8 @@ export default function App() {
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
+  const [myTemplates, setMyTemplates] = useState([]);
+  const [templateStatus, setTemplateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "loading"
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
   const [roundCode, setRoundCode] = useState(null);
@@ -1820,6 +1822,119 @@ function deleteNamedRound() {
   }
 }
 
+// ── GROUP TEMPLATES ──────────────────────────────────────────────────────────
+
+function buildTemplatePayload(templateName, isPublic) {
+  return {
+    id: "tmpl-" + Math.random().toString(36).slice(2, 10),
+    name: templateName.trim(),
+    is_public: !!isPublic,
+    use_count: 0,
+    players: allPlayers,
+    game_config: {
+      mode,
+      handicapMode,
+      handicapDistribution,
+      enableTeamGame,
+      teamGameUnitAmount,
+      pressTrigger,
+      birdiesEnabled,
+      birdieBetAmount,
+      toyRule,
+      noPar3TeamGame,
+      skinsEnabled,
+      skinsType,
+      skinsGross,
+      skinValueAmount,
+      skinCarryover,
+      skinBirdie,
+      skinBirdieDoubleCarryover,
+      potType,
+      potDonation,
+      potBaseUnit,
+      teamGames,
+      matches,
+    },
+  };
+}
+
+async function handleSaveTemplate(templateName, isPublic) {
+  if (!templateName.trim()) return;
+  setTemplateStatus("saving");
+  try {
+    const payload = buildTemplatePayload(templateName, isPublic);
+    const saved = await saveTemplate(payload, deviceId);
+    setMyTemplates(prev => [saved || payload, ...prev.filter(t => t.id !== payload.id)]);
+    setTemplateStatus("saved");
+    setTimeout(() => setTemplateStatus(""), 3000);
+  } catch {
+    setTemplateStatus("error");
+    setTimeout(() => setTemplateStatus(""), 3000);
+  }
+}
+
+async function handleLoadTemplate(template) {
+  const cfg = template.game_config || {};
+  try {
+    if (template.players) setAllPlayers(template.players);
+    if (cfg.mode) setMode(cfg.mode);
+    if (cfg.handicapMode) setHandicapMode(cfg.handicapMode);
+    if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
+    if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
+    if (typeof cfg.teamGameUnitAmount === "number") setTeamGameUnitAmount(cfg.teamGameUnitAmount);
+    if (cfg.pressTrigger) setPressTrigger(Number(cfg.pressTrigger));
+    if (typeof cfg.birdiesEnabled === "boolean") setBirdiesEnabled(cfg.birdiesEnabled);
+    if (typeof cfg.birdieBetAmount === "number") setBirdieBetAmount(cfg.birdieBetAmount);
+    if (typeof cfg.toyRule === "boolean") setToyRule(cfg.toyRule);
+    if (typeof cfg.noPar3TeamGame === "boolean") setNoPar3TeamGame(cfg.noPar3TeamGame);
+    if (typeof cfg.skinsEnabled === "boolean") setSkinsEnabled(cfg.skinsEnabled);
+    if (cfg.skinsType) setSkinsType(cfg.skinsType);
+    if (typeof cfg.skinsGross === "boolean") setSkinsGross(cfg.skinsGross);
+    if (typeof cfg.skinValueAmount === "number") setSkinValueAmount(cfg.skinValueAmount);
+    if (typeof cfg.skinCarryover === "boolean") setSkinCarryover(cfg.skinCarryover);
+    if (typeof cfg.skinBirdie === "boolean") setSkinBirdie(cfg.skinBirdie);
+    if (typeof cfg.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(cfg.skinBirdieDoubleCarryover);
+    if (cfg.potType) setPotType(cfg.potType);
+    if (typeof cfg.potDonation === "number") setPotDonation(cfg.potDonation);
+    if (typeof cfg.potBaseUnit === "number") setPotBaseUnit(cfg.potBaseUnit);
+    if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
+    if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
+    setScores({});
+    setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
+    incrementTemplateUse(template.id).catch(() => {});
+  } catch {
+    setSetupMessage("Could not load template.");
+  }
+}
+
+async function handleDeleteTemplate(templateId) {
+  try {
+    await deleteTemplate(templateId, deviceId);
+    setMyTemplates(prev => prev.filter(t => t.id !== templateId));
+  } catch {
+    setSetupMessage("Could not delete template.");
+  }
+}
+
+async function handleToggleTemplateVisibility(template) {
+  const updated = { ...template, is_public: !template.is_public };
+  try {
+    await saveTemplate(updated, deviceId);
+    setMyTemplates(prev => prev.map(t => t.id === template.id ? updated : t));
+  } catch {
+    setSetupMessage("Could not update template visibility.");
+  }
+}
+
+async function loadMyTemplates() {
+  try {
+    const templates = await fetchMyTemplates(deviceId);
+    setMyTemplates(templates);
+  } catch {
+    // silently ignore
+  }
+}
+
 function exportSavedRounds() {
   try {
     const exportData = {
@@ -2821,6 +2936,14 @@ return (
     roundName={roundName}
     setRoundName={(v) => setRoundName(v.replace(/(?:^|\s)\S/g, c => c.toUpperCase()))}
     courseName={course?.name || ""}
+    myTemplates={myTemplates}
+    templateStatus={templateStatus}
+    onSaveTemplate={handleSaveTemplate}
+    onLoadTemplate={handleLoadTemplate}
+    onDeleteTemplate={handleDeleteTemplate}
+    onToggleTemplateVisibility={handleToggleTemplateVisibility}
+    onSearchTemplates={searchTemplates}
+    onLoadMyTemplates={loadMyTemplates}
    />
       </>
     )}

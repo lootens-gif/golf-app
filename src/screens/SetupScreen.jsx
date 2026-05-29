@@ -312,6 +312,215 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   );
 }
 
+function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onSearchTemplates, onLoadMyTemplates, sc }) {
+  const [view, setView] = useState("mine"); // "mine" | "search"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const searchTimer = useRef(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  function handleOpen() {
+    if (!hasLoaded) {
+      onLoadMyTemplates?.();
+      setHasLoaded(true);
+    }
+  }
+
+  function handleSearch(q) {
+    setSearchQuery(q);
+    clearTimeout(searchTimer.current);
+    if (q.length < 2) { setSearchResults([]); return; }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await onSearchTemplates(q);
+        setSearchResults(results);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 400);
+  }
+
+  async function handleSave() {
+    if (!templateName.trim()) return;
+    await onSaveTemplate?.(templateName, isPublic);
+    setTemplateName("");
+    setShowSaveForm(false);
+    onLoadMyTemplates?.();
+  }
+
+  return (
+    <Card>
+      <SectionLabel>Group Templates</SectionLabel>
+      <div style={{ fontSize: 12, color: sc.muted, marginBottom: 12 }}>
+        Save your players, handicaps, and game format to reuse next round.
+      </div>
+
+      {/* Tab toggle */}
+      <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden", marginBottom: 14 }}>
+        {[{ v: "mine", l: "My Templates" }, { v: "search", l: "Search Public" }].map(({ v, l }, i) => (
+          <button key={v} onClick={() => { setView(v); if (v === "mine" && !hasLoaded) handleOpen(); }} style={{
+            flex: 1, padding: "8px", border: "none",
+            background: view === v ? sc.green : "#fff",
+            color: view === v ? "#fff" : sc.ink,
+            fontWeight: 600, fontSize: 13, cursor: "pointer",
+            borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+            fontFamily: "inherit",
+          }}>{l}</button>
+        ))}
+      </div>
+
+      {/* My Templates */}
+      {view === "mine" && (
+        <div>
+          {myTemplates.length === 0 ? (
+            <div style={{ fontSize: 13, color: sc.muted, padding: "10px 0", textAlign: "center" }}>
+              No saved templates yet — save your first one below.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {myTemplates.map(t => (
+                <div key={t.id} style={{
+                  border: `1px solid ${sc.border}`, borderRadius: 10, padding: "10px 12px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: sc.ink }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 2 }}>
+                      {(t.players || []).filter(p => p.name && p.name !== `P${(t.players||[]).indexOf(p)+1}`).map(p => p.name).join(", ") || "No players"}
+                      {t.is_public ? " · 🌐 Public" : " · 🔒 Private"}
+                      {t.use_count > 0 ? ` · used ${t.use_count}×` : ""}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button onClick={() => onLoadTemplate?.(t)} style={{
+                      padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                      background: sc.green, color: "#fff", border: "none",
+                      borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                    }}>Load</button>
+                    <button
+                      onClick={() => onToggleTemplateVisibility?.(t)}
+                      title={t.is_public ? "Make private" : "Make public"}
+                      style={{
+                        padding: "6px 10px", fontSize: 13, background: "transparent",
+                        border: `1px solid ${sc.border}`, borderRadius: 6,
+                        cursor: "pointer", fontFamily: "inherit", lineHeight: 1,
+                      }}
+                    >{t.is_public ? "🌐" : "🔒"}</button>
+                    {confirmDeleteId === t.id ? (
+                      <>
+                        <button onClick={() => { onDeleteTemplate?.(t.id); setConfirmDeleteId(null); }} style={{
+                          padding: "6px 10px", fontSize: 12, fontWeight: 600,
+                          background: "#b3261e", color: "#fff", border: "none",
+                          borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                        }}>Delete?</button>
+                        <button onClick={() => setConfirmDeleteId(null)} style={{
+                          padding: "6px 10px", fontSize: 12, background: "transparent",
+                          color: sc.muted, border: `1px solid ${sc.border}`,
+                          borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                        }}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirmDeleteId(t.id)} style={{
+                        padding: "6px 10px", fontSize: 12, background: "transparent",
+                        color: "#b3261e", border: "1px solid #b3261e",
+                        borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                      }}>✕</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Save form */}
+          {showSaveForm ? (
+            <div style={{ padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8, marginTop: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: sc.ink }}>Save current setup as template</div>
+              <input
+                type="text"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                placeholder="Template name (e.g. Tuesday Crew)"
+                style={{ width: "100%", fontSize: 14, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 }}
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 12, fontSize: 13, color: sc.muted }}>
+                <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: sc.green }} />
+                Make public — anyone can search and load this template
+              </label>
+              {templateStatus === "saved" && <div style={{ fontSize: 13, color: sc.green, fontWeight: 600, marginBottom: 8 }}>✓ Template saved!</div>}
+              {templateStatus === "error" && <div style={{ fontSize: 13, color: "#b3261e", marginBottom: 8 }}>Save failed — try again</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleSave} disabled={!templateName.trim() || templateStatus === "saving"} style={{
+                  flex: 1, padding: "9px 12px", fontSize: 13, fontWeight: 700,
+                  background: sc.green, color: "#fff", border: "none",
+                  borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                  opacity: !templateName.trim() ? 0.5 : 1,
+                }}>{templateStatus === "saving" ? "Saving…" : "Save Template"}</button>
+                <button onClick={() => setShowSaveForm(false)} style={{
+                  padding: "9px 12px", fontSize: 13, background: "transparent",
+                  color: sc.muted, border: `1px solid ${sc.border}`,
+                  borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSaveForm(true)} style={{
+              width: "100%", marginTop: 4, padding: "10px 16px", fontSize: 13, fontWeight: 600,
+              background: "#fff", color: sc.green, border: `1px solid ${sc.green}`,
+              borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+            }}>💾 Save Current Setup as Template</button>
+          )}
+        </div>
+      )}
+
+      {/* Search Public */}
+      {view === "search" && (
+        <div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Search public templates…"
+            style={{ width: "100%", fontSize: 14, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
+          />
+          {searching && <div style={{ fontSize: 12, color: sc.muted, marginBottom: 8 }}>Searching…</div>}
+          {searchResults.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {searchResults.map(t => (
+                <div key={t.id} style={{
+                  border: `1px solid ${sc.border}`, borderRadius: 10, padding: "10px 12px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: sc.ink }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 2 }}>
+                      {(t.players || []).filter(p => p.name && p.name !== `P${(t.players||[]).indexOf(p)+1}`).map(p => p.name).join(", ") || "—"}
+                      {t.use_count > 0 ? ` · used ${t.use_count}×` : ""}
+                    </div>
+                  </div>
+                  <button onClick={() => onLoadTemplate?.(t)} style={{
+                    padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                    background: sc.green, color: "#fff", border: "none",
+                    borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                  }}>Load</button>
+                </div>
+              ))}
+            </div>
+          ) : searchQuery.length >= 2 && !searching ? (
+            <div style={{ fontSize: 13, color: sc.muted, textAlign: "center", padding: "10px 0" }}>No public templates found.</div>
+          ) : null}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function SetupScreen({
   mode, handleModeChange, handicapMode, setHandicapMode,
   players, handlePlayerChange, saveSetup, loadSetup, resetSetup,
@@ -335,6 +544,7 @@ export default function SetupScreen({
   birdieResults = [], updateMatch, removeMatch, startRound,
   createDefaultTeamGame, focusGameTarget, goToLive, goToResults,
   roundName, setRoundName,
+  myTemplates = [], templateStatus = "", onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onSearchTemplates, onLoadMyTemplates,
 }) {
   const teamGameRefs = useRef({});
   const hasNinePoint = matches.some(m => m.gameType === "ninePoint");
@@ -790,6 +1000,19 @@ export default function SetupScreen({
         )}
         {!enableTeamGame && <PrimarySetupAction />}
       </Card>
+
+      {/* ── GROUP TEMPLATES ── */}
+      <GroupTemplatesCard
+        myTemplates={myTemplates}
+        templateStatus={templateStatus}
+        onSaveTemplate={onSaveTemplate}
+        onLoadTemplate={onLoadTemplate}
+        onDeleteTemplate={onDeleteTemplate}
+        onToggleTemplateVisibility={onToggleTemplateVisibility}
+        onSearchTemplates={onSearchTemplates}
+        onLoadMyTemplates={onLoadMyTemplates}
+        sc={sc}
+      />
 
       {/* ── COURSE ── */}
       <CourseCard
