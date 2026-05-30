@@ -20,10 +20,7 @@ const scorecardCellStyle = {
 
 const scorecardLabelCellStyle = {
   ...scorecardCellStyle,
-  position: "sticky",
-  left: 0,
   background: "#fff",
-  zIndex: 1,
   textAlign: "left",
   minWidth: 80,
   fontWeight: 700,
@@ -235,10 +232,7 @@ function TeamGameScorecard({
 
   const scorecardLabelCellStyle = {
     ...scorecardCellStyle,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     textAlign: "left",
     minWidth: 90,
     fontWeight: 700,
@@ -742,11 +736,27 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     }
   });
 
-  // Count gross birdies per player for summary
-  const birdieCounts = {
-    [playerA.id]: holes.filter(h => isGrossBirdie(scores, course, h, playerA.id)).length,
-    [playerB.id]: holes.filter(h => isGrossBirdie(scores, course, h, playerB.id)).length,
-  };
+  // Count won birdies per player for summary
+  // With toy rule: a gross birdie is pushed (no winner) if the opponent has a net birdie on same hole
+  // Only count birdies that actually won money
+  const wonBirdieCounts = (() => {
+    const countA = holes.filter(h => {
+      const grossA = match.birdieEnabled && isGrossBirdie(scores, course, h, playerA.id);
+      if (!grossA) return false;
+      if (!toyRule) return true;
+      // pushed if opponent has net birdie
+      const netB = isNetBirdie(playerB.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
+      return !netB;
+    }).length;
+    const countB = holes.filter(h => {
+      const grossB = match.birdieEnabled && isGrossBirdie(scores, course, h, playerB.id);
+      if (!grossB) return false;
+      if (!toyRule) return true;
+      const netA = isNetBirdie(playerA.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
+      return !netA;
+    }).length;
+    return { [playerA.id]: countA, [playerB.id]: countB };
+  })();
 
   const renderSection = (label, sectionHoles) => {
     const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
@@ -826,8 +836,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   );
   };
 
-  const birdieCountA = birdieCounts[playerA.id];
-  const birdieCountB = birdieCounts[playerB.id];
+  const birdieCountA = wonBirdieCounts[playerA.id];
+  const birdieCountB = wonBirdieCounts[playerB.id];
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -838,7 +848,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           ? "🚫 No birdies tracked"
           : (() => {
               const label = toyRule
-                ? "🐦 Toy Birdies"
+                ? "🐦 Toy Birdies (pushes excluded)"
                 : "🐦 Birdies tracked (gross only)";
               const summary =
                 birdieCountA === 0 && birdieCountB === 0
@@ -1132,10 +1142,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
     textAlign: "left",
     minWidth: 80,
     fontWeight: 600,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     padding: "4px 6px",
   };
 
