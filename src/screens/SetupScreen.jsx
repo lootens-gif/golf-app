@@ -178,21 +178,21 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     setSearchQuery(capped);
     updateCourseName(capped);
     clearTimeout(searchTimer.current);
-    if (q.length < 2) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       setSearching(true);
       try {
-        const results = await searchCourses(q);
+        const results = await searchCourses(q || "%");
         setSearchResults(results);
       } catch { setSearchResults([]); }
       finally { setSearching(false); }
-    }, 400);
+    }, q.length === 0 ? 100 : 400);
   }
+
 
   function loadCourse(c) {
     updateCourseName(c.name);
-    c.pars.forEach((par, i) => updateCoursePar(i + 1, par));
-    c.hcp.forEach((hcp, i) => updateCourseHcp(i + 1, hcp));
+    c.pars.forEach((par, i) => updateCoursePar(i, par));
+    c.hcp.forEach((hcp, i) => updateCourseHcp(i, hcp));
     setSearchResults([]);
     setSearchQuery(c.name);
   }
@@ -223,7 +223,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
         <input
           type="text"
           value={searchQuery || course.name || ""}
-          onFocus={(e) => { e.target.select(); if (course.name) setSearchQuery(course.name); }}
+          onFocus={(e) => { e.target.select(); if (course.name) setSearchQuery(course.name); handleSearch(searchQuery || course.name || ""); }}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search courses or type a name…"
           style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
