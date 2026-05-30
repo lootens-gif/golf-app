@@ -20,10 +20,7 @@ const scorecardCellStyle = {
 
 const scorecardLabelCellStyle = {
   ...scorecardCellStyle,
-  position: "sticky",
-  left: 0,
   background: "#fff",
-  zIndex: 1,
   textAlign: "left",
   minWidth: 80,
   fontWeight: 700,
@@ -235,10 +232,7 @@ function TeamGameScorecard({
 
   const scorecardLabelCellStyle = {
     ...scorecardCellStyle,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     textAlign: "left",
     minWidth: 90,
     fontWeight: 700,
@@ -1132,10 +1126,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
     textAlign: "left",
     minWidth: 80,
     fontWeight: 600,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     padding: "4px 6px",
   };
 

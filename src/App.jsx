@@ -268,10 +268,7 @@ function CompletedTeamGameScorecard({
 
   const labelCellStyle = {
     ...cellStyle,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     textAlign: "left",
     minWidth: 86,
     fontWeight: 700,

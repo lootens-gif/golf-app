@@ -114,3 +114,15 @@ td {
     font-size: 13px;
   }
 }
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-shell {
+    max-width: 100%;
+    padding: 6px 12px;
+  }
+
+  .app-card,
+  .settlement-card {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+}
