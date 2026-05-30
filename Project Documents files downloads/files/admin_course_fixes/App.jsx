@@ -24,7 +24,7 @@ import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, fetchActiveRounds, checkCourseExists, updateCourseInLibrary } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, fetchActiveRounds, checkCourseExists } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -2932,8 +2932,6 @@ return (
     setPotBaseUnit={setPotBaseUnit}
     saveCourseToLibrary={saveCourseToLibrary}
     checkCourseExists={checkCourseExists}
-    updateCourseInLibrary={updateCourseInLibrary}
-    deviceId={deviceId}
     searchCourses={searchCourses}
     applyPreset={applyPreset}
     setTeamGames={setTeamGames}
@@ -3611,7 +3609,6 @@ if (enableTeamGame && nextGameIndex >= 0) {
 {screen === "admin" && (
   <AdminScreen
     onBack={() => setScreen("setup")}
-    onReportBug={() => setShowBugReport(true)}
     onJoinAsAdmin={async (code) => {
       try {
         const result = await fetchRound(code);

@@ -129,7 +129,7 @@ export async function fetchStatsRounds() {
 }
 
 // Save a course to the course library
-export async function saveCourseToLibrary(course, createdBy, deviceId) {
+export async function saveCourseToLibrary(course, createdBy) {
   const { data, error } = await supabase
     .from("courses")
     .upsert({
@@ -139,41 +139,7 @@ export async function saveCourseToLibrary(course, createdBy, deviceId) {
       pars: course.pars,
       hcp: course.hcp,
       created_by: createdBy || "Anonymous",
-      device_id: deviceId || null,
     }, { onConflict: "name" })
-    .select();
-
-  if (error) throw error;
-  return data?.[0];
-}
-
-// Update an existing course (owner or admin)
-export async function updateCourseInLibrary(courseId, course, deviceId, adminPin) {
-  const ADMIN_PIN = "1234"; // must match AdminScreen
-  const isAdmin = adminPin === ADMIN_PIN;
-
-  // Verify ownership if not admin
-  if (!isAdmin) {
-    const { data: existing } = await supabase
-      .from("courses")
-      .select("device_id")
-      .eq("id", courseId)
-      .single();
-
-    if (!existing || existing.device_id !== deviceId) {
-      throw new Error("not_owner");
-    }
-  }
-
-  const { data, error } = await supabase
-    .from("courses")
-    .update({
-      city: course.city || "",
-      state: course.state || "",
-      pars: course.pars,
-      hcp: course.hcp,
-    })
-    .eq("id", courseId)
     .select();
 
   if (error) throw error;

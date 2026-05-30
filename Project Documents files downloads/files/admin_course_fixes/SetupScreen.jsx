@@ -160,7 +160,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   );
 }
 
-function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId, players, sc }) {
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, players, sc }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -169,10 +169,6 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const [saveCity, setSaveCity] = useState("");
   const [saveState, setSaveState] = useState("");
   const [duplicateCourse, setDuplicateCourse] = useState(null); // existing course with same name
-  const [loadedCourse, setLoadedCourse] = useState(null); // course loaded from library
-  const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
-  const [updatePin, setUpdatePin] = useState("");
-  const [updateStatus, setUpdateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "pin"
   const searchTimer = useRef(null);
 
   // Get Player 1 name for "Saved by"
@@ -200,27 +196,6 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     c.hcp.forEach((hcp, i) => updateCourseHcp(i, hcp));
     setSearchResults([]);
     setSearchQuery(c.name);
-    setLoadedCourse(c);
-    setDuplicateCourse(null);
-  }
-
-  async function handleUpdate(adminPin) {
-    if (!loadedCourse?.id) return;
-    setUpdateStatus("saving");
-    try {
-      await updateCourseInLibrary(loadedCourse.id, { ...course }, deviceId, adminPin || "");
-      setUpdateStatus("saved");
-      setShowUpdateConfirm(false);
-      setUpdatePin("");
-      setTimeout(() => setUpdateStatus(""), 3000);
-    } catch (e) {
-      if (e.message === "not_owner") {
-        setUpdateStatus("pin");
-      } else {
-        setUpdateStatus("error");
-        setTimeout(() => setUpdateStatus(""), 3000);
-      }
-    }
   }
 
   async function handleSave() {
@@ -301,52 +276,6 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
               cursor: "pointer", fontFamily: "inherit",
             }}>Dismiss</button>
           </div>
-        </div>
-      )}
-
-      {/* Update loaded course */}
-      {loadedCourse && (
-        <div style={{ marginTop: 12 }}>
-          {updateStatus === "saved" ? (
-            <div style={{ fontSize: 13, color: sc.green, fontWeight: 600 }}>✓ Course updated in library</div>
-          ) : updateStatus === "error" ? (
-            <div style={{ fontSize: 13, color: "#b3261e" }}>Update failed — try again</div>
-          ) : updateStatus === "pin" || showUpdateConfirm ? (
-            <div style={{ padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: sc.ink, marginBottom: 8 }}>
-                {updateStatus === "pin" ? "Admin PIN required to update this course" : `Update "${loadedCourse.name}" in the shared library?`}
-              </div>
-              {updateStatus === "pin" && (
-                <input
-                  type="password"
-                  value={updatePin}
-                  onChange={e => setUpdatePin(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleUpdate(updatePin)}
-                  placeholder="Admin PIN"
-                  inputMode="numeric"
-                  style={{ width: "100%", fontSize: 15, padding: "8px 12px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
-                />
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => handleUpdate(updateStatus === "pin" ? updatePin : "")} disabled={updateStatus === "saving"} style={{
-                  flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700,
-                  background: sc.green, color: "#fff", border: "none", borderRadius: 6,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}>{updateStatus === "saving" ? "Saving…" : "Confirm Update"}</button>
-                <button onClick={() => { setShowUpdateConfirm(false); setUpdateStatus(""); setUpdatePin(""); }} style={{
-                  padding: "8px 12px", fontSize: 13, background: "transparent",
-                  color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowUpdateConfirm(true)} style={{
-              marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600,
-              background: "#fff", color: sc.gold, border: `1px solid ${sc.gold}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%",
-            }}>✏️ Update "{loadedCourse.name}" in library</button>
-          )}
         </div>
       )}
 
@@ -683,7 +612,7 @@ export default function SetupScreen({
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
   skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover,
   potType, setPotType, potDonation, setPotDonation, potBaseUnit, setPotBaseUnit,
-  saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId,
+  saveCourseToLibrary, searchCourses, checkCourseExists,
   totalHoles, getTeamGameRange, hasDuplicateSelections, getTeamGameSelection,
   renderTeamSelectors, expandedGame, setExpandedGame, modeText,
   addMatch, addNinePointMatch, autoCreateMatches, matches, matchResults,
@@ -1169,8 +1098,6 @@ export default function SetupScreen({
         updateCourseHcp={updateCourseHcp}
         saveCourseToLibrary={saveCourseToLibrary}
         checkCourseExists={checkCourseExists}
-        updateCourseInLibrary={updateCourseInLibrary}
-        deviceId={deviceId}
         searchCourses={searchCourses}
         players={players}
         sc={sc}
