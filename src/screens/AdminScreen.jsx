@@ -44,7 +44,7 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
 
   useEffect(() => {
     if (authed) loadRounds();
-  }, [authed, hoursAgo]);
+  }, [authed, hoursAgo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!authed) {
     return (
