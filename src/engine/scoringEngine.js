@@ -1252,9 +1252,7 @@ for (const entry of birdieResults) {
 
   if (!playerId || !ledgerMap[playerId] || amount === 0) continue;
 
-  // Fold birdies into sideMatches (birdies are always a 1v1 side bet)
   ledgerMap[playerId].birdies += amount;
-  ledgerMap[playerId].sideMatches += amount;
   ledgerMap[playerId].total += amount;
 
 eventLedger.push({

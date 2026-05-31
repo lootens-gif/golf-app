@@ -492,6 +492,17 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         // Net birdies for this match
         const matchBirdies = (birdieResults || []).filter(b => b.source === "match-birdie" && b.matchId === match.id);
         const netBirdiesWon = matchBirdies.reduce((sum, b) => sum + (Number(b.amount) > 0 ? 1 : 0), 0);
+        const birdieDollarsP1 = matchBirdies.filter(b => b.playerId === match.p1Id).reduce((sum, b) => sum + Number(b.amount || 0), 0);
+        const totalWithBirdies = total + birdieDollarsP1;
+        const headerColorFinal = totalWithBirdies > 0 ? "#1a5c38" : totalWithBirdies < 0 ? "#b3261e" : "#6b7280";
+
+        // Rebuild money label with birdies included
+        const moneyStrFinal = (() => {
+          if (totalWithBirdies === 0) return "No payout";
+          const winner = totalWithBirdies > 0 ? p1Name : p2Name;
+          return `${winner} +$${Math.abs(totalWithBirdies)}`;
+        })();
+
         const birdieTag = match.birdieEnabled && netBirdiesWon > 0
           ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{netBirdiesWon}</span>
           : null;
@@ -499,7 +510,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const oneVOneTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
-            <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
+            <span style={{ color: headerColorFinal, marginLeft: 10, fontSize: 13 }}>{moneyStrFinal}</span>
             {birdieTag}
           </span>
         );
