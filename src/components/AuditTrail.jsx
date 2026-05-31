@@ -675,14 +675,13 @@ function NinePointScorecard({
       {renderSection("Back 9", back)}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
-          ? null
+          ? "🚫 No Birdies Tracked"
           : (() => {
               const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies";
               const grossCounts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
               const totalGross = grossCounts.reduce((sum, p) => sum + p.count, 0);
-              if (totalGross === 0) return null;
-              // net paid = gross birdies not pushed (for toy rule, approximate as total gross since birdieCounts is gross here)
-              const playerStr = grossCounts.map(p => `${p.name} +${p.count}`).join("  ");
+              if (totalGross === 0) return "🐦 No Birdies Made";
+              const playerStr = grossCounts.filter(p => p.count > 0).map(p => `${p.name} +${p.count}`).join("  ");
               return `${label} — (${totalGross} net) birdies included in total match result. ${playerStr}`;
             })()}
       </div>
@@ -865,11 +864,11 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       {renderSection("Back 9", back)}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match.birdieEnabled
-          ? null
+          ? "🚫 No Birdies Tracked"
           : (() => {
               const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies";
-              if (grossCountA === 0 && grossCountB === 0) return null;
-              if (netPaid === 0) return null;
+              if (grossCountA === 0 && grossCountB === 0) return "🐦 No Birdies Made";
+              if (netPaid === 0) return "🐦 Birdies Made — All Pushed, Nothing Paid";
               const playerParts = [
                 grossCountA > 0 ? `${playerA.name} +${grossCountA}` : null,
                 grossCountB > 0 ? `${playerB.name} +${grossCountB}` : null,
