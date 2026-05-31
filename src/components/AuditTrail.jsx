@@ -488,10 +488,19 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
 
         const total = Number(result?.total || 0);
         const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
+
+        // Net birdies for this match
+        const matchBirdies = (birdieResults || []).filter(b => b.source === "match-birdie" && b.matchId === match.id);
+        const netBirdiesWon = matchBirdies.reduce((sum, b) => sum + (Number(b.amount) > 0 ? 1 : 0), 0);
+        const birdieTag = match.birdieEnabled && netBirdiesWon > 0
+          ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{netBirdiesWon}</span>
+          : null;
+
         const oneVOneTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
             <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
+            {birdieTag}
           </span>
         );
 
