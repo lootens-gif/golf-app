@@ -494,11 +494,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const headerColorFinal = totalWithBirdies > 0 ? "#1a5c38" : totalWithBirdies < 0 ? "#b3261e" : "#6b7280";
 
         // Rebuild money label with birdies included
-        const moneyStrFinal = (() => {
-          if (totalWithBirdies === 0) return "No payout";
-          const winner = totalWithBirdies > 0 ? p1Name : p2Name;
-          return `${winner} +$${Math.abs(totalWithBirdies)}`;
-        })();
+        const adjustedResult = { ...result, total: totalWithBirdies };
+        const moneyStrFinal = getOneVOneMoneyLabel(adjustedResult, p1Name, p2Name);
 
         const birdieTag = match.birdieEnabled && netBirdiesWon > 0
           ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{netBirdiesWon}</span>
