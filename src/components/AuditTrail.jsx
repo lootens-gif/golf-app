@@ -483,11 +483,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
 
-        // Money — always show "if ended now"
-        const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
 
         const total = Number(result?.total || 0);
-        const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
 
         // Net birdies for this match
         const matchBirdies = (birdieResults || []).filter(b => b.source === "match-birdie" && b.matchId === match.id);
