@@ -274,8 +274,12 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
-                  {row.teamAValue}
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: "transparent", color: "#1a1a1a" }}>
+                  {teamAHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamAValue}
+                    </span>
+                  ) : row.teamAValue}
                 </td>
               );
             })}
@@ -288,8 +292,12 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
-                  {row.teamBValue}
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: "transparent", color: "#1a1a1a" }}>
+                  {teamBHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamBValue}
+                    </span>
+                  ) : row.teamBValue}
                 </td>
               );
             })}
@@ -791,9 +799,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const isWonBirdie = grossBirdie && !isPushedBirdie;
 
                 return (
-                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: isWonBirdie ? "#fef9c3" : "transparent" }}>
+                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: "transparent" }}>
                     {isWonBirdie ? (
-                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
                         {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                       </span>
                     ) : isPushedBirdie ? (
