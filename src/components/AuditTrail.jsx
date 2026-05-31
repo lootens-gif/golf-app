@@ -869,8 +869,12 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           : (() => {
               const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies";
               if (grossCountA === 0 && grossCountB === 0) return null;
-              const playerCounts = `${playerA.name} +${grossCountA}  ${playerB.name} +${grossCountB}`;
-              return `${label} — (${netPaid} net) birdies included in total match result. ${playerCounts}`;
+              if (netPaid === 0) return null;
+              const playerParts = [
+                grossCountA > 0 ? `${playerA.name} +${grossCountA}` : null,
+                grossCountB > 0 ? `${playerB.name} +${grossCountB}` : null,
+              ].filter(Boolean).join("  ");
+              return `${label} — (${netPaid} net) birdies included in total match result. ${playerParts}`;
             })()}
         </div>
     </div>
