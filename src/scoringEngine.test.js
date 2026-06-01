@@ -626,3 +626,279 @@ describe('getSpreadHandicapStrokes — Westwood 6/6/6', () => {
     });
   });
 });
+
+// ─── 8. Press Trigger ────────────────────────────────────────────────────────
+
+describe('playPressMatch — press trigger', () => {
+  const course = WESTWOOD;
+  const p1 = makePlayer('A', 0);
+  const p2 = makePlayer('B', 0);
+  const players = [p1, p2];
+  const context = { players, course, scores: {}, handicapMode: 'relative' };
+
+  // Build scores in hole-first format { hole: { playerId: score } }
+  function makeScores(aScores, bScores) {
+    const s = {};
+    aScores.forEach((v, i) => { s[i + 1] = { ...s[i + 1], A: v }; });
+    bScores.forEach((v, i) => { s[i + 1] = { ...s[i + 1], B: v }; });
+    return s;
+  }
+
+  test('trigger=1: press fires when 1 down', () => {
+    // Both scratch, A wins hole 1 (scores 3 vs 5 on par 5), B wins holes 2-18
+    // After hole 2 B wins, A is 1 down — press should fire with trigger=1
+    const scores = makeScores(
+      [3, 6, 4, 4, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5],
+      [5, 3, 3, 3, 3, 4, 3, 2, 3, 3, 3, 4, 3, 3, 2, 3, 2, 4]
+    );
+    const result = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 1, context: { ...context, scores } });
+    expect(result.length).toBeGreaterThan(1);
+  });
+
+  test('trigger=2: no press when only 1 down', () => {
+    const scores = makeScores(
+      [3, 5, 4, 4, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5],
+      [5, 3, 3, 4, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5]
+    );
+    const result = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 2, context: { ...context, scores } });
+    expect(result.length).toBe(1); // base only, no press
+  });
+
+  test('trigger=2: press fires when 2 down', () => {
+    // B wins holes 1 and 2 clearly (both scratch), then A wins rest
+    const scores = makeScores(
+      [6, 6, 3, 3, 3, 4, 3, 2, 3, 3, 3, 4, 3, 3, 2, 3, 2, 4],
+      [3, 3, 4, 5, 5, 6, 5, 4, 5, 5, 5, 6, 5, 5, 4, 5, 4, 6]
+    );
+    const result = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 2, context: { ...context, scores } });
+    expect(result.length).toBeGreaterThan(1);
+  });
+
+  test('trigger value is respected — trigger=1 fires more presses than trigger=2', () => {
+    const scores = makeScores(
+      [5, 5, 5, 3, 3, 3, 5, 5, 5, 3, 3, 3, 5, 5, 5, 3, 3, 3],
+      [3, 3, 3, 5, 5, 5, 3, 3, 3, 5, 5, 5, 3, 3, 3, 5, 5, 5]
+    );
+    const r1 = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 1, context: { ...context, scores } });
+    const r2 = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 2, context: { ...context, scores } });
+    expect(r1.length).toBeGreaterThanOrEqual(r2.length);
+  });
+
+  test('no scores — base match only, no presses', () => {
+    const result = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 1, context });
+    expect(result.length).toBe(1);
+    expect(result[0].label).toBe('Base Match');
+  });
+
+  test('trigger=1 and trigger=2 produce same result when no one goes down', () => {
+    // All pushes
+    const scores = makeScores(
+      [4, 4, 3, 4, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5],
+      [4, 4, 3, 4, 4, 5, 4, 3, 4, 4, 4, 5, 4, 4, 3, 4, 3, 5]
+    );
+    const r1 = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 1, context: { ...context, scores } });
+    const r2 = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 2, context: { ...context, scores } });
+    expect(r1.length).toBe(1);
+    expect(r2.length).toBe(1);
+  });
+});
+
+// ─── 9. Toy Birdie Push Logic ─────────────────────────────────────────────────
+
+describe('buildBirdieResults — toy birdie push logic', () => {
+  const course = WESTWOOD;
+
+  // Equal HCP players — no net birdie complications unless intended
+  const p1 = makePlayer('A', 10);
+  const p2 = makePlayer('B', 10);
+
+  // Scratch vs high HCP for net birdie push tests
+  const scratch = makePlayer('X', 0);
+  const highHcp = makePlayer('Y', 18);
+
+  function makeBirdieMatch(overrides = {}) {
+    return {
+      id: 'match1', p1Id: 'A', p2Id: 'B', type: 'standard', bet: 5,
+      birdieEnabled: true, birdieBet: 5, toyRule: true, noPar3Strokes: false, strokeScoring: 'net',
+      ...overrides,
+    };
+  }
+
+  function makeBirdieMatchXY(overrides = {}) {
+    return {
+      id: 'match2', p1Id: 'X', p2Id: 'Y', type: 'standard', bet: 5,
+      birdieEnabled: true, birdieBet: 5, toyRule: true, noPar3Strokes: false, strokeScoring: 'net',
+      ...overrides,
+    };
+  }
+
+  const baseArgs = { matchResults: [], teamGames: [], teamGameResults: [], handicapMode: 'relative', birdiesEnabled: true, birdieBetAmount: 5, toyRule: true };
+
+  test('gross birdie with no net cover — A wins birdie', () => {
+    const scores = { 2: { A: 3, B: 4 } };
+    const players = [p1, p2];
+    const results = buildBirdieResults({ matches: [makeBirdieMatch()], players, course, scores, ...baseArgs });
+    const aResult = results.filter(r => r.matchId === 'match1').find(r => r.playerId === 'A' && r.amount > 0);
+    expect(aResult).toBeDefined();
+    expect(aResult.amount).toBe(5);
+  });
+
+  test('gross birdie pushed by net birdie — no payout', () => {
+    // Scratch X makes gross birdie hole 11 (HCP1), highHcp Y gets stroke → net 3 = net birdie → push
+    const scores = { 11: { X: 3, Y: 4 } };
+    const players = [scratch, highHcp];
+    const results = buildBirdieResults({ matches: [makeBirdieMatchXY()], players, course, scores, ...baseArgs });
+    const totalMoney = results.filter(r => r.matchId === 'match2').reduce((s, r) => s + Number(r.amount || 0), 0);
+    expect(totalMoney).toBe(0);
+  });
+
+  test('toy rule off — gross birdie wins even when opponent has net birdie', () => {
+    const scores = { 11: { X: 3, Y: 4 } };
+    const players = [scratch, highHcp];
+    const results = buildBirdieResults({ matches: [makeBirdieMatchXY({ toyRule: false })], players, course, scores, ...{ ...baseArgs, toyRule: false } });
+    const xResult = results.filter(r => r.matchId === 'match2').find(r => r.playerId === 'X' && r.amount > 0);
+    expect(xResult?.amount).toBe(5);
+  });
+
+  test('both players make gross birdies on same hole — push, no money', () => {
+    // When both make gross birdies it's a push — neither wins the birdie bet
+    const scores = { 3: { A: 2, B: 2 } };
+    const players = [p1, p2];
+    const results = buildBirdieResults({ matches: [makeBirdieMatch()], players, course, scores, ...baseArgs });
+    const totalMoney = results.filter(r => r.matchId === 'match1').reduce((s, r) => s + Number(r.amount || 0), 0);
+    expect(totalMoney).toBe(0);
+  });
+
+  test('no birdies made — no money changes hands', () => {
+    const scores = { 1: { A: 5, B: 6 }, 2: { A: 4, B: 5 } };
+    const players = [p1, p2];
+    const results = buildBirdieResults({ matches: [makeBirdieMatch()], players, course, scores, ...baseArgs });
+    const totalMoney = results.filter(r => r.matchId === 'match1').reduce((s, r) => s + Math.abs(Number(r.amount || 0)), 0);
+    expect(totalMoney).toBe(0);
+  });
+
+  test('birdie toggle off — no results generated', () => {
+    const scores = { 2: { A: 3, B: 4 } };
+    const players = [p1, p2];
+    const results = buildBirdieResults({ matches: [makeBirdieMatch({ birdieEnabled: false })], players, course, scores, ...{ ...baseArgs, birdiesEnabled: false } });
+    expect(results.filter(r => r.matchId === 'match1').length).toBe(0);
+  });
+
+  test('ledger zero-sum — birdie winnings always balance', () => {
+    const scores = { 2: { A: 3, B: 5 }, 7: { A: 3, B: 5 } };
+    const result = scoreRound({
+      players: [p1, p2], course, scores, matches: [makeBirdieMatch()], teamGames: [],
+      handicapMode: 'relative', birdiesEnabled: true, birdieBetAmount: 5, teamGameUnitAmount: 5, skinsEnabled: false, toyRule: true,
+    });
+    expect(sumLedger(result.playerLedger)).toBe(0);
+  });
+});
+
+
+// ─── 10. scoreRound ledger integrity ─────────────────────────────────────────
+
+describe('scoreRound — ledger always sums to zero', () => {
+  const p1 = makePlayer('A', 8);
+  const p2 = makePlayer('B', 14);
+  const p3 = makePlayer('C', 20);
+  const p4 = makePlayer('D', 4);
+  const players = [p1, p2, p3, p4];
+
+  function makeScores() {
+    const s = {};
+    for (let h = 1; h <= 18; h++) {
+      s[h] = {};
+      players.forEach(p => { s[h][p.id] = WESTWOOD.pars[h - 1] + Math.floor(Math.random() * 3); });
+    }
+    return s;
+  }
+
+  test('zero sum with no games', () => {
+    const result = scoreRound({ players, course: WESTWOOD, scores: makeScores(), matches: [], teamGames: [], handicapMode: 'relative', birdiesEnabled: false, skinsEnabled: false });
+    expect(sumLedger(result.playerLedger)).toBe(0);
+  });
+
+  test('zero sum with 1v1 matches', () => {
+    const matches = [
+      { id: 'm1', p1Id: 'A', p2Id: 'B', type: 'standard', bet: 5, birdieEnabled: false },
+      { id: 'm2', p1Id: 'C', p2Id: 'D', type: 'standard', bet: 5, birdieEnabled: false },
+    ];
+    const result = scoreRound({ players, course: WESTWOOD, scores: makeScores(), matches, teamGames: [], handicapMode: 'relative', birdiesEnabled: false, skinsEnabled: false });
+    expect(sumLedger(result.playerLedger)).toBe(0);
+  });
+
+  test('zero sum with birdies enabled', () => {
+    const matches = [
+      { id: 'm1', p1Id: 'A', p2Id: 'B', type: 'standard', bet: 5, birdieEnabled: true, birdieBet: 5, toyRule: false },
+    ];
+    const result = scoreRound({ players, course: WESTWOOD, scores: makeScores(), matches, teamGames: [], handicapMode: 'relative', birdiesEnabled: true, birdieBetAmount: 5, skinsEnabled: false });
+    expect(sumLedger(result.playerLedger)).toBe(0);
+  });
+
+  test('zero sum runs 10 times with random scores', () => {
+    const matches = [
+      { id: 'm1', p1Id: 'A', p2Id: 'B', type: 'standard', bet: 5, birdieEnabled: true, birdieBet: 5, toyRule: true },
+      { id: 'm2', p1Id: 'C', p2Id: 'D', type: 'standard', bet: 10, birdieEnabled: true, birdieBet: 5, toyRule: false },
+    ];
+    for (let i = 0; i < 10; i++) {
+      const result = scoreRound({ players, course: WESTWOOD, scores: makeScores(), matches, teamGames: [], handicapMode: 'relative', birdiesEnabled: true, birdieBetAmount: 5, skinsEnabled: false });
+      expect(sumLedger(result.playerLedger)).toBe(0);
+    }
+  });
+});
+
+// ─── 11. Edge cases ───────────────────────────────────────────────────────────
+
+describe('edge cases', () => {
+  test('player with HCP 0 gets no strokes in relative mode', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 0)];
+    for (let h = 1; h <= 18; h++) {
+      expect(getHandicapStrokes('A', h, players, WESTWOOD, 'relative')).toBe(0);
+    }
+  });
+
+  test('getNetScore — scratch player net equals gross', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 10)];
+    const scores = { 2: { A: 4, B: 5 } };
+    const net = getNetScore('A', 2, players, WESTWOOD, scores, 'relative');
+    expect(net).toBe(4);
+  });
+
+  test('getNetScore — player with stroke gets -1 on qualifying hole', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 10)];
+    // B gets stroke on hole 2 (HCP 2, within 10 strokes relative to A's 0)
+    const scores = { 2: { A: 4, B: 5 } };
+    const net = getNetScore('B', 2, players, WESTWOOD, scores, 'relative');
+    expect(net).toBe(4); // 5 gross - 1 stroke = 4 net
+  });
+
+  test('computeHoleResult — tied hole returns 0', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 0)];
+    const scores = { 1: { A: 5, B: 5 } };
+    const result = computeHoleResult({ hole: 1, teamA: ['A'], teamB: ['B'], players, course: WESTWOOD, scores, handicapMode: 'relative' });
+    expect(result).toBe(0);
+  });
+
+  test('computeHoleResult — missing score returns null', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 0)];
+    const result = computeHoleResult({ hole: 1, teamA: ['A'], teamB: ['B'], players, course: WESTWOOD, scores: {}, handicapMode: 'relative' });
+    expect(result).toBeNull();
+  });
+
+  test('playPressMatch — empty scores produces base match with score 0', () => {
+    const players = [makePlayer('A', 0), makePlayer('B', 0)];
+    const context = { players, course: WESTWOOD, scores: {}, handicapMode: 'relative' };
+    const result = playPressMatch({ teamA: ['A'], teamB: ['B'], start: 1, end: 18, trigger: 1, context });
+    expect(result[0].score).toBe(0);
+  });
+
+  test('full HCP mode — players get full handicap not relative', () => {
+    const players = [makePlayer('A', 8), makePlayer('B', 8)];
+    // In full mode both get their full HCP strokes regardless of each other
+    const strokesA = getHandicapStrokes('A', 11, players, WESTWOOD, 'full');
+    const strokesB = getHandicapStrokes('B', 11, players, WESTWOOD, 'full');
+    // Hole 11 is HCP 1 — both 8-hcp players should get a stroke
+    expect(strokesA).toBe(1);
+    expect(strokesB).toBe(1);
+  });
+});
