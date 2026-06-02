@@ -1155,11 +1155,11 @@ export function buildTeamBirdieResults(
           const teamBCanCollect = teamBGrossBirdies > 0 && !teamBProtected && teamAGrossBirdies === 0;
 
           if (teamACanCollect) {
-            teamAActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie" }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie" }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie", matchupId: match.label }));
           } else if (teamBCanCollect) {
-            teamBActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie" }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie" }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie", matchupId: match.label }));
           }
           // everything else = push, nothing moves
 
@@ -1167,12 +1167,12 @@ export function buildTeamBirdieResults(
           // Original gross-only rule
           if (teamAGrossBirdies > teamBGrossBirdies) {
             const diff = teamAGrossBirdies - teamBGrossBirdies;
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie" }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie" }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
           } else if (teamBGrossBirdies > teamAGrossBirdies) {
             const diff = teamBGrossBirdies - teamAGrossBirdies;
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie" }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie" }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
           }
         }
       }
