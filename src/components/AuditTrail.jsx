@@ -934,6 +934,7 @@ function TeamGameAudit({
   teamGameUnitAmount,
   noPar3TeamGame = false,
   getHandicapStrokesFn,
+  birdieResults = [],
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -977,12 +978,22 @@ function TeamGameAudit({
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
 
+        // Birdie summary for this game segment
+        const gameBirdies = birdieResults.filter(b => !b.source || b.source === "team-birdie");
+        const startHole = Number(game.start || 1);
+        const endHole = Number(game.end || 18);
+        const gameBirdieWins = gameBirdies.filter(b => Number(b.amount) > 0 && Number(b.holeNumber) >= startHole && Number(b.holeNumber) <= endHole);
+        const birdieTag = game.birdieEnabled && gameBirdieWins.length > 0
+          ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{gameBirdieWins.length}</span>
+          : null;
+
         const gameTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Holes {game.start}–{game.end}</span>
             <span style={{ color: wheelBets >= 0 ? "#1a5c35" : "#b3261e", marginLeft: 8, fontWeight: 700 }}>
               {wheelNames} {wheelBets > 0 ? "+" : ""}{wheelBets} ({formatMoney(wheelDollars)}ea)
             </span>
+            {birdieTag}
             <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
               {opponentPlayers.map((p, i) => {
                 const bets = playerNetBets[p.id] || 0;
@@ -1382,6 +1393,7 @@ export default function AuditTrail({
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
   noPar3TeamGame={noPar3TeamGame}
+  birdieResults={birdieResults}
 />
 
 {/* 1v1 */}
