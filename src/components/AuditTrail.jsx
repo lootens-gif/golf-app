@@ -979,16 +979,18 @@ function TeamGameAudit({
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
 
-        // Birdie tag for this game segment — count holes where wheel team collected
-        const gameBirdieWins = birdieResults.filter(b =>
-          b.source === "team-birdie" &&
-          Number(b.amount) > 0 &&
-          Number(b.holeNumber) >= Number(game.start || 1) &&
-          Number(b.holeNumber) <= Number(game.end || 18) &&
-          wheelIds.includes(b.playerId)
-        ).length;
-        const birdieTag = game.birdieEnabled && gameBirdieWins > 0
-          ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{gameBirdieWins}</span>
+        // Birdie tag — unique holes where wheel team collected across all matchups
+        const gameWinHoles = new Set(
+          birdieResults.filter(b =>
+            b.source === "team-birdie" &&
+            Number(b.amount) > 0 &&
+            Number(b.holeNumber) >= Number(game.start || 1) &&
+            Number(b.holeNumber) <= Number(game.end || 18) &&
+            wheelIds.includes(b.playerId)
+          ).map(b => b.holeNumber)
+        ).size;
+        const birdieTag = game.birdieEnabled && gameWinHoles > 0
+          ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{gameWinHoles}</span>
           : null;
 
         const gameTitle = (
@@ -1035,16 +1037,40 @@ function TeamGameAudit({
 
               const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
 
-              // Net birdie holes won by teamA in this matchup
-              const matchupBirdieNet = birdieResults.filter(b =>
-                b.source === "team-birdie" &&
-                Number(b.amount) > 0 &&
-                Number(b.holeNumber) >= Number(game.start || 1) &&
-                Number(b.holeNumber) <= Number(game.end || 18) &&
-                teamA.includes(b.playerId)
-              ).length;
-              const matchupBirdieTag = game.birdieEnabled && matchupBirdieNet > 0
-                ? <span style={{ marginLeft: 6, fontSize: 11, color: "#2d6a4f" }}>🐦+{matchupBirdieNet}</span>
+              // Count unique holes where teamA collected AND teamB paid in this matchup
+              const matchupWinHoles = new Set(
+                birdieResults.filter(b =>
+                  b.source === "team-birdie" &&
+                  Number(b.amount) > 0 &&
+                  Number(b.holeNumber) >= Number(game.start || 1) &&
+                  Number(b.holeNumber) <= Number(game.end || 18) &&
+                  teamA.includes(b.playerId) &&
+                  birdieResults.some(b2 =>
+                    b2.source === "team-birdie" &&
+                    Number(b2.amount) < 0 &&
+                    b2.holeNumber === b.holeNumber &&
+                    teamB.includes(b2.playerId)
+                  )
+                ).map(b => b.holeNumber)
+              ).size;
+              const matchupLoseHoles = new Set(
+                birdieResults.filter(b =>
+                  b.source === "team-birdie" &&
+                  Number(b.amount) < 0 &&
+                  Number(b.holeNumber) >= Number(game.start || 1) &&
+                  Number(b.holeNumber) <= Number(game.end || 18) &&
+                  teamA.includes(b.playerId) &&
+                  birdieResults.some(b2 =>
+                    b2.source === "team-birdie" &&
+                    Number(b2.amount) > 0 &&
+                    b2.holeNumber === b.holeNumber &&
+                    teamB.includes(b2.playerId)
+                  )
+                ).map(b => b.holeNumber)
+              ).size;
+              const netBirdieHoles = matchupWinHoles - matchupLoseHoles;
+              const matchupBirdieTag = game.birdieEnabled && netBirdieHoles !== 0
+                ? <span style={{ marginLeft: 6, fontSize: 11, color: netBirdieHoles > 0 ? "#2d6a4f" : "#b3261e" }}>🐦{netBirdieHoles > 0 ? "+" : ""}{netBirdieHoles}</span>
                 : null;
 
               const matchTitle = (
