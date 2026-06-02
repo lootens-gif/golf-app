@@ -408,31 +408,30 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, children, defaultOpen = false }) {
+function AuditSection({ title, children, defaultOpen = false, noStorage = false }) {
   const storageKey = `scorecard-section:${title}`;
 
   const [open, setOpen] = useState(() => {
+    if (noStorage) return defaultOpen;
     try {
       const saved = window.localStorage.getItem(storageKey);
-
       if (saved === "open") return true;
       if (saved === "closed") return false;
     } catch {
       // ignore localStorage issues
     }
-
     return defaultOpen;
   });
 
   const toggleOpen = () => {
     setOpen((current) => {
       const next = !current;
-
-      try {
-        window.localStorage.setItem(storageKey, next ? "open" : "closed");
-      } catch {
-        // ignore localStorage issues
-      }
+      if (!noStorage) {
+        try {
+          window.localStorage.setItem(storageKey, next ? "open" : "closed");
+        } catch {
+          // ignore localStorage issues
+        }
 
       return next;
     });
@@ -512,7 +511,9 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         return (
          <AuditSection
   key={match.id}
-title={oneVOneTitle}          >
+title={oneVOneTitle}
+noStorage
+          >
   <OneVOneScorecard
     match={match}
     result={result}
@@ -1015,6 +1016,7 @@ function TeamGameAudit({
           <AuditSection
             key={gameIndex}
             title={gameTitle}
+            noStorage
           >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
@@ -1031,9 +1033,24 @@ function TeamGameAudit({
               const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
               const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
+
+              // Birdie tag for this specific matchup
+              const matchupStartHole = Number(game.start || 1);
+              const matchupEndHole = Number(game.end || 18);
+              const matchupBirdieWins = birdieResults.filter(b =>
+                b.source === "team-birdie" &&
+                Number(b.amount) > 0 &&
+                Number(b.holeNumber) >= matchupStartHole &&
+                Number(b.holeNumber) <= matchupEndHole &&
+                [...teamA, ...teamB].includes(b.playerId)
+              );
+              const matchupBirdieTag = game.birdieEnabled && matchupBirdieWins.length > 0
+                ? <span style={{ marginLeft: 6, fontSize: 11, color: "#2d6a4f" }}>🐦+{matchupBirdieWins.length}</span>
+                : null;
+
               const matchTitle = (
                 <span style={{ color: matchColor }}>
-                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}
+                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}{matchupBirdieTag}
                 </span>
               );
 
@@ -1041,6 +1058,7 @@ function TeamGameAudit({
                 <AuditSection
                   key={`${gameIndex}-${matchupIndex}`}
                   title={matchTitle}
+                  noStorage
                 >
                   <TeamGameScorecard
                     game={game}
