@@ -82,7 +82,7 @@ function SettlementSection({ playerLedger = [], tabs = [], players = [], roundSu
                   <div key={row.playerId} style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 68px", gap: 4, padding: "9px 8px", borderRadius: 8, marginBottom: 4, background: total > 0 ? sc.greenLight : total < 0 ? "#fef2f2" : "#fafafa", border: `1px solid ${total > 0 ? "#c3ddd0" : total < 0 ? "#fecaca" : sc.border}` }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: sc.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getName(row.playerId)}</div>
                     <div style={{ fontSize: 12, textAlign: "center", color: fmt(row.mainGame).color, whiteSpace: "nowrap" }}>{fmt(row.mainGame).str}</div>
-                    <div style={{ fontSize: 12, textAlign: "center", color: fmt((row.sideMatches || 0) + (row.birdies || 0)).color, whiteSpace: "nowrap" }}>{fmt((row.sideMatches || 0) + (row.birdies || 0)).str}</div>
+                    <div style={{ fontSize: 12, textAlign: "center", color: fmt(row.sideMatches).color, whiteSpace: "nowrap" }}>{fmt(row.sideMatches).str}</div>
                     <div style={{ fontSize: 13, fontWeight: 800, textAlign: "right", color: totalColor, whiteSpace: "nowrap" }}>{totalStr}</div>
                   </div>
                 );
