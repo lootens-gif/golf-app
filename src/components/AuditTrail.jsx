@@ -978,11 +978,13 @@ function TeamGameAudit({
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
 
-        // Birdie summary for this game segment
-        const gameBirdies = birdieResults.filter(b => !b.source || b.source === "team-birdie");
-        const startHole = Number(game.start || 1);
-        const endHole = Number(game.end || 18);
-        const gameBirdieWins = gameBirdies.filter(b => Number(b.amount) > 0 && Number(b.holeNumber) >= startHole && Number(b.holeNumber) <= endHole);
+        // Birdie tag for this game segment
+        const gameBirdieWins = birdieResults.filter(b => 
+          b.source === "team-birdie" && 
+          Number(b.amount) > 0 &&
+          Number(b.holeNumber) >= Number(game.start || 1) &&
+          Number(b.holeNumber) <= Number(game.end || 18)
+        );
         const birdieTag = game.birdieEnabled && gameBirdieWins.length > 0
           ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{gameBirdieWins.length}</span>
           : null;

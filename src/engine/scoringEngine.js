@@ -1155,11 +1155,11 @@ export function buildTeamBirdieResults(
           const teamBCanCollect = teamBGrossBirdies > 0 && !teamBProtected && teamAGrossBirdies === 0;
 
           if (teamACanCollect) {
-            teamAActive.forEach((playerId) => results.push({ playerId, amount }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie" }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie" }));
           } else if (teamBCanCollect) {
-            teamBActive.forEach((playerId) => results.push({ playerId, amount }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie" }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie" }));
           }
           // everything else = push, nothing moves
 
@@ -1167,12 +1167,12 @@ export function buildTeamBirdieResults(
           // Original gross-only rule
           if (teamAGrossBirdies > teamBGrossBirdies) {
             const diff = teamAGrossBirdies - teamBGrossBirdies;
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie" }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie" }));
           } else if (teamBGrossBirdies > teamAGrossBirdies) {
             const diff = teamBGrossBirdies - teamAGrossBirdies;
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount }));
+            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie" }));
+            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie" }));
           }
         }
       }
