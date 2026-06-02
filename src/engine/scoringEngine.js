@@ -1256,9 +1256,10 @@ for (const entry of birdieResults) {
   ledgerMap[playerId].total += amount;
 
   // Route to correct bucket: team game birdies → mainGame, match birdies → sideMatches
+  // Entries with no source field are legacy/external — don't double-route them
   if (entry.source === "match-birdie") {
     ledgerMap[playerId].sideMatches += amount;
-  } else {
+  } else if (entry.source === "team-birdie") {
     ledgerMap[playerId].mainGame += amount;
   }
 }

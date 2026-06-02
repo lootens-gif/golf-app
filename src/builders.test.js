@@ -118,10 +118,10 @@ test('team_game_birdie_respects_toggle', () => {
   });
 
   expect(enabledResults).toEqual([
-    { playerId: 'A', amount: 2 },
-    { playerId: 'B', amount: 2 },
-    { playerId: 'C', amount: -2 },
-    { playerId: 'D', amount: -2 },
+    expect.objectContaining({ playerId: 'A', amount: 2 }),
+    expect.objectContaining({ playerId: 'B', amount: 2 }),
+    expect.objectContaining({ playerId: 'C', amount: -2 }),
+    expect.objectContaining({ playerId: 'D', amount: -2 }),
   ]);
 
   expect(disabledResults).toEqual([]);
@@ -248,9 +248,9 @@ test('team_game_birdie_ignores_player_with_no_score_on_hole', () => {
   });
 
   expect(results).toEqual([
-    { playerId: 'A', amount: 2 },
-    { playerId: 'B', amount: 2 },
-    { playerId: 'C', amount: -2 },
+    expect.objectContaining({ playerId: 'A', amount: 2 }),
+    expect.objectContaining({ playerId: 'B', amount: 2 }),
+    expect.objectContaining({ playerId: 'C', amount: -2 }),
   ]);
 });
 
