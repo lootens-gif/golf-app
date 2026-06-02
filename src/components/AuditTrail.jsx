@@ -1002,7 +1002,7 @@ function TeamGameAudit({
         const netBirdieDollarsHeader = netBirdieHolesHeader * Number(teamGameUnitAmount || 0);
         const birdieTag = game.birdieEnabled && netBirdieHolesHeader !== 0
           ? <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 700, color: netBirdieHolesHeader > 0 ? "#1a5c35" : "#b3261e" }}>
-              🐦{netBirdieHolesHeader > 0 ? "+" : ""}{netBirdieHolesHeader} ({netBirdieDollarsHeader >= 0 ? "+" : ""}{formatMoney(netBirdieDollarsHeader)}ea)
+              🐦{netBirdieHolesHeader > 0 ? "+" : ""}{netBirdieHolesHeader} ({formatMoney(netBirdieDollarsHeader)}ea)
             </span>
           : null;
 
@@ -1016,24 +1016,22 @@ function TeamGameAudit({
             <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
               {opponentPlayers.map((p, i) => {
                 const matchBets = playerNetBets[p.id] || 0;
-                // Adjust opponent bets by their birdie net (opposite of wheel team)
-                const opponentBirdieNet = new Set(
-                  birdieResults.filter(b =>
-                    b.source === "team-birdie" &&
-                    Number(b.amount) < 0 &&
-                    Number(b.holeNumber) >= Number(game.start || 1) &&
-                    Number(b.holeNumber) <= Number(game.end || 18) &&
-                    b.playerId === p.id
-                  ).map(b => b.holeNumber)
-                ).size - new Set(
-                  birdieResults.filter(b =>
-                    b.source === "team-birdie" &&
-                    Number(b.amount) > 0 &&
-                    Number(b.holeNumber) >= Number(game.start || 1) &&
-                    Number(b.holeNumber) <= Number(game.end || 18) &&
-                    b.playerId === p.id
-                  ).map(b => b.holeNumber)
-                ).size;
+                // Count birdie entries for this opponent (not unique holes — same hole can appear in multiple matchups)
+                const opponentBirdieLosses = birdieResults.filter(b =>
+                  b.source === "team-birdie" &&
+                  Number(b.amount) < 0 &&
+                  Number(b.holeNumber) >= Number(game.start || 1) &&
+                  Number(b.holeNumber) <= Number(game.end || 18) &&
+                  b.playerId === p.id
+                ).length;
+                const opponentBirdieWins = birdieResults.filter(b =>
+                  b.source === "team-birdie" &&
+                  Number(b.amount) > 0 &&
+                  Number(b.holeNumber) >= Number(game.start || 1) &&
+                  Number(b.holeNumber) <= Number(game.end || 18) &&
+                  b.playerId === p.id
+                ).length;
+                const opponentBirdieNet = opponentBirdieWins - opponentBirdieLosses;
                 const bets = matchBets + (game.birdieEnabled ? opponentBirdieNet : 0);
                 const color = bets > 0 ? "#1a5c35" : bets < 0 ? "#b3261e" : "#6b7280";
                 return (
@@ -1105,7 +1103,7 @@ function TeamGameAudit({
               const netTotal = totalDollars + matchBirdieDollars;
               const matchupBirdieTag = game.birdieEnabled && netBirdieHoles !== 0
                 ? <span style={{ marginLeft: 6, fontSize: 11, color: netBirdieHoles > 0 ? "#2d6a4f" : "#b3261e" }}>
-                    🐦{netBirdieHoles > 0 ? "+" : ""}{netBirdieHoles} = {netTotal >= 0 ? "+" : ""}{formatMoney(netTotal)}
+                    🐦{netBirdieHoles > 0 ? "+" : ""}{netBirdieHoles} = {formatMoney(netTotal)}
                   </span>
                 : null;
 
