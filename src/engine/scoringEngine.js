@@ -1255,15 +1255,12 @@ for (const entry of birdieResults) {
   ledgerMap[playerId].birdies += amount;
   ledgerMap[playerId].total += amount;
 
-eventLedger.push({
-  holeNumber: null,  
-  playerId,
-  amount,
-  gameType: "main",
-  label: "9-Point",
-});
-  
-  console.log("UPDATED LEDGER ROW", ledgerMap[playerId]);
+  // Route to correct bucket: team game birdies → mainGame, match birdies → sideMatches
+  if (entry.source === "match-birdie") {
+    ledgerMap[playerId].sideMatches += amount;
+  } else {
+    ledgerMap[playerId].mainGame += amount;
+  }
 }
 
 

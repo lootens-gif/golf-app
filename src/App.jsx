@@ -1204,7 +1204,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && (game.birdieEnabled || false),
       matches: [],
     };
   }
@@ -1321,7 +1321,7 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
-birdieEnabled: enableTeamGame && birdiesEnabled,
+birdieEnabled: enableTeamGame && (game.birdieEnabled || false),
     matches: teamMatches,
   };
 });
@@ -1336,7 +1336,7 @@ const birdieResults = buildBirdieResults({
   scores,
   course,
   getTeamGameSelection,
-  birdiesEnabled: enableTeamGame ? birdiesEnabled : false,
+  birdiesEnabled: enableTeamGame ? teamGames.some(g => g.birdieEnabled) : false,
   birdieBetAmount,
   toyRule,
   players,
