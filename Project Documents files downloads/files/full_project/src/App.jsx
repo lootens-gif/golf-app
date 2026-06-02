@@ -443,7 +443,6 @@ const lastSyncedAt = useRef(null);
       birdieEnabled: false,
       birdieBet: 0,
       teams: {},
-      pressTrigger: 1,
     };
   }
 
@@ -1528,7 +1527,6 @@ function loadLastRound() {
 }
 
 setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
 setBirdiesEnabled(!!round.birdiesEnabled);
 setBirdieBetAmount(Number(round.birdieBetAmount || 5));
   if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
@@ -1666,7 +1664,6 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
 
   setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
   setBirdieBetAmount(Number(round.birdieBetAmount || 5));
@@ -1780,7 +1777,6 @@ function loadNamedRound() {
 }
 
 setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
 setBirdiesEnabled(!!round.birdiesEnabled);
 setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
@@ -1884,7 +1880,7 @@ async function handleLoadTemplate(template) {
     if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
     if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
     if (typeof cfg.teamGameUnitAmount === "number") setTeamGameUnitAmount(cfg.teamGameUnitAmount);
-    if (cfg.pressTrigger) { setPressTrigger(Number(cfg.pressTrigger)); setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(cfg.pressTrigger) }))); }
+    if (cfg.pressTrigger) setPressTrigger(Number(cfg.pressTrigger));
     if (typeof cfg.birdiesEnabled === "boolean") setBirdiesEnabled(cfg.birdiesEnabled);
     if (typeof cfg.birdieBetAmount === "number") setBirdieBetAmount(cfg.birdieBetAmount);
     if (typeof cfg.toyRule === "boolean") setToyRule(cfg.toyRule);
