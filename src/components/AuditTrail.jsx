@@ -485,9 +485,11 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
 
         const total = Number(result?.total || 0);
 
-        // Net birdies for this match
+        // Net birdies for this match — p1 perspective
         const matchBirdies = (birdieResults || []).filter(b => b.source === "match-birdie" && b.matchId === match.id);
-        const netBirdiesWon = matchBirdies.reduce((sum, b) => sum + (Number(b.amount) > 0 ? 1 : 0), 0);
+        const p1BirdiesWon = matchBirdies.filter(b => b.playerId === match.p1Id && Number(b.amount) > 0).length;
+        const p1BirdiesLost = matchBirdies.filter(b => b.playerId === match.p1Id && Number(b.amount) < 0).length;
+        const netBirdiesP1 = p1BirdiesWon - p1BirdiesLost;
         const birdieDollarsP1 = matchBirdies.filter(b => b.playerId === match.p1Id).reduce((sum, b) => sum + Number(b.amount || 0), 0);
         const totalWithBirdies = total + birdieDollarsP1;
         const headerColorFinal = totalWithBirdies > 0 ? "#1a5c38" : totalWithBirdies < 0 ? "#b3261e" : "#6b7280";
@@ -496,8 +498,12 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const adjustedResult = { ...result, total: totalWithBirdies };
         const moneyStrFinal = getOneVOneMoneyLabel(adjustedResult, p1Name, p2Name);
 
-        const birdieTag = match.birdieEnabled && netBirdiesWon > 0
-          ? <span style={{ marginLeft: 8, fontSize: 12, color: "#2d6a4f" }}>🐦+{netBirdiesWon}</span>
+        // Show birdie tag: 🐦+N if p1 won net birdies, 🐦 if tracked but net 0, nothing if none made
+        const totalGrossBirdies = matchBirdies.filter(b => Number(b.amount) > 0).length;
+        const birdieTag = match.birdieEnabled && totalGrossBirdies > 0
+          ? netBirdiesP1 !== 0
+            ? <span style={{ marginLeft: 8, fontSize: 12, color: netBirdiesP1 > 0 ? "#2d6a4f" : "#b3261e" }}>🐦{netBirdiesP1 > 0 ? "+" : ""}{netBirdiesP1}</span>
+            : <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>🐦</span>
           : null;
 
         const oneVOneTitle = (
@@ -762,14 +768,20 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     const countA = holes.filter(h => {
       const grossA = match.birdieEnabled && isGrossBirdie(scores, course, h, playerA.id);
       if (!grossA) return false;
+      // Push if opponent also made gross birdie (mutual push)
+      const grossB = isGrossBirdie(scores, course, h, playerB.id);
+      if (grossB) return false;
       if (!toyRule) return true;
-      // pushed if opponent has net birdie
+      // Push if opponent has net birdie cover
       const netB = isNetBirdie(playerB.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
       return !netB;
     }).length;
     const countB = holes.filter(h => {
       const grossB = match.birdieEnabled && isGrossBirdie(scores, course, h, playerB.id);
       if (!grossB) return false;
+      // Push if opponent also made gross birdie (mutual push)
+      const grossA = isGrossBirdie(scores, course, h, playerA.id);
+      if (grossA) return false;
       if (!toyRule) return true;
       const netA = isNetBirdie(playerA.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
       return !netA;
