@@ -432,7 +432,7 @@ function AuditSection({ title, children, defaultOpen = false, noStorage = false 
         } catch {
           // ignore localStorage issues
         }
-
+      }
       return next;
     });
   };
