@@ -589,9 +589,15 @@ function NinePointScorecard({
       });
       return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
     }));
-    // Avg pts per player per 9 = 3pts/hole × 9 holes ÷ 3 players = 9 (each player "paid in" 3pts/hole)
-    const ptsPerPlayerPer9 = 3 * sectionHoles.length; // 3 pts average per hole
-    const sectionAvg = ptsPerPlayerPer9;
+    // Count how many holes have actually been played in this section
+    const playedHolesInSection = sectionHoles.filter(h =>
+      players.some(p => {
+        const s = scores?.[h.hole]?.[p.id];
+        return s != null && Number.isFinite(Number(s));
+      })
+    ).length;
+    // Avg pts per player = 3 pts/hole × holes played (zero-sum across players)
+    const sectionAvg = 3 * playedHolesInSection;
 
     return (
       <div style={{ marginBottom: 16 }}>
