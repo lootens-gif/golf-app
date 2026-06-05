@@ -3465,7 +3465,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
               return (
                 <div key={playerId} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span>{name}</span>
-                  <span style={{ fontWeight: "bold", color }}>{pts > 0 ? `+${pts}` : pts} pts</span>
+                  <span style={{ fontWeight: "bold", color }}>{pts} pts</span>
                 </div>
               );
             })}

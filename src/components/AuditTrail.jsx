@@ -711,6 +711,26 @@ function NinePointScorecard({
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
+
+      {/* Total points summary */}
+      {(() => {
+        const totals = result?.totalsByPlayerId || {};
+        const hasScores = Object.values(totals).some(v => v > 0);
+        if (!hasScores) return null;
+        const sorted = [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+        return (
+          <div style={{ fontSize: 12, color: "#555", marginTop: 6, paddingLeft: 2, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Total Pts:</span>
+            {sorted.map(p => (
+              <span key={p.id}>
+                <span style={{ fontWeight: 600 }}>{p.name.split(" ")[0]}</span>
+                {" "}{totals[p.id] ?? 0}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
+
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
           ? "🚫 No Birdies Tracked"
