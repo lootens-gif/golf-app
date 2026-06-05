@@ -1283,7 +1283,6 @@ for (const entry of birdieResults) {
 
       Object.entries(balances).forEach(([playerId, amount]) => {
         if (!ledgerMap[playerId] || typeof amount !== "number") return;
-
         ledgerMap[playerId].mainGame += amount;
         ledgerMap[playerId].total += amount;
       });

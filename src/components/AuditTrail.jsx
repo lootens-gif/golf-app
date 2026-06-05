@@ -581,7 +581,7 @@ function NinePointScorecard({
   };
 
   const renderSection = (label, sectionHoles) => {
-    // Compute section net $ for each player (running total at end of section)
+    // Get running totals at last played hole for each player
     const sectionNetPts = Object.fromEntries(players.map(p => {
       const lastPlayed = [...sectionHoles].reverse().find(h => {
         const s = scores?.[h.hole]?.[p.id];
@@ -589,15 +589,26 @@ function NinePointScorecard({
       });
       return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
     }));
-    // Count how many holes have actually been played in this section
-    const playedHolesInSection = sectionHoles.filter(h =>
-      players.some(p => {
-        const s = scores?.[h.hole]?.[p.id];
-        return s != null && Number.isFinite(Number(s));
-      })
-    ).length;
-    // Avg pts per player = 3 pts/hole × holes played (zero-sum across players)
-    const sectionAvg = 3 * playedHolesInSection;
+
+    // Compute pairwise transaction balances (same as leaderboard/engine)
+    const sectionBalances = Object.fromEntries(players.map(p => [p.id, 0]));
+    const playerList = players.filter(p => sectionNetPts[p.id] !== null);
+    if (playerList.length === 3) {
+      const sorted = [...playerList].sort((a, b) => (sectionNetPts[b.id] ?? 0) - (sectionNetPts[a.id] ?? 0));
+      const [first, second, third] = sorted;
+      const fp = sectionNetPts[first.id] ?? 0;
+      const sp = sectionNetPts[second.id] ?? 0;
+      const tp = sectionNetPts[third.id] ?? 0;
+      const txs = [
+        { from: third.id, to: first.id, amt: (fp - tp) * betAmt },
+        { from: third.id, to: second.id, amt: (sp - tp) * betAmt },
+        { from: second.id, to: first.id, amt: (fp - sp) * betAmt },
+      ];
+      txs.forEach(tx => {
+        sectionBalances[tx.from] -= tx.amt;
+        sectionBalances[tx.to] += tx.amt;
+      });
+    }
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -623,7 +634,7 @@ function NinePointScorecard({
               {/* POINTS ROWS — initial + net $ + hole values */}
               {players.map((player) => {
                 const rawNet = sectionNetPts[player.id] !== null
-                  ? (sectionNetPts[player.id] - sectionAvg) * betAmt
+                  ? sectionBalances[player.id]
                   : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
