@@ -76,9 +76,9 @@ function isUsableRoundSnapshot(value) {
 
 function createDefaultCourse() {
   return {
-    name: "Westwood",
-    pars: [5,4,3,4,4,5,4,3,4,4,4,5,4,4,3,4,3,5],
-    hcp: [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9],
+    name: "",
+    pars: Array(18).fill(4),
+    hcp: Array(18).fill(0).map((_, i) => i + 1),
   };
 }
 
@@ -2322,6 +2322,13 @@ if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
     return;
   }
 
+  // Warn if scores already exist but no round code — would create a duplicate
+  const hasScores = Object.keys(scores).length > 0;
+  if (hasScores && !roundCode) {
+    const confirmed = window.confirm("You have scores entered but no active round code. Starting now will create a new round — previous scores may be lost. Continue?");
+    if (!confirmed) return;
+  }
+
   // Round already complete: go back to Live so user can view/edit scorecard
   if (lastHoleSaved != null && lastHoleSaved >= 18) {
     setPendingNextGameIndex(null);
@@ -2422,6 +2429,13 @@ if (!enableTeamGame && !skinsEnabled) {
     setCurrentHole(lastHoleSaved + 1);
   } else {
     setCurrentHole(1);
+  }
+
+  // Warn about unnamed players
+  const unnamedCount = allPlayers.filter(p => !p.name || p.name.match(/^P\d+$/)).length;
+  if (unnamedCount > 0) {
+    const confirmed = window.confirm(`${unnamedCount} player${unnamedCount > 1 ? "s have" : " has"} no name (showing as P1, P2 etc). Continue anyway?`);
+    if (!confirmed) return;
   }
 
   setPendingNextGameIndex(null);

@@ -160,7 +160,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   );
 }
 
-function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId, players, sc }) {
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId, players, sc, roundName, setRoundName }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -174,6 +174,15 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const [updatePin, setUpdatePin] = useState("");
   const [updateStatus, setUpdateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "pin"
   const searchTimer = useRef(null);
+  const inputRef = useRef(null);
+
+  // Auto-open search if no course loaded yet
+  useEffect(() => {
+    if (!course.name || course.name === "Westwood") {
+      handleSearch("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get Player 1 name for "Saved by"
   const savedBy = players?.[0]?.name && players[0].name !== "P1" ? players[0].name : "Anonymous";
@@ -202,6 +211,14 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     setSearchQuery(c.name);
     setLoadedCourse(c);
     setDuplicateCourse(null);
+    // Auto-suggest round name if not already set
+    if (typeof setRoundName === "function") {
+      const today = new Date();
+      const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const suggested = `${monthDay} - ${c.name}`;
+      // Only auto-set if round name is empty or was previously auto-generated
+      setRoundName(prev => (!prev || prev.match(/^[A-Z][a-z]+ \d+ - /)) ? suggested : prev);
+    }
   }
 
   async function handleUpdate(adminPin) {
@@ -247,18 +264,26 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     <Card>
       <SectionLabel>Course Setup</SectionLabel>
 
+      {/* Prompt when no course loaded */}
+      {!loadedCourse && !course.name && (
+        <div style={{ marginBottom: 10, padding: "10px 12px", background: "#fef9c3", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+          ⛳ Select a course from the library below to get started
+        </div>
+      )}
+
       {/* Search / name input */}
       <div style={{ marginBottom: 8, position: "relative" }}>
         <label style={{ fontSize: 13, color: sc.muted, display: "block", marginBottom: 6 }}>
           Course name — search library or type new
         </label>
         <input
+          ref={inputRef}
           type="text"
           value={searchQuery || course.name || ""}
           onFocus={(e) => { e.target.select(); if (course.name) setSearchQuery(course.name); handleSearch(searchQuery || course.name || ""); }}
           onChange={(e) => handleSearch(e.target.value)}
           placeholder="Search courses or type a name…"
-          style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
+          style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${loadedCourse ? sc.green : sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
         />
 
         {/* Search results dropdown */}
@@ -1177,6 +1202,8 @@ export default function SetupScreen({
         searchCourses={searchCourses}
         players={players}
         sc={sc}
+        roundName={roundName}
+        setRoundName={setRoundName}
       />
 
       {/* ── SAVED ROUNDS ── */}
