@@ -49,7 +49,10 @@ function SectionLabel({ children }) {
   );
 }
 
-
+function formatMoney(v) {
+  const n = Number(v || 0);
+  return n >= 0 ? `+$${n.toFixed(2)}` : `-$${Math.abs(n).toFixed(2)}`;
+}
 
 // ── TRIP LIST VIEW ────────────────────────────────────────────────────────────
 function TripListView({ deviceId, onSelect, onCreate }) {
@@ -110,7 +113,6 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [courseResults, setCourseResults] = useState([]);
-  const [courseSearch, setCourseSearch] = useState("");
   const [activeRoundIdx, setActiveRoundIdx] = useState(null);
 
   // Load existing data
@@ -168,8 +170,6 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
   }
 
   async function searchCourse(q) {
-    setCourseSearch(q);
-    if (q.length < 1) { setCourseResults([]); return; }
     try {
       const results = await searchCourses(q || "%");
       setCourseResults(results);
@@ -291,14 +291,14 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
                   <label style={{ fontSize: 12, color: sc.muted, display: "block", marginBottom: 4 }}>Course</label>
                   <input
                     type="text"
-                    value={r.course_name || courseSearch}
+                    value={r.course_name || ""}
                     onChange={e => { updateRound(i, "course_name", e.target.value); searchCourse(e.target.value); }}
-                    onFocus={() => searchCourse(r.course_name || "")}
-                    placeholder="Search or type course name"
+                    onFocus={() => searchCourse("")}
+                    placeholder="Tap to search courses…"
                     style={{ width: "100%", fontSize: 14, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit" }}
                   />
                   {courseResults.length > 0 && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 100, marginTop: 2 }}>
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 100, marginTop: 2, maxHeight: 200, overflowY: "auto" }}>
                       {courseResults.map(c => (
                         <div key={c.id} onClick={() => {
                           updateRound(i, "course_name", c.name);
@@ -314,7 +314,7 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
                   <div>
-                    <label style={{ fontSize: 12, color: sc.muted, display: "block", marginBottom: 4 }}>Tee</label>
+                    <label style={{ fontSize: 12, color: sc.muted, display: "block", marginBottom: 4 }}>Default Tees</label>
                     <input type="text" value={r.tee_name} onChange={e => updateRound(i, "tee_name", e.target.value)} placeholder="Blue, White…" style={{ width: "100%", fontSize: 13, padding: "7px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit" }} />
                   </div>
                   <div>
@@ -328,8 +328,9 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 12, color: sc.muted, display: "block", marginBottom: 4 }}>Round Code (link to scored round)</label>
-                  <input type="text" value={r.round_code} onChange={e => updateRound(i, "round_code", e.target.value.toUpperCase())} placeholder="e.g. 9084" maxLength={4} style={{ width: "100%", fontSize: 14, fontWeight: 700, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "monospace" }} />
+                  <label style={{ fontSize: 12, color: sc.muted, display: "block", marginBottom: 4 }}>Round Code — from the scoring session for this round (e.g. 9084)</label>
+                  <input type="text" value={r.round_code} onChange={e => updateRound(i, "round_code", e.target.value.toUpperCase())} placeholder="4-digit code from scoring app" maxLength={4} style={{ width: "100%", fontSize: 14, fontWeight: 700, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "monospace" }} />
+                  <div style={{ fontSize: 11, color: sc.muted, marginTop: 3 }}>Enter this after the round is scored — links scores to this trip automatically</div>
                 </div>
 
                 <button onClick={() => removeRound(i)} style={{ marginTop: 10, fontSize: 12, color: "#b3261e", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>Remove round</button>
@@ -466,11 +467,12 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
         if (!rPlayer) return;
         const scores = rd.data.scores || {};
         const course = rd.data.course || {};
+        const pars = course.pars || [];
         // Calculate net score
         Object.entries(scores).forEach(([hole, holeScores]) => {
           const gross = holeScores[rPlayer.id];
           if (gross == null) return;
-         // const par = pars[Number(hole) - 1] || 4;
+          const par = pars[Number(hole) - 1] || 4;
           const hcp = rPlayer.hcp || 0;
           // Simple net: gross - strokes received on this hole
           const courseHcpArr = course.hcp || [];

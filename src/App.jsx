@@ -2845,7 +2845,7 @@ return (
       onClick={() => setScreen("trip")}
       disabled={screen === "trip"}
     >
-      🏌️
+      Trip
     </button>
 
     <button
