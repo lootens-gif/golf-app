@@ -1363,8 +1363,9 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
               const hasAllFront = frontScores.every(g => g !== null);
 
               const grossTotal = frontTotal + sectionTotal;
+              // NET column always uses full handicap (not relative betting mode)
               const netStrokes = holes.reduce((sum, h) =>
-                sum + _strokesFn(player.id, h, players, course, handicapMode), 0);
+                sum + _strokesFn(player.id, h, players, course, 'full'), 0);
               const netTotal = grossTotal - netStrokes;
               const hasAll = hasAllFront && hasAllBack;
 

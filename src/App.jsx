@@ -3193,13 +3193,11 @@ if (enableTeamGame && nextGameIndex >= 0) {
               (selection.team2 || []).filter(Boolean).length === 1;
 
         if (!hasValidTeams) {
-          // Only show Game Complete if nextGameIndex is actually a different game
-          // from the current hole's game — prevents "Game 0 Complete" on hole 1
           const currentGameIndex = teamGames.findIndex((game, index) => {
             const range = getTeamGameRange(teamGames, index);
             return currentHole >= range.start && currentHole <= range.end;
           });
-          if (nextGameIndex !== currentGameIndex && nextGameIndex > 0) {
+          if (nextGameIndex !== currentGameIndex) {
             setPendingNextGameIndex(nextGameIndex);
             return;
           }

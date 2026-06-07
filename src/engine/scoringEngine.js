@@ -1344,35 +1344,37 @@ for (const game of teamGameResults) {
   }, 0);
 
 const dollars = totalScore * teamGameUnitAmount;
-    ;
+    const teamACount = teamAPlayers.filter(Boolean).length;
+    const teamBCount = teamBPlayers.filter(Boolean).length;
+    // In unequal teams (2v1), solo player pays each winner individually
+    const teamAShare = dollars;
+    const teamBShare = teamBCount > 0 ? dollars * teamACount / teamBCount : dollars;
+
     // pay each player on the winning team, charge each player on the losing team
     teamAPlayers.forEach((playerId) => {
       if (!ledgerMap[playerId]) return;
-      ledgerMap[playerId].mainGame += dollars;
-      ledgerMap[playerId].total += dollars;
-
+      ledgerMap[playerId].mainGame += teamAShare;
+      ledgerMap[playerId].total += teamAShare;
       eventLedger.push({
         holeNumber: game.start ?? null,
         playerId,
-        amount: dollars,
+        amount: teamAShare,
         gameType: "main",
         label: `Team Game ${game.index + 1}`,
       });
-
     });
 
     teamBPlayers.forEach((playerId) => {
       if (!ledgerMap[playerId]) return;
-      ledgerMap[playerId].mainGame -= dollars;
-      ledgerMap[playerId].total -= dollars;
-
+      ledgerMap[playerId].mainGame -= teamBShare;
+      ledgerMap[playerId].total -= teamBShare;
       eventLedger.push({
-      holeNumber: game.start ?? null,
-      playerId,
-      amount: -dollars,
-      gameType: "main",
-      label: `Team Game ${game.index + 1}`,
-    });
+        holeNumber: game.start ?? null,
+        playerId,
+        amount: -teamBShare,
+        gameType: "main",
+        label: `Team Game ${game.index + 1}`,
+      });
     });
   }
 }
