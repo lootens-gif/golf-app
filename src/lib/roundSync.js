@@ -284,3 +284,100 @@ export async function checkCourseExists(name) {
   if (error) throw error;
   return data?.[0] || null;
 }
+
+// ── TRIPS ─────────────────────────────────────────────────────────────────────
+
+export async function createTrip(trip, deviceId) {
+  const { data, error } = await supabase
+    .from('trips')
+    .insert({ ...trip, device_id: deviceId, updated_at: new Date().toISOString() })
+    .select();
+  if (error) throw error;
+  return data?.[0];
+}
+
+export async function fetchMyTrips(deviceId) {
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('device_id', deviceId)
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchTrip(tripId) {
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('id', tripId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function saveTripPlayers(tripId, players) {
+  await supabase.from('trip_players').delete().eq('trip_id', tripId);
+  if (!players.length) return;
+  const { error } = await supabase.from('trip_players').insert(
+    players.map((p, i) => ({ ...p, trip_id: tripId, sort_order: i }))
+  );
+  if (error) throw error;
+}
+
+export async function fetchTripPlayers(tripId) {
+  const { data, error } = await supabase
+    .from('trip_players')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('sort_order');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveTripRound(round) {
+  const { data, error } = await supabase
+    .from('trip_rounds')
+    .upsert(round, { onConflict: 'id' })
+    .select();
+  if (error) throw error;
+  return data?.[0];
+}
+
+export async function fetchTripRounds(tripId) {
+  const { data, error } = await supabase
+    .from('trip_rounds')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('round_number');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveTripGames(tripId, games) {
+  await supabase.from('trip_games').delete().eq('trip_id', tripId);
+  if (!games.length) return;
+  const { error } = await supabase.from('trip_games').insert(
+    games.map(g => ({ ...g, trip_id: tripId }))
+  );
+  if (error) throw error;
+}
+
+export async function fetchTripGames(tripId) {
+  const { data, error } = await supabase
+    .from('trip_games')
+    .select('*')
+    .eq('trip_id', tripId);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchRoundsByCode(codes) {
+  if (!codes.length) return [];
+  const { data, error } = await supabase
+    .from('rounds')
+    .select('code, data, updated_at')
+    .in('code', codes);
+  if (error) throw error;
+  return data || [];
+}

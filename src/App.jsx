@@ -24,6 +24,7 @@ import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
+import TripScreen from "./screens/TripScreen";
 import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
@@ -2841,6 +2842,14 @@ return (
 
     <button
       className="secondary-button"
+      onClick={() => setScreen("trip")}
+      disabled={screen === "trip"}
+    >
+      🏌️
+    </button>
+
+    <button
+      className="secondary-button"
       onClick={shareCurrentRound}
       disabled={isSyncing}
     >
@@ -3644,6 +3653,13 @@ if (enableTeamGame && nextGameIndex >= 0) {
         alert("Could not load round " + code);
       }
     }}
+  />
+)}
+
+{screen === "trip" && (
+  <TripScreen
+    deviceId={deviceId}
+    onBack={() => setScreen("setup")}
   />
 )}
 
