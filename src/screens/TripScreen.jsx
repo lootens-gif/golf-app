@@ -466,7 +466,6 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
         if (!rPlayer) return;
         const scores = rd.data.scores || {};
         const course = rd.data.course || {};
-        const pars = course.pars || [];
         // Calculate net score
         Object.entries(scores).forEach(([hole, holeScores]) => {
           const gross = holeScores[rPlayer.id];
