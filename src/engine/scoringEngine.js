@@ -241,17 +241,24 @@ export function scoreNinePointHole(
     scoredPlayers.map((entry) => [entry.playerId, entry.netScore])
   );
 
-  // Check if any player made a gross birdie on this hole
   const par = course?.pars?.[hole - 1];
-  const anyBirdie = birdieDoublePoints && par != null &&
-    playerIds.some(id => {
-      const gross = scores?.[hole]?.[id];
-      return Number.isFinite(gross) && gross < par;
-    });
-
-  const multiplier = anyBirdie ? 2 : 1;
-
   const uniqueWinner = first.netScore < second.netScore;
+
+  // Birdie double only applies if:
+  // 1. birdieDoublePoints toggle is on
+  // 2. There is a unique winner (not a tie for first)
+  // 3. The unique winner made a gross birdie (gross < par)
+  const winnerGross = par != null ? scores?.[hole]?.[first.playerId] : null;
+  const winnerMadeGrossBirdie = birdieDoublePoints && uniqueWinner && par != null &&
+    Number.isFinite(winnerGross) && winnerGross < par;
+
+  // Eagle = 2 under par (pending Biro confirmation on multiplier — using 2x same as birdie for now)
+  const winnerMadeEagle = winnerMadeGrossBirdie && Number.isFinite(winnerGross) && winnerGross <= par - 2;
+
+  const multiplier = winnerMadeGrossBirdie ? 2 : 1;
+  // Store birdie/eagle info on result for rendering
+  const birdieMode = winnerMadeEagle ? "eagle" : winnerMadeGrossBirdie ? "birdie" : null;
+
   const blitzApplies =
     blitzEnabled &&
     uniqueWinner &&
@@ -265,7 +272,9 @@ export function scoreNinePointHole(
 
     return {
       status: "complete",
-      mode: anyBirdie ? "blitz-birdie" : "blitz",
+      mode: birdieMode ? `blitz-${birdieMode}` : "blitz",
+      birdieMode,
+      winnerPlayerId: first.playerId,
       pointsByPlayerId,
       netScoresByPlayerId,
     };
@@ -291,7 +300,9 @@ export function scoreNinePointHole(
 
   return {
     status: "complete",
-    mode: anyBirdie ? "birdie-double" : "standard",
+    mode: birdieMode ? `birdie-double-${birdieMode}` : "standard",
+    birdieMode,
+    winnerPlayerId: first.playerId,
     pointsByPlayerId,
     netScoresByPlayerId,
   };

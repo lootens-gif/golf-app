@@ -49,7 +49,6 @@ function SectionLabel({ children }) {
   );
 }
 
-
 // ── TRIP LIST VIEW ────────────────────────────────────────────────────────────
 function TripListView({ deviceId, onSelect, onCreate }) {
   const [trips, setTrips] = useState([]);
@@ -463,12 +462,10 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
         if (!rPlayer) return;
         const scores = rd.data.scores || {};
         const course = rd.data.course || {};
-        
         // Calculate net score
         Object.entries(scores).forEach(([hole, holeScores]) => {
           const gross = holeScores[rPlayer.id];
           if (gross == null) return;
-          
           const hcp = rPlayer.hcp || 0;
           // Simple net: gross - strokes received on this hole
           const courseHcpArr = course.hcp || [];

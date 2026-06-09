@@ -647,8 +647,10 @@ function NinePointScorecard({
                 return (
                   <tr key={`pts-${player.id}`}>
                     <td style={{ ...scorecardLabelCellStyle, padding: "3px 4px" }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: netColor, marginLeft: 6, textAlign: "right", minWidth: 48 }}>{netStr}</span>
+                      </div>
                     </td>
                     {sectionHoles.map((h) => {
                       const hasScore = players.some(p => {
@@ -684,16 +686,22 @@ function NinePointScorecard({
                     const gross = getRawScore(scores, h.hole, player.id);
                     const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
                     const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "–";
-                    const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
-                    const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
+                    const par = course?.pars?.[h.hole - 1];
+                    const isGrossBird = gross != null && par != null && gross < par;
+                    const isEagle = gross != null && par != null && gross <= par - 2;
+                    const showBirdieCircle = match?.birdieDoublePoints && isGrossBird;
                     return (
                       <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#444" }}>
-                        {grossBirdie ? (
-                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
-                            {display}
+                        {showBirdieCircle && isEagle ? (
+                          // Eagle — double circle
+                          <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24 }}>
+                            <span style={{ position: "absolute", width: 24, height: 24, borderRadius: "50%", border: "2px solid #137333" }} />
+                            <span style={{ position: "absolute", width: 18, height: 18, borderRadius: "50%", border: "2px solid #137333" }} />
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#137333", position: "relative" }}>{display}</span>
                           </span>
-                        ) : netBirdie ? (
-                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
+                        ) : showBirdieCircle ? (
+                          // Birdie — single circle
+                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
                             {display}
                           </span>
                         ) : display}
