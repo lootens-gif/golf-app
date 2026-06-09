@@ -3690,7 +3690,11 @@ if (enableTeamGame && nextGameIndex >= 0) {
         We found rounds from your device on this course.
       </div>
 
-      {recentRounds.map(round => {
+      <div style={{ maxHeight: "50vh", overflowY: "auto", marginBottom: 8 }}>
+      {[...recentRounds]
+        .filter(r => Object.keys(r.data?.scores || {}).length > 0)
+        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+        .map(round => {
         const data = round.data || {};
         const name = data.roundName || `Round ${round.code}`;
         const players = (data.allPlayers || []).map(p => p.name).join(", ");
@@ -3722,6 +3726,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
           </div>
         );
       })}
+      </div>
 
       <button
         onClick={() => setShowRecentRounds(false)}
