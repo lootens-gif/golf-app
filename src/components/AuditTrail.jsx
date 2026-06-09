@@ -580,6 +580,9 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
+  // Full-round balances from payout engine — shown consistently in both sections
+  const fullRoundBalances = result?.payout?.balancesByPlayerId || {};
+
   const renderSection = (label, sectionHoles) => {
     // Get running totals at last played hole for each player
     const sectionNetPts = Object.fromEntries(players.map(p => {
@@ -633,8 +636,8 @@ function NinePointScorecard({
 
               {/* POINTS ROWS — initial + net $ + hole values */}
               {players.map((player) => {
-                const rawNet = sectionNetPts[player.id] !== null
-                  ? sectionBalances[player.id]
+                const rawNet = fullRoundBalances[player.id] !== undefined
+                  ? fullRoundBalances[player.id]
                   : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -655,11 +658,10 @@ function NinePointScorecard({
                       if (!hasScore) return <td key={h.hole} style={{ ...scorecardCellStyle, color: "#e5e7eb", fontSize: 13 }}>–</td>;
 
                       const pts = h.pointsByPlayerId?.[player.id] ?? 0;
-                      const dollarVal = pts * betAmt;
                       const { bg, color } = ptColor(pts, hasScore);
                       return (
                         <td key={h.hole} style={{ ...scorecardCellStyle, background: bg, fontSize: 13, color: color, fontWeight: 700 }}>
-                          {hasScore ? (dollarVal > 0 ? dollarVal : "0") : "–"}
+                          {hasScore ? (pts > 0 ? pts : "0") : "–"}
                         </td>
                       );
                     })}

@@ -75,12 +75,17 @@ export function getDeviceId() {
 
 // Fetch recent rounds for this device (last 5)
 export async function fetchRecentRounds(deviceId) {
-  const { data, error } = await supabase
+  let query = supabase
     .from("rounds")
     .select("code, data, updated_at")
     .order("updated_at", { ascending: false })
-    .limit(5);
+    .limit(10);
 
+  if (deviceId) {
+    query = query.eq("device_id", deviceId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }

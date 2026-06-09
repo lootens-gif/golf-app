@@ -525,6 +525,15 @@ const lastSyncedAt = useRef(null);
 
   function handlePlayerChange(index, field, value) {
     if (field === "name") value = autoCapitalize(value);
+
+    // Generate round code early when first player name is entered
+    // so Supabase backup starts immediately (protects against iOS localStorage loss)
+    if (field === "name" && value.trim() && !roundCode) {
+      const earlyCode = generateRoundCode();
+      setRoundCode(earlyCode);
+      localStorage.setItem(ROUND_CODE_KEY, earlyCode);
+    }
+
     setAllPlayers((prev) =>
       prev.map((player, i) => {
         if (i !== index) return player;
