@@ -683,7 +683,7 @@ function GroupTemplatesCard({ myTemplates, templateStatus, onSaveTemplate, onLoa
                 </div>
               ))}
             </div>
-          ) : searchQuery.length >= 1 && !searching ? (
+          ) : !searching ? (
             <div style={{ fontSize: 13, color: sc.muted, textAlign: "center", padding: "10px 0" }}>No public templates found.</div>
           ) : null}
         </div>
