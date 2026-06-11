@@ -201,7 +201,8 @@ export function scoreNinePointHole(
   handicapMode,
   blitzEnabled = false,
   noPar3Strokes = false,
-  birdieDoublePoints = false
+  birdieDoublePoints = false,
+  eagleTriplePoints = false
 ) {
   if (!Array.isArray(playerIds) || playerIds.length !== 3) {
     return {
@@ -252,10 +253,13 @@ export function scoreNinePointHole(
   const winnerMadeGrossBirdie = birdieDoublePoints && uniqueWinner && par != null &&
     Number.isFinite(winnerGross) && winnerGross < par;
 
-  // Eagle = 2 under par (pending Biro confirmation on multiplier — using 2x same as birdie for now)
+  // Eagle = 2 under par
   const winnerMadeEagle = winnerMadeGrossBirdie && Number.isFinite(winnerGross) && winnerGross <= par - 2;
 
-  const multiplier = winnerMadeGrossBirdie ? 2 : 1;
+  // multiplier: eagle 3x if eagleTriplePoints on, else 2x (falls back to birdie 2x); birdie 2x
+  const multiplier = winnerMadeEagle
+    ? (eagleTriplePoints ? 3 : 2)
+    : winnerMadeGrossBirdie ? 2 : 1;
   // Store birdie/eagle info on result for rendering
   const birdieMode = winnerMadeEagle ? "eagle" : winnerMadeGrossBirdie ? "birdie" : null;
 
@@ -385,7 +389,8 @@ export function getNinePointMatchSummary(
   dollarsPerPoint = 0,
   holeCount = 18,
   noPar3Strokes = false,
-  birdieDoublePoints = false
+  birdieDoublePoints = false,
+  eagleTriplePoints = false
 ) {
   if (!Array.isArray(playerIds) || playerIds.length !== 3) {
     return {
@@ -417,7 +422,8 @@ export function getNinePointMatchSummary(
       handicapMode,
       blitzEnabled,
       noPar3Strokes,
-      birdieDoublePoints
+      birdieDoublePoints,
+      eagleTriplePoints
     );
 
     if (holeResult.status === "complete") {
@@ -640,7 +646,8 @@ if (match.gameType === "ninePoint") {
     Number(match.bet ?? 0),
     18,
     noPar3Strokes,
-    Boolean(match.birdieDoublePoints)
+    Boolean(match.birdieDoublePoints),
+    Boolean(match.eagleTriplePoints)
   );
 
 
@@ -1058,8 +1065,8 @@ export function buildNinePointBirdieResults(matchResults, scores, course, toyRul
         // Only gross birdie players collect — from losers only, not from net birdie players
         grossBirdiePlayers.forEach((winnerId) => {
           losers.forEach((loserId) => {
-            results.push({ playerId: winnerId, amount });
-            results.push({ playerId: loserId, amount: -amount });
+            results.push({ playerId: winnerId, amount, holeNumber, source: "nine-point-birdie" });
+            results.push({ playerId: loserId, amount: -amount, holeNumber, source: "nine-point-birdie" });
           });
         });
         // Net birdie players pay nothing and collect nothing — they just don't pay the gross birdie
@@ -1070,8 +1077,8 @@ export function buildNinePointBirdieResults(matchResults, scores, course, toyRul
         const losers = scoredPlayerIds.filter((id) => !grossBirdiePlayers.includes(id));
         grossBirdiePlayers.forEach((winnerId) => {
           losers.forEach((loserId) => {
-            results.push({ playerId: winnerId, amount });
-            results.push({ playerId: loserId, amount: -amount });
+            results.push({ playerId: winnerId, amount, holeNumber, source: "nine-point-birdie" });
+            results.push({ playerId: loserId, amount: -amount, holeNumber, source: "nine-point-birdie" });
           });
         });
       }
@@ -1141,49 +1148,35 @@ export function buildTeamBirdieResults(
           isGrossBirdie(scores, course, holeNumber, playerId)
         ).length;
 
-        if (toyRule) {
-          const teamANetBirdies = teamAActive.filter(
-            (playerId) =>
-              !isGrossBirdie(scores, course, holeNumber, playerId) &&
-              isNetBirdie(playerId, holeNumber, players, course, scores, handicapMode)
-          ).length;
-
-          const teamBNetBirdies = teamBActive.filter(
-            (playerId) =>
-              !isGrossBirdie(scores, course, holeNumber, playerId) &&
-              isNetBirdie(playerId, holeNumber, players, course, scores, handicapMode)
-          ).length;
-
-          // Toy Rule for teams:
-          // A net birdie on your team protects you from paying the opposing gross birdie
-          // Net birdie never earns money — purely defensive
-          // If opposing team has a net birdie, your gross birdie cannot collect from them
-
-          const teamAProtected = teamAGrossBirdies > 0 && teamBNetBirdies > 0;
-          const teamBProtected = teamBGrossBirdies > 0 && teamANetBirdies > 0;
-
-          const teamACanCollect = teamAGrossBirdies > 0 && !teamAProtected && teamBGrossBirdies === 0;
-          const teamBCanCollect = teamBGrossBirdies > 0 && !teamBProtected && teamAGrossBirdies === 0;
-
-          if (teamACanCollect) {
-            teamAActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-          } else if (teamBCanCollect) {
-            teamBActive.forEach((playerId) => results.push({ playerId, amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+        // Team game birdie side bet.
+        // Toy Rule ON: net birdies cancel gross birdies one-for-one across teams.
+        //   e.g. Team A 2 gross, Team B 1 net → 1 uncancelled gross → Team A wins 1 bet
+        // Toy Rule OFF: gross birdies only.
+        // Either way: net diff of uncancelled gross birdies drives payout per player.
+        {
+          let teamANet, teamBNet;
+          if (toyRule) {
+            const teamANetBirdies = teamAActive.filter(
+              (id) => !isGrossBirdie(scores, course, holeNumber, id) &&
+                isNetBirdie(id, holeNumber, players, course, scores, handicapMode)
+            ).length;
+            const teamBNetBirdies = teamBActive.filter(
+              (id) => !isGrossBirdie(scores, course, holeNumber, id) &&
+                isNetBirdie(id, holeNumber, players, course, scores, handicapMode)
+            ).length;
+            teamANet = Math.max(0, teamAGrossBirdies - teamBNetBirdies);
+            teamBNet = Math.max(0, teamBGrossBirdies - teamANetBirdies);
+          } else {
+            teamANet = teamAGrossBirdies;
+            teamBNet = teamBGrossBirdies;
           }
-          // everything else = push, nothing moves
-
-        } else {
-          // Original gross-only rule
-          if (teamAGrossBirdies > teamBGrossBirdies) {
-            const diff = teamAGrossBirdies - teamBGrossBirdies;
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-          } else if (teamBGrossBirdies > teamAGrossBirdies) {
-            const diff = teamBGrossBirdies - teamAGrossBirdies;
-            teamBActive.forEach((playerId) => results.push({ playerId, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamAActive.forEach((playerId) => results.push({ playerId, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+          const diff = teamANet - teamBNet;
+          if (diff > 0) {
+            teamAActive.forEach((id) => results.push({ playerId: id, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamBActive.forEach((id) => results.push({ playerId: id, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+          } else if (diff < 0) {
+            teamBActive.forEach((id) => results.push({ playerId: id, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
+            teamAActive.forEach((id) => results.push({ playerId: id, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
           }
         }
       }
@@ -1270,7 +1263,7 @@ for (const entry of birdieResults) {
   // Entries with no source field are legacy/external — don't double-route them
   if (entry.source === "match-birdie") {
     ledgerMap[playerId].sideMatches += amount;
-  } else if (entry.source === "team-birdie") {
+  } else if (entry.source === "team-birdie" || entry.source === "nine-point-birdie") {
     ledgerMap[playerId].mainGame += amount;
   }
 }

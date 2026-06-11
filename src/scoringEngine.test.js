@@ -23,6 +23,7 @@ import {
   buildTeamBirdieResults,
   getNinePointPayout,
   getNinePointMatchSummary,
+  scoreNinePointHole,
   scoreRound,
 } from './engine/scoringEngine';
 
@@ -1271,5 +1272,115 @@ describe('getNinePointMatchSummary — leaderboard vs scorecard consistency', ()
     expect(ledger.J).toBe(payout.J);
     expect(ledger.A).toBe(payout.A);
     expect(ledger.D).toBe(payout.D);
+  });
+});
+
+// ─── 17. Eagle 3x Points in 9-point ──────────────────────────────────────────
+
+describe('9-point — eagle triple points', () => {
+  const course = { pars: [5,4,4,3,4,3,4,5,4,4,4,5,4,3,4,3,4,4], hcp: [3,13,17,7,5,11,9,15,1,4,16,10,6,12,14,18,8,2] };
+  const players = [
+    { id: 'A', name: 'A', hcp: 0 },
+    { id: 'B', name: 'B', hcp: 0 },
+    { id: 'C', name: 'C', hcp: 0 },
+  ];
+  // Hole 1 is par 5 — eagle = score of 3
+  const scores = { 1: { A: 3, B: 5, C: 6 } }; // A makes eagle (3 on par 5), wins hole
+
+  test('eagle 3x: winner gets 15 pts when eagleTriplePoints on', () => {
+    const result = scoreNinePointHole(['A', 'B', 'C'], 1, players, course, scores, 'relative', false, false, true, true);
+    expect(result.pointsByPlayerId['A']).toBe(15);
+    expect(result.pointsByPlayerId['B']).toBe(9);
+    expect(result.pointsByPlayerId['C']).toBe(3);
+  });
+
+  test('eagle falls back to 2x when eagleTriplePoints off but birdieDoublePoints on', () => {
+    const result = scoreNinePointHole(['A', 'B', 'C'], 1, players, course, scores, 'relative', false, false, true, false);
+    expect(result.pointsByPlayerId['A']).toBe(10);
+    expect(result.pointsByPlayerId['B']).toBe(6);
+    expect(result.pointsByPlayerId['C']).toBe(2);
+  });
+
+  test('eagle = 1x when both toggles off', () => {
+    const result = scoreNinePointHole(['A', 'B', 'C'], 1, players, course, scores, 'relative', false, false, false, false);
+    expect(result.pointsByPlayerId['A']).toBe(5);
+    expect(result.pointsByPlayerId['B']).toBe(3);
+    expect(result.pointsByPlayerId['C']).toBe(1);
+  });
+
+  test('regular birdie still 2x, not 3x, with eagleTriplePoints on', () => {
+    const birdieCourse = { pars: [4,4,4,3,4,3,4,5,4,4,4,5,4,3,4,3,4,4], hcp: [3,13,17,7,5,11,9,15,1,4,16,10,6,12,14,18,8,2] };
+    const birdieScores = { 1: { A: 3, B: 5, C: 6 } }; // A birdies on par 4 (not eagle)
+    const result = scoreNinePointHole(['A', 'B', 'C'], 1, players, birdieCourse, birdieScores, 'relative', false, false, true, true);
+    expect(result.pointsByPlayerId['A']).toBe(10); // birdie = 2x, not 3x
+  });
+});
+
+// ─── 18. Team game birdies — multiple birdies per team ───────────────────────
+
+describe('team birdies — multiple birdies on same team', () => {
+  const course = { pars: [4,4,5,3,4,3,4,5,4,4,4,5,4,3,4,3,4,4], hcp: [3,13,17,7,5,11,9,15,1,4,16,10,6,12,14,18,8,2] };
+  const teamGameResults = [{ index: 0, start: 1, end: 1, matches: [{ label: 'Team 1 vs Team 2' }] }];
+  const teamGames = [{ birdieEnabled: true, birdieBet: 5 }];
+  const getSelection = () => ({ team1: ['A', 'B'], team2: ['C', 'D'] });
+
+  test('both players on team birdie = 2x payout per player (non-toy)', () => {
+    // A and B both birdie on par 4, C and D don't
+    const scores = { 1: { A: 3, B: 3, C: 4, D: 5 } };
+    const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, false, [], 'relative');
+    const byPlayer = Object.fromEntries(results.map(r => [r.playerId, r.amount]));
+    expect(byPlayer['A']).toBe(10); // 2 birdies × $5
+    expect(byPlayer['B']).toBe(10);
+    expect(byPlayer['C']).toBe(-10);
+    expect(byPlayer['D']).toBe(-10);
+  });
+
+  test('both players on team birdie = 2x payout per player (toyRule)', () => {
+    const players = [{ id: 'A', hcp: 0 }, { id: 'B', hcp: 0 }, { id: 'C', hcp: 0 }, { id: 'D', hcp: 0 }];
+    const scores = { 1: { A: 3, B: 3, C: 4, D: 5 } };
+    const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, true, players, 'relative');
+    const byPlayer = Object.fromEntries(results.map(r => [r.playerId, r.amount]));
+    expect(byPlayer['A']).toBe(10);
+    expect(byPlayer['B']).toBe(10);
+    expect(byPlayer['C']).toBe(-10);
+    expect(byPlayer['D']).toBe(-10);
+  });
+
+  test('toyRule: net birdie cancels one gross birdie one-for-one', () => {
+    // Team A: 2 gross birdies. Team B: 1 net birdie (no gross).
+    // 1 net cancels 1 gross → Team A wins 1 bet (not 2)
+    const players = [
+      { id: 'A', name: 'A', hcp: 18 },
+      { id: 'B', name: 'B', hcp: 18 },
+      { id: 'C', name: 'C', hcp: 36 }, // gets 2 strokes on hcp-3 hole → net birdie
+      { id: 'D', name: 'D', hcp: 0 },
+    ];
+    const scores = { 1: { A: 3, B: 3, C: 5, D: 6 } };
+    const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, true, players, 'relative');
+    const byPlayer = {};
+    results.forEach(r => { byPlayer[r.playerId] = (byPlayer[r.playerId] || 0) + r.amount; });
+    expect(byPlayer['A']).toBe(5);  // 1 uncancelled birdie × $5
+    expect(byPlayer['B']).toBe(5);
+    expect(byPlayer['C']).toBe(-5);
+    expect(byPlayer['D']).toBe(-5);
+  });
+
+  test('Tim scenario: A p1+p2 gross birdie, B p1 net birdie, B p2 net par → A wins 1 birdie bet', () => {
+    // Team A: 2 gross birdies. Team B: 1 net birdie cancels 1 gross → net 1 uncancelled
+    const players = [
+      { id: 'A', name: 'A', hcp: 18 },
+      { id: 'B', name: 'B', hcp: 18 },
+      { id: 'C', name: 'C', hcp: 36 }, // net birdie via strokes
+      { id: 'D', name: 'D', hcp: 0 },  // net par
+    ];
+    const scores = { 1: { A: 3, B: 3, C: 5, D: 5 } };
+    const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, true, players, 'relative');
+    const byPlayer = {};
+    results.forEach(r => { byPlayer[r.playerId] = (byPlayer[r.playerId] || 0) + r.amount; });
+    expect(byPlayer['A']).toBe(5);   // 1 uncancelled birdie wins
+    expect(byPlayer['B']).toBe(5);
+    expect(byPlayer['C']).toBe(-5);
+    expect(byPlayer['D']).toBe(-5);
+    expect(Object.values(byPlayer).reduce((s, v) => s + v, 0)).toBe(0);
   });
 });

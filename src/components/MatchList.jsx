@@ -502,6 +502,11 @@ export default function MatchList({
                     />
                     Blitz
                   </label>
+                  {match.blitzEnabled && (
+                    <span style={{ fontSize: 11, color: "#92400e", marginLeft: 4 }}>
+                      (win 9–0–0 when you beat both by 2+)
+                    </span>
+                  )}
                   <label style={{ marginLeft: 10 }}>
                     <input
                       type="checkbox"
@@ -512,6 +517,28 @@ export default function MatchList({
                     />
                     Birdie 2x Points
                   </label>
+                  {match.birdieDoublePoints && (
+                    <>
+                      <span style={{ fontSize: 11, color: "#166534", marginLeft: 4 }}>
+                        (gross birdie wins hole → points doubled)
+                      </span>
+                      <label style={{ marginLeft: 10 }}>
+                        <input
+                          type="checkbox"
+                          checked={!!match.eagleTriplePoints}
+                          onChange={(e) =>
+                            onUpdateMatch(match.id, { eagleTriplePoints: e.target.checked })
+                          }
+                        />
+                        Eagle 3x Points
+                      </label>
+                      {match.eagleTriplePoints && (
+                        <span style={{ fontSize: 11, color: "#166534", marginLeft: 4 }}>
+                          (gross eagle wins hole → points tripled)
+                        </span>
+                      )}
+                    </>
+                  )}
                 </>
               )}
 

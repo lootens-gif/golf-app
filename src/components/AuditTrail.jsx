@@ -274,12 +274,8 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: "transparent", color: "#1a1a1a" }}>
-                  {teamAHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
-                      {row.teamAValue}
-                    </span>
-                  ) : row.teamAValue}
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                  {row.teamAValue}
                 </td>
               );
             })}
@@ -292,12 +288,8 @@ function TeamGameScorecard({
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: "transparent", color: "#1a1a1a" }}>
-                  {teamBHasBirdie ? (
-                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
-                      {row.teamBValue}
-                    </span>
-                  ) : row.teamBValue}
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                  {row.teamBValue}
                 </td>
               );
             })}
@@ -408,31 +400,32 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, children, defaultOpen = false, noStorage = false }) {
+function AuditSection({ title, children, defaultOpen = false }) {
   const storageKey = `scorecard-section:${title}`;
 
   const [open, setOpen] = useState(() => {
-    if (noStorage) return defaultOpen;
     try {
       const saved = window.localStorage.getItem(storageKey);
+
       if (saved === "open") return true;
       if (saved === "closed") return false;
     } catch {
       // ignore localStorage issues
     }
+
     return defaultOpen;
   });
 
   const toggleOpen = () => {
     setOpen((current) => {
       const next = !current;
-      if (!noStorage) {
-        try {
-          window.localStorage.setItem(storageKey, next ? "open" : "closed");
-        } catch {
-          // ignore localStorage issues
-        }
+
+      try {
+        window.localStorage.setItem(storageKey, next ? "open" : "closed");
+      } catch {
+        // ignore localStorage issues
       }
+
       return next;
     });
   };
@@ -482,44 +475,22 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
 
+        // Money — always show "if ended now"
+        const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
 
         const total = Number(result?.total || 0);
-
-        // Net birdies for this match — p1 perspective
-        const matchBirdies = (birdieResults || []).filter(b => b.source === "match-birdie" && b.matchId === match.id);
-        const p1BirdiesWon = matchBirdies.filter(b => b.playerId === match.p1Id && Number(b.amount) > 0).length;
-        const p1BirdiesLost = matchBirdies.filter(b => b.playerId === match.p1Id && Number(b.amount) < 0).length;
-        const netBirdiesP1 = p1BirdiesWon - p1BirdiesLost;
-        const birdieDollarsP1 = matchBirdies.filter(b => b.playerId === match.p1Id).reduce((sum, b) => sum + Number(b.amount || 0), 0);
-        const totalWithBirdies = total + birdieDollarsP1;
-        const headerColorFinal = totalWithBirdies > 0 ? "#1a5c38" : totalWithBirdies < 0 ? "#b3261e" : "#6b7280";
-
-        // Rebuild money label with birdies included
-        const adjustedResult = { ...result, total: totalWithBirdies };
-        const moneyStrFinal = getOneVOneMoneyLabel(adjustedResult, p1Name, p2Name);
-
-        // Show birdie tag: 🐦+N if p1 won net birdies, 🐦 if tracked but net 0, nothing if none made
-        const totalGrossBirdies = matchBirdies.filter(b => Number(b.amount) > 0).length;
-        const birdieTag = match.birdieEnabled && totalGrossBirdies > 0
-          ? netBirdiesP1 !== 0
-            ? <span style={{ marginLeft: 8, fontSize: 12, color: netBirdiesP1 > 0 ? "#2d6a4f" : "#b3261e" }}>🐦{netBirdiesP1 > 0 ? "+" : ""}{netBirdiesP1}</span>
-            : <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>🐦</span>
-          : null;
-
+        const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
         const oneVOneTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
-            <span style={{ color: headerColorFinal, marginLeft: 10, fontSize: 13 }}>{moneyStrFinal}</span>
-            {birdieTag}
+            <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
           </span>
         );
 
         return (
          <AuditSection
   key={match.id}
-title={oneVOneTitle}
-noStorage
-          >
+title={oneVOneTitle}          >
   <OneVOneScorecard
     match={match}
     result={result}
@@ -545,6 +516,7 @@ function NinePointScorecard({
   handicapMode,
   match,
   teamGameUnitAmount,
+  birdieResults = [],
 }) {
   const holes = result?.holes || [];
   if (!holes.length) return null;
@@ -580,11 +552,8 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
-  // Full-round balances from payout engine — shown consistently in both sections
-  const fullRoundBalances = result?.payout?.balancesByPlayerId || {};
-
   const renderSection = (label, sectionHoles) => {
-    // Get running totals at last played hole for each player
+    // Compute section net $ for each player (running total at end of section)
     const sectionNetPts = Object.fromEntries(players.map(p => {
       const lastPlayed = [...sectionHoles].reverse().find(h => {
         const s = scores?.[h.hole]?.[p.id];
@@ -592,26 +561,9 @@ function NinePointScorecard({
       });
       return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
     }));
-
-    // Compute pairwise transaction balances (same as leaderboard/engine)
-    const sectionBalances = Object.fromEntries(players.map(p => [p.id, 0]));
-    const playerList = players.filter(p => sectionNetPts[p.id] !== null);
-    if (playerList.length === 3) {
-      const sorted = [...playerList].sort((a, b) => (sectionNetPts[b.id] ?? 0) - (sectionNetPts[a.id] ?? 0));
-      const [first, second, third] = sorted;
-      const fp = sectionNetPts[first.id] ?? 0;
-      const sp = sectionNetPts[second.id] ?? 0;
-      const tp = sectionNetPts[third.id] ?? 0;
-      const txs = [
-        { from: third.id, to: first.id, amt: (fp - tp) * betAmt },
-        { from: third.id, to: second.id, amt: (sp - tp) * betAmt },
-        { from: second.id, to: first.id, amt: (fp - sp) * betAmt },
-      ];
-      txs.forEach(tx => {
-        sectionBalances[tx.from] -= tx.amt;
-        sectionBalances[tx.to] += tx.amt;
-      });
-    }
+    // Avg pts per player per 9 = 3pts/hole × 9 holes ÷ 3 players = 9 (each player "paid in" 3pts/hole)
+    const ptsPerPlayerPer9 = 3 * sectionHoles.length; // 3 pts average per hole
+    const sectionAvg = ptsPerPlayerPer9;
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -636,8 +588,8 @@ function NinePointScorecard({
 
               {/* POINTS ROWS — initial + net $ + hole values */}
               {players.map((player) => {
-                const rawNet = fullRoundBalances[player.id] !== undefined
-                  ? fullRoundBalances[player.id]
+                const rawNet = sectionNetPts[player.id] !== null
+                  ? (sectionNetPts[player.id] - sectionAvg) * betAmt
                   : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
@@ -647,10 +599,8 @@ function NinePointScorecard({
                 return (
                   <tr key={`pts-${player.id}`}>
                     <td style={{ ...scorecardLabelCellStyle, padding: "3px 4px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: netColor, marginLeft: 6, textAlign: "right", minWidth: 48 }}>{netStr}</span>
-                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span>
                     </td>
                     {sectionHoles.map((h) => {
                       const hasScore = players.some(p => {
@@ -660,10 +610,11 @@ function NinePointScorecard({
                       if (!hasScore) return <td key={h.hole} style={{ ...scorecardCellStyle, color: "#e5e7eb", fontSize: 13 }}>–</td>;
 
                       const pts = h.pointsByPlayerId?.[player.id] ?? 0;
+                      const dollarVal = pts * betAmt;
                       const { bg, color } = ptColor(pts, hasScore);
                       return (
                         <td key={h.hole} style={{ ...scorecardCellStyle, background: bg, fontSize: 13, color: color, fontWeight: 700 }}>
-                          {hasScore ? (pts > 0 ? pts : "0") : "–"}
+                          {hasScore ? (dollarVal > 0 ? dollarVal : "0") : "–"}
                         </td>
                       );
                     })}
@@ -686,22 +637,16 @@ function NinePointScorecard({
                     const gross = getRawScore(scores, h.hole, player.id);
                     const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
                     const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "–";
-                    const par = course?.pars?.[h.hole - 1];
-                    const isGrossBird = gross != null && par != null && gross < par;
-                    const isEagle = gross != null && par != null && gross <= par - 2;
-                    const showBirdieCircle = match?.birdieDoublePoints && isGrossBird;
+                    const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
+                    const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
                     return (
                       <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#444" }}>
-                        {showBirdieCircle && isEagle ? (
-                          // Eagle — double circle
-                          <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24 }}>
-                            <span style={{ position: "absolute", width: 24, height: 24, borderRadius: "50%", border: "2px solid #137333" }} />
-                            <span style={{ position: "absolute", width: 18, height: 18, borderRadius: "50%", border: "2px solid #137333" }} />
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "#137333", position: "relative" }}>{display}</span>
-                          </span>
-                        ) : showBirdieCircle ? (
-                          // Birdie — single circle
+                        {grossBirdie ? (
                           <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                            {display}
+                          </span>
+                        ) : netBirdie ? (
+                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px dashed #1a73e8", color: "#1a73e8", fontWeight: 700, fontSize: 11 }}>
                             {display}
                           </span>
                         ) : display}
@@ -717,40 +662,58 @@ function NinePointScorecard({
     );
   };
 
+  // Compute total net $ per player: points payout + birdie side bet
+  const playerIds = players.map(p => p.id);
+  const pointsBalances = result?.payout?.balancesByPlayerId || {};
+  const birdieTotals = Object.fromEntries(playerIds.map(id => [id, 0]));
+  birdieResults.forEach(entry => {
+    if (entry.source === "nine-point-birdie" && birdieTotals[entry.playerId] !== undefined) {
+      birdieTotals[entry.playerId] += Number(entry.amount || 0);
+    }
+  });
+  const netTotals = Object.fromEntries(playerIds.map(id => [
+    id,
+    (pointsBalances[id] || 0) + birdieTotals[id]
+  ]));
+  const rankedPlayers = [...players].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
+  const fmtNet = (v) => {
+    if (v === 0) return "Even";
+    const abs = Math.abs(v);
+    const str = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+    return v > 0 ? `+$${str}` : `-$${str}`;
+  };
+
   return (
     <div style={{ marginTop: 8 }}>
+      {/* Rank-ordered net $ header */}
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10, paddingLeft: 2 }}>
+        {rankedPlayers.map((player, i) => {
+          const net = netTotals[player.id];
+          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+          return (
+            <span key={player.id} style={{ fontSize: 14, fontWeight: 700 }}>
+              <span style={{ color: "#1a1a1a" }}>{player.name}</span>
+              <span style={{ color, marginLeft: 4 }}>{fmtNet(net)}</span>
+            </span>
+          );
+        })}
+      </div>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
-
-      {/* Total points summary */}
-      {(() => {
-        const totals = result?.totalsByPlayerId || {};
-        const hasScores = Object.values(totals).some(v => v > 0);
-        if (!hasScores) return null;
-        const sorted = [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
-        return (
-          <div style={{ fontSize: 12, color: "#555", marginTop: 6, paddingLeft: 2, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Total Pts:</span>
-            {sorted.map(p => (
-              <span key={p.id}>
-                <span style={{ fontWeight: 600 }}>{p.name.split(" ")[0]}</span>
-                {" "}{totals[p.id] ?? 0}
-              </span>
-            ))}
-          </div>
-        );
-      })()}
-
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
-          ? "🚫 No Birdies Tracked"
+          ? "🚫 No birdies tracked"
           : (() => {
-              const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies";
-              const grossCounts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
-              const totalGross = grossCounts.reduce((sum, p) => sum + p.count, 0);
-              if (totalGross === 0) return "🐦 No Birdies Made";
-              const playerStr = grossCounts.filter(p => p.count > 0).map(p => `${p.name} +${p.count}`).join("  ");
-              return `${label} — (${totalGross} net) birdies included in total match result. ${playerStr}`;
+              const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies tracked (gross only)";
+              const counts = players.map(p => ({ name: p.name, count: birdieCounts[p.id] || 0 }));
+              const total = counts.reduce((sum, p) => sum + p.count, 0);
+              if (total === 0) return `${label} — No birdies`;
+              const max = Math.max(...counts.map(p => p.count));
+              const leaders = counts.filter(p => p.count === max);
+              if (leaders.length === counts.length) return `${label} — Birdies tied (${max} each)`;
+              const leader = leaders[0];
+              const others = counts.filter(p => p.count !== max);
+              return `${label} — ${leader.name} wins birdies: ${others.map(o => `+${leader.count - o.count} over ${o.name}`).join(", ")}`;
             })()}
       </div>
     </div>
@@ -815,20 +778,14 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     const countA = holes.filter(h => {
       const grossA = match.birdieEnabled && isGrossBirdie(scores, course, h, playerA.id);
       if (!grossA) return false;
-      // Push if opponent also made gross birdie (mutual push)
-      const grossB = isGrossBirdie(scores, course, h, playerB.id);
-      if (grossB) return false;
       if (!toyRule) return true;
-      // Push if opponent has net birdie cover
+      // pushed if opponent has net birdie
       const netB = isNetBirdie(playerB.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
       return !netB;
     }).length;
     const countB = holes.filter(h => {
       const grossB = match.birdieEnabled && isGrossBirdie(scores, course, h, playerB.id);
       if (!grossB) return false;
-      // Push if opponent also made gross birdie (mutual push)
-      const grossA = isGrossBirdie(scores, course, h, playerA.id);
-      if (grossA) return false;
       if (!toyRule) return true;
       const netA = isNetBirdie(playerA.id, h, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
       return !netA;
@@ -862,20 +819,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const grossBirdie = match.birdieEnabled && isGrossBirdie(scores, course, hole, player.id);
                 const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
 
-                // With toy rule: check if this gross birdie is pushed by opponent's net birdie
-                const opponent = player.id === playerA.id ? playerB : playerA;
-                const opponentNetBirdie = toyRule && grossBirdie && isNetBirdie(opponent.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
-                const isPushedBirdie = grossBirdie && opponentNetBirdie;
-                const isWonBirdie = grossBirdie && !isPushedBirdie;
-
                 return (
-                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: "transparent" }}>
-                    {isWonBirdie ? (
-                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #2d6a4f", color: "#2d6a4f", fontWeight: 700, fontSize: 11 }}>
-                        {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
-                      </span>
-                    ) : isPushedBirdie ? (
-                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #ccc", color: "#999", fontWeight: 700, fontSize: 11 }}>
+                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: grossBirdie ? "#fef9c3" : "transparent" }}>
+                    {grossBirdie ? (
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
                         {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                       </span>
                     ) : netBirdie ? (
@@ -927,27 +874,26 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const birdieCountA = wonBirdieCounts[playerA.id];
   const birdieCountB = wonBirdieCounts[playerB.id];
 
-  // Gross birdie counts for display (informational, includes pushed)
-  const grossCountA = match.birdieEnabled ? holes.filter(h => isGrossBirdie(scores, course, h, playerA.id)).length : 0;
-  const grossCountB = match.birdieEnabled ? holes.filter(h => isGrossBirdie(scores, course, h, playerB.id)).length : 0;
-  const netPaid = birdieCountA + birdieCountB; // total birdies that paid out
-
   return (
     <div style={{ marginTop: 8 }}>
       {renderSection("Front 9", front)}
       {renderSection("Back 9", back)}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match.birdieEnabled
-          ? "🚫 No Birdies Tracked"
+          ? "🚫 No birdies tracked"
           : (() => {
-              const label = toyRule ? "🐦 Toy Birdies" : "🐦 Birdies";
-              if (grossCountA === 0 && grossCountB === 0) return "🐦 No Birdies Made";
-              if (netPaid === 0) return "🐦 Birdies Made — All Pushed, Nothing Paid";
-              const playerParts = [
-                grossCountA > 0 ? `${playerA.name} +${grossCountA}` : null,
-                grossCountB > 0 ? `${playerB.name} +${grossCountB}` : null,
-              ].filter(Boolean).join("  ");
-              return `${label} — (${netPaid} net) birdies included in total match result. ${playerParts}`;
+              const label = toyRule
+                ? "🐦 Toy Birdies (pushes excluded)"
+                : "🐦 Birdies tracked (gross only)";
+              const summary =
+                birdieCountA === 0 && birdieCountB === 0
+                  ? "No birdies"
+                  : birdieCountA === birdieCountB
+                  ? `Birdies tied (${birdieCountA} each)`
+                  : birdieCountA > birdieCountB
+                  ? `${playerA.name} wins birdies +${birdieCountA - birdieCountB}`
+                  : `${playerB.name} wins birdies +${birdieCountB - birdieCountA}`;
+              return `${label} — ${summary}`;
             })()}
         </div>
     </div>
@@ -961,6 +907,7 @@ function NinePointAudit({
   course,
   handicapMode,
   teamGameUnitAmount,
+  birdieResults = [],
 }) {
   const ninePointEntry = (matchResults || []).find((entry) =>
     isNinePointMatch(entry.match)
@@ -978,6 +925,7 @@ function NinePointAudit({
         course={course}
         handicapMode={handicapMode}
         teamGameUnitAmount={teamGameUnitAmount}
+        birdieResults={birdieResults}
       />
     </AuditSection>
   );
@@ -994,7 +942,6 @@ function TeamGameAudit({
   teamGameUnitAmount,
   noPar3TeamGame = false,
   getHandicapStrokesFn,
-  birdieResults = [],
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -1038,56 +985,15 @@ function TeamGameAudit({
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
 
-        // Net birdie bets for wheel team across all matchups (total entries, not unique holes)
-        const birdieWinEntries = birdieResults.filter(b =>
-          b.source === "team-birdie" &&
-          Number(b.amount) > 0 &&
-          Number(b.holeNumber) >= Number(game.start || 1) &&
-          Number(b.holeNumber) <= Number(game.end || 18) &&
-          wheelIds.includes(b.playerId)
-        ).length / Math.max(wheelIds.length, 1);
-        const birdieLoseEntries = birdieResults.filter(b =>
-          b.source === "team-birdie" &&
-          Number(b.amount) < 0 &&
-          Number(b.holeNumber) >= Number(game.start || 1) &&
-          Number(b.holeNumber) <= Number(game.end || 18) &&
-          wheelIds.includes(b.playerId)
-        ).length / Math.max(wheelIds.length, 1);
-        const netBirdieHolesHeader = Math.round(birdieWinEntries - birdieLoseEntries);
-        const netBirdieDollarsHeader = netBirdieHolesHeader * Number(teamGameUnitAmount || 0);
-        const birdieTag = game.birdieEnabled && netBirdieHolesHeader !== 0
-          ? <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 700, color: netBirdieHolesHeader > 0 ? "#1a5c35" : "#b3261e" }}>
-              🐦{netBirdieHolesHeader > 0 ? "+" : ""}{netBirdieHolesHeader} ({formatMoney(netBirdieDollarsHeader)}ea)
-            </span>
-          : null;
-
         const gameTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Holes {game.start}–{game.end}</span>
             <span style={{ color: wheelBets >= 0 ? "#1a5c35" : "#b3261e", marginLeft: 8, fontWeight: 700 }}>
               {wheelNames} {wheelBets > 0 ? "+" : ""}{wheelBets} ({formatMoney(wheelDollars)}ea)
             </span>
-            {birdieTag}
             <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
               {opponentPlayers.map((p, i) => {
-                const matchBets = playerNetBets[p.id] || 0;
-                // Count birdie entries for this opponent (not unique holes — same hole can appear in multiple matchups)
-                const opponentBirdieLosses = birdieResults.filter(b =>
-                  b.source === "team-birdie" &&
-                  Number(b.amount) < 0 &&
-                  Number(b.holeNumber) >= Number(game.start || 1) &&
-                  Number(b.holeNumber) <= Number(game.end || 18) &&
-                  b.playerId === p.id
-                ).length;
-                const opponentBirdieWins = birdieResults.filter(b =>
-                  b.source === "team-birdie" &&
-                  Number(b.amount) > 0 &&
-                  Number(b.holeNumber) >= Number(game.start || 1) &&
-                  Number(b.holeNumber) <= Number(game.end || 18) &&
-                  b.playerId === p.id
-                ).length;
-                const opponentBirdieNet = opponentBirdieWins - opponentBirdieLosses;
-                const bets = matchBets + (game.birdieEnabled ? opponentBirdieNet : 0);
+                const bets = playerNetBets[p.id] || 0;
                 const color = bets > 0 ? "#1a5c35" : bets < 0 ? "#b3261e" : "#6b7280";
                 return (
                   <span key={p.id}>
@@ -1104,7 +1010,6 @@ function TeamGameAudit({
           <AuditSection
             key={gameIndex}
             title={gameTitle}
-            noStorage
           >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
@@ -1121,37 +1026,9 @@ function TeamGameAudit({
               const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
               const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
-
-              // Count unique holes where teamA collected AND teamB paid in this matchup
-              // Count birdie bets for this specific matchup using matchupId
-              const matchupWins = birdieResults.filter(b =>
-                b.source === "team-birdie" &&
-                b.matchupId === matchup.label &&
-                Number(b.amount) > 0 &&
-                Number(b.holeNumber) >= Number(game.start || 1) &&
-                Number(b.holeNumber) <= Number(game.end || 18) &&
-                teamA.includes(b.playerId)
-              ).length / Math.max(teamA.length, 1);
-              const matchupLosses = birdieResults.filter(b =>
-                b.source === "team-birdie" &&
-                b.matchupId === matchup.label &&
-                Number(b.amount) < 0 &&
-                Number(b.holeNumber) >= Number(game.start || 1) &&
-                Number(b.holeNumber) <= Number(game.end || 18) &&
-                teamA.includes(b.playerId)
-              ).length / Math.max(teamA.length, 1);
-              const netBirdieHoles = Math.round(matchupWins - matchupLosses);
-              const matchBirdieDollars = netBirdieHoles * Number(teamGameUnitAmount || 0);
-              const netTotal = totalDollars + matchBirdieDollars;
-              const matchupBirdieTag = game.birdieEnabled && netBirdieHoles !== 0
-                ? <span style={{ marginLeft: 6, fontSize: 11, color: netBirdieHoles > 0 ? "#2d6a4f" : "#b3261e" }}>
-                    🐦{netBirdieHoles > 0 ? "+" : ""}{netBirdieHoles} = {formatMoney(netTotal)}
-                  </span>
-                : null;
-
               const matchTitle = (
                 <span style={{ color: matchColor }}>
-                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}{matchupBirdieTag}
+                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}
                 </span>
               );
 
@@ -1159,7 +1036,6 @@ function TeamGameAudit({
                 <AuditSection
                   key={`${gameIndex}-${matchupIndex}`}
                   title={matchTitle}
-                  noStorage
                 >
                   <TeamGameScorecard
                     game={game}
@@ -1373,9 +1249,8 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
               const hasAllFront = frontScores.every(g => g !== null);
 
               const grossTotal = frontTotal + sectionTotal;
-              // NET column always uses full handicap (not relative betting mode)
               const netStrokes = holes.reduce((sum, h) =>
-                sum + _strokesFn(player.id, h, players, course, 'full'), 0);
+                sum + _strokesFn(player.id, h, players, course, handicapMode), 0);
               const netTotal = grossTotal - netStrokes;
               const hasAll = hasAllFront && hasAllBack;
 
@@ -1515,7 +1390,6 @@ export default function AuditTrail({
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
   noPar3TeamGame={noPar3TeamGame}
-  birdieResults={birdieResults}
 />
 
 {/* 1v1 */}
@@ -1537,6 +1411,7 @@ export default function AuditTrail({
   course={course}
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
+  birdieResults={birdieResults}
 />
 
 {/* TOTAL SCORECARD */}

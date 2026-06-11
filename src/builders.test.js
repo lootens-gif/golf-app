@@ -195,10 +195,10 @@ test('nine_point_birdie_respects_game_toggle', () => {
   });
 
   expect(enabledResults).toEqual([
-    { playerId: 'A', amount: 3 },
-    { playerId: 'B', amount: -3 },
-    { playerId: 'A', amount: 3 },
-    { playerId: 'C', amount: -3 },
+    { playerId: 'A', amount: 3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'B', amount: -3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'A', amount: 3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'C', amount: -3, holeNumber: 1, source: 'nine-point-birdie' },
   ]);
 
   expect(disabledResults).toEqual([]);
@@ -291,9 +291,9 @@ test('nine_point_multiple_birdies_same_hole', () => {
   });
 
   expect(results).toEqual([
-    { playerId: 'A', amount: 3 },
-    { playerId: 'C', amount: -3 },
-    { playerId: 'B', amount: 3 },
-    { playerId: 'C', amount: -3 },
+    { playerId: 'A', amount: 3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'C', amount: -3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'B', amount: 3, holeNumber: 1, source: 'nine-point-birdie' },
+    { playerId: 'C', amount: -3, holeNumber: 1, source: 'nine-point-birdie' },
   ]);
 });
