@@ -521,6 +521,10 @@ function NinePointScorecard({
   const holes = result?.holes || [];
   if (!holes.length) return null;
 
+  // Only show players who are actually in this match
+  const matchPlayerIds = [match?.p1Id, match?.p2Id, match?.p3Id].filter(Boolean);
+  const matchPlayers = players.filter(p => matchPlayerIds.includes(p.id));
+
   const front = holes.slice(0, 9);
   const back = holes.slice(9, 18);
   const toyRule = !!match?.toyRule;
@@ -554,16 +558,16 @@ function NinePointScorecard({
 
   const renderSection = (label, sectionHoles, showPtsLabel = false) => {
     // Compute section net $ for each player (running total at end of section)
-    const sectionNetPts = Object.fromEntries(players.map(p => {
+    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => {
       const lastPlayed = [...sectionHoles].reverse().find(h => {
         const s = scores?.[h.hole]?.[p.id];
         return s != null && Number.isFinite(Number(s));
       });
       return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
     }));
-    // Avg pts per player per 9 = 3pts/hole × 9 holes ÷ 3 players = 9 (each player "paid in" 3pts/hole)
-    const ptsPerPlayerPer9 = 3 * sectionHoles.length; // 3 pts average per hole
-    const sectionAvg = ptsPerPlayerPer9;
+    // Avg pts per player = 9pts/hole ÷ matchPlayers.length
+    const ptsPerHole = 9; // total points distributed per hole (5+3+1)
+    const sectionAvg = (ptsPerHole / matchPlayers.length) * sectionHoles.length;
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -587,7 +591,7 @@ function NinePointScorecard({
               </tr>
 
               {/* POINTS ROWS — initial + cumulative pts net + hole values */}
-              {players.map((player) => {
+              {matchPlayers.map((player) => {
                 const cumPts = sectionNetPts[player.id];
                 const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
@@ -629,7 +633,7 @@ function NinePointScorecard({
               </tr>
 
               {/* SCORE ROWS */}
-              {players.map((player) => (
+              {matchPlayers.map((player) => (
                 <tr key={`score-${player.id}`}>
                   <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{shortName(player.name)}</td>
                   {sectionHoles.map((h) => {
@@ -661,44 +665,13 @@ function NinePointScorecard({
     );
   };
 
-  // Compute total net $ per player: points payout + birdie side bet
-  const playerIds = players.map(p => p.id);
-  const pointsBalances = result?.payout?.balancesByPlayerId || {};
-  const birdieTotals = Object.fromEntries(playerIds.map(id => [id, 0]));
-  birdieResults.forEach(entry => {
-    if (entry.source === "nine-point-birdie" && birdieTotals[entry.playerId] !== undefined) {
-      birdieTotals[entry.playerId] += Number(entry.amount || 0);
-    }
-  });
-  const netTotals = Object.fromEntries(playerIds.map(id => [
-    id,
-    (pointsBalances[id] || 0) + birdieTotals[id]
-  ]));
-  const rankedPlayers = [...players].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
-  const fmtNet = (v) => {
-    if (v === 0) return "Even";
-    const abs = Math.abs(v);
-    const str = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
-    return v > 0 ? `+$${str}` : `-$${str}`;
+  // end of renderSection
   };
 
   return (
     <div style={{ marginTop: 8 }}>
-      {/* Rank-ordered net $ header */}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10, paddingLeft: 2 }}>
-        {rankedPlayers.map((player, i) => {
-          const net = netTotals[player.id];
-          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
-          return (
-            <span key={player.id} style={{ fontSize: 14, fontWeight: 700 }}>
-              <span style={{ color: "#1a1a1a" }}>{player.name}</span>
-              <span style={{ color, marginLeft: 4 }}>{fmtNet(net)}</span>
-            </span>
-          );
-        })}
-      </div>
-      {renderSection("Front 9", front)}
-      {renderSection("Back 9", back)}
+      {renderSection("Front 9", front, true)}
+      {renderSection("Back 9", back, false)}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
           ? "🚫 No birdies tracked"
@@ -881,7 +854,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       {/* Total Pts per player */}
       {(() => {
         const totals = result?.totalsByPlayerId || {};
-        const ranked = [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+        const ranked = [...matchPlayers].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
         const totalPts = ranked.reduce((sum, p) => sum + (totals[p.id] ?? 0), 0);
         if (totalPts === 0) return null;
         return (
@@ -940,20 +913,21 @@ function NinePointAudit({
   const { result, match } = ninePointEntry;
 
   // Compute total net $ per player: points payout + birdie side bet
-  const playerIds = players.map(p => p.id);
+  const matchPlayerIds = [match?.p1Id, match?.p2Id, match?.p3Id].filter(Boolean);
+  const matchPlayers = players.filter(p => matchPlayerIds.includes(p.id));
   const pointsBalances = result?.payout?.balancesByPlayerId || {};
-  const birdieTotals = Object.fromEntries(playerIds.map(id => [id, 0]));
+  const birdieTotals = Object.fromEntries(matchPlayerIds.map(id => [id, 0]));
   birdieResults.forEach(entry => {
     if (entry.source === "nine-point-birdie" && birdieTotals[entry.playerId] !== undefined) {
       birdieTotals[entry.playerId] += Number(entry.amount || 0);
     }
   });
-  const netTotals = Object.fromEntries(playerIds.map(id => [
+  const netTotals = Object.fromEntries(matchPlayerIds.map(id => [
     id,
     (pointsBalances[id] || 0) + birdieTotals[id]
   ]));
 
-  const rankedPlayers = [...players].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
+  const rankedPlayers = [...matchPlayers].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
   const fmtNet = (v) => {
     if (v === 0) return "Even";
     const abs = Math.abs(v);
