@@ -938,7 +938,6 @@ function NinePointAudit({
   if (!ninePointEntry) return null;
 
   const { result, match } = ninePointEntry;
-  const betAmt = Number(match?.bet) || Number(teamGameUnitAmount) || 1;
 
   // Compute total net $ per player: points payout + birdie side bet
   const playerIds = players.map(p => p.id);
