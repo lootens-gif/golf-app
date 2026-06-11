@@ -665,8 +665,7 @@ function NinePointScorecard({
     );
   };
 
-  // end of renderSection
-  };
+
 
   return (
     <div style={{ marginTop: 8 }}>
