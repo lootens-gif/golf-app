@@ -552,7 +552,7 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
-  const renderSection = (label, sectionHoles) => {
+  const renderSection = (label, sectionHoles, showPtsLabel = false) => {
     // Compute section net $ for each player (running total at end of section)
     const sectionNetPts = Object.fromEntries(players.map(p => {
       const lastPlayed = [...sectionHoles].reverse().find(h => {
@@ -586,21 +586,20 @@ function NinePointScorecard({
                 </td>
               </tr>
 
-              {/* POINTS ROWS — initial + net $ + hole values */}
+              {/* POINTS ROWS — initial + cumulative pts net + hole values */}
               {players.map((player) => {
-                const rawNet = sectionNetPts[player.id] !== null
-                  ? (sectionNetPts[player.id] - sectionAvg) * betAmt
-                  : null;
+                const cumPts = sectionNetPts[player.id];
+                const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
-                const netStr = netAmt === null ? "–" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netStr = !showPtsLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
                 const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
 
                 return (
                   <tr key={`pts-${player.id}`}>
                     <td style={{ ...scorecardLabelCellStyle, padding: "3px 4px" }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span>
+                      {netStr ? <span style={{ fontSize: 13, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span> : null}
                     </td>
                     {sectionHoles.map((h) => {
                       const hasScore = players.some(p => {
@@ -876,8 +875,31 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
   return (
     <div style={{ marginTop: 8 }}>
-      {renderSection("Front 9", front)}
-      {renderSection("Back 9", back)}
+      {renderSection("Front 9", front, true)}
+      {renderSection("Back 9", back, false)}
+
+      {/* Total Pts per player */}
+      {(() => {
+        const totals = result?.totalsByPlayerId || {};
+        const ranked = [...players].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+        const totalPts = ranked.reduce((sum, p) => sum + (totals[p.id] ?? 0), 0);
+        if (totalPts === 0) return null;
+        return (
+          <div style={{ fontSize: 13, color: "#555", marginTop: 6, paddingLeft: 2, fontWeight: 600 }}>
+            Total Pts —{" "}
+            {ranked.map((p, i) => {
+              const pts = totals[p.id] ?? 0;
+              const color = pts >= 5 * holes.length / 3 ? "#137333" : pts <= 3 * holes.length / 3 ? "#b3261e" : "#92400e";
+              return (
+                <span key={p.id} style={{ marginRight: 10 }}>
+                  <span style={{ color: "#1a1a1a" }}>{p.name.trim()[0]}</span>
+                  <span style={{ color, marginLeft: 2 }}>{pts}pts</span>
+                </span>
+              );
+            })}
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match.birdieEnabled
           ? "🚫 No birdies tracked"
@@ -915,12 +937,55 @@ function NinePointAudit({
 
   if (!ninePointEntry) return null;
 
+  const { result, match } = ninePointEntry;
+  const betAmt = Number(match?.bet) || Number(teamGameUnitAmount) || 1;
+
+  // Compute total net $ per player: points payout + birdie side bet
+  const playerIds = players.map(p => p.id);
+  const pointsBalances = result?.payout?.balancesByPlayerId || {};
+  const birdieTotals = Object.fromEntries(playerIds.map(id => [id, 0]));
+  birdieResults.forEach(entry => {
+    if (entry.source === "nine-point-birdie" && birdieTotals[entry.playerId] !== undefined) {
+      birdieTotals[entry.playerId] += Number(entry.amount || 0);
+    }
+  });
+  const netTotals = Object.fromEntries(playerIds.map(id => [
+    id,
+    (pointsBalances[id] || 0) + birdieTotals[id]
+  ]));
+
+  const rankedPlayers = [...players].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
+  const fmtNet = (v) => {
+    if (v === 0) return "Even";
+    const abs = Math.abs(v);
+    const str = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+    return v > 0 ? `+$${str}` : `-$${str}`;
+  };
+
+  const title = (
+    <span>
+      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>9-Point</span>
+      <span style={{ marginLeft: 10, fontSize: 13 }}>
+        {rankedPlayers.map((player, i) => {
+          const net = netTotals[player.id];
+          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+          return (
+            <span key={player.id} style={{ marginRight: 10 }}>
+              <span style={{ color: "#1a1a1a" }}>{player.name}</span>
+              <span style={{ color, fontWeight: 700, marginLeft: 3 }}>{fmtNet(net)}</span>
+            </span>
+          );
+        })}
+      </span>
+    </span>
+  );
+
   return (
-    <AuditSection title="9-Point" defaultOpen>
+    <AuditSection title={title} defaultOpen>
       <NinePointScorecard
         players={players}
-        result={ninePointEntry.result}
-        match={ninePointEntry.match}
+        result={result}
+        match={match}
         scores={scores}
         course={course}
         handicapMode={handicapMode}
