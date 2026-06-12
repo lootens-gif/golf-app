@@ -556,18 +556,22 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
-  const renderSection = (label, sectionHoles, showPtsLabel = false) => {
-    // Compute section net $ for each player (running total at end of section)
-    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => {
-      const lastPlayed = [...sectionHoles].reverse().find(h => {
-        const s = scores?.[h.hole]?.[p.id];
-        return s != null && Number.isFinite(Number(s));
-      });
-      return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
-    }));
-    // Avg pts per player = 9pts/hole ÷ matchPlayers.length
-    const ptsPerHole = 9; // total points distributed per hole (5+3+1)
-    const sectionAvg = (ptsPerHole / matchPlayers.length) * sectionHoles.length;
+  const renderSection = (label, sectionHoles) => {
+    // Running total = cumulative through ALL holes played so far (not just this section)
+    // Find the last played hole across the entire round
+    const lastPlayedHole = [...holes].reverse().find(h => {
+      const s = scores?.[h.hole];
+      return s && matchPlayers.some(p => s[p.id] != null && Number.isFinite(Number(s[p.id])));
+    });
+    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => [
+      p.id,
+      lastPlayedHole?.runningTotalsByPlayerId?.[p.id] ?? null
+    ]));
+    // Avg = 3pts/hole × holes played (9 total pts / 3 players = 3 avg per player per hole)
+    const holesPlayed = lastPlayedHole
+      ? holes.findIndex(h => h.hole === lastPlayedHole.hole) + 1
+      : 0;
+    const sectionAvg = 3 * holesPlayed; // 9pts ÷ 3 players = 3 avg per player per hole
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -596,7 +600,7 @@ function NinePointScorecard({
                 const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
-                const netStr = !showPtsLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netStr = netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
                 const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
 
                 return (
@@ -665,12 +669,10 @@ function NinePointScorecard({
     );
   };
 
-
-
   return (
     <div style={{ marginTop: 8 }}>
-      {renderSection("Front 9", front, true)}
-      {renderSection("Back 9", back, false)}
+      {renderSection("Front 9", front)}
+      {renderSection("Back 9", back)}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
           ? "🚫 No birdies tracked"

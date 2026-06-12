@@ -2444,8 +2444,14 @@ if (!enableTeamGame && !skinsEnabled) {
     setCurrentHole(1);
   }
 
-  // Warn about unnamed players
-  const unnamedCount = allPlayers.filter(p => !p.name || p.name.match(/^P\d+$/)).length;
+  // Require a course to be selected
+  if (!course?.name || !course?.pars?.length) {
+    alert("Please select a course before starting the round.");
+    return;
+  }
+
+  // Warn about unnamed players (active slots only, not unused P4/P5)
+  const unnamedCount = getActivePlayers(allPlayers, mode).filter(p => !p.name || p.name.match(/^P\d+$/)).length;
   if (unnamedCount > 0) {
     const confirmed = window.confirm(`${unnamedCount} player${unnamedCount > 1 ? "s have" : " has"} no name (showing as P1, P2 etc). Continue anyway?`);
     if (!confirmed) return;
