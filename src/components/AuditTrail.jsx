@@ -556,7 +556,7 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
-  const renderSection = (label, sectionHoles) => {
+  const renderSection = (label, sectionHoles, showLabel = false) => {
     // Running total = cumulative through ALL holes played so far (not just this section)
     // Find the last played hole across the entire round
     const lastPlayedHole = [...holes].reverse().find(h => {
@@ -600,7 +600,7 @@ function NinePointScorecard({
                 const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
-                const netStr = netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netStr = !showLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
                 const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
 
                 return (
@@ -669,10 +669,37 @@ function NinePointScorecard({
     );
   };
 
+  const backHasScores = back.some(h => {
+    const s = scores?.[h.hole];
+    return s && matchPlayers.some(p => s[p.id] != null && Number.isFinite(Number(s[p.id])));
+  });
+
   return (
     <div style={{ marginTop: 8 }}>
-      {renderSection("Front 9", front)}
-      {renderSection("Back 9", back)}
+      {renderSection("Front 9", front, !backHasScores)}
+      {renderSection("Back 9", back, backHasScores)}
+
+      {/* Total Pts per player */}
+      {(() => {
+        const totals = result?.totalsByPlayerId || {};
+        const ranked = [...matchPlayers].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+        const totalPts = ranked.reduce((sum, p) => sum + (totals[p.id] ?? 0), 0);
+        if (totalPts === 0) return null;
+        return (
+          <div style={{ fontSize: 13, color: "#555", marginTop: 6, paddingLeft: 2, fontWeight: 600 }}>
+            Total Pts:{" "}
+            {ranked.map((p) => {
+              const pts = totals[p.id] ?? 0;
+              return (
+                <span key={p.id} style={{ marginRight: 10 }}>
+                  <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+                  <span style={{ color: "#6b7280", marginLeft: 3 }}>{pts}</span>
+                </span>
+              );
+            })}
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
           ? "🚫 No birdies tracked"
