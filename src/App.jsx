@@ -1717,7 +1717,9 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
 
   if (round.mode) setMode(round.mode);
   if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
-  if (round.course) setCourse(round.course);
+  // Don't overwrite course during background syncs if round is already in progress
+  const roundInProgress = lastHoleSaved !== null || Object.keys(scores).length > 0;
+  if (round.course && (!skipScreen || !roundInProgress)) setCourse(round.course);
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
