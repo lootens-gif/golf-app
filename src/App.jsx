@@ -576,15 +576,13 @@ const lastSyncedAt = useRef(null);
     return (team || []).filter(Boolean);
   }
 
-function getTeamGameSelection(index) {
+const getTeamGameSelection = useCallback((index) => {
   const game = teamGames[index];
-
   return sanitizeGameSelection(
     game?.teams || getDefaultTeamSelection(),
     mode
   );
-}
-  
+}, [teamGames, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 function applyPreset(preset) {
@@ -1678,6 +1676,8 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   handicapMode,
   handicapDistribution,
   enableTeamGame,
+  teamGameFormat,
+  teamMatchConfig,
   noPar3TeamGame,
   teamGameUnitAmount,
   pressTrigger,

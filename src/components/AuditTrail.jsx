@@ -1079,22 +1079,46 @@ function TeamGameAudit({
           >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
-              const teamA = (selection?.[teamAKey] || []).filter(Boolean);
-              const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+              const teamA = matchup.teamA || (selection?.[teamAKey] || []).filter(Boolean);
+              const teamB = matchup.teamB || (selection?.[teamBKey] || []).filter(Boolean);
               const teamAName = getTeamName(players, teamA);
               const teamBName = getTeamName(players, teamB);
-              const totalUnits = (matchup.result || []).reduce((sum, bet) => {
-                const score = Number(bet.score || 0);
-                if (score > 0) return sum + 1;
-                if (score < 0) return sum - 1;
-                return sum;
-              }, 0);
-              const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
-              const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
+              // Detect non-press result (has .type field)
+              const result = matchup.result;
+              const isNonPress = result && !Array.isArray(result) && result.type;
+
+              let totalDollars = 0;
+              let matchSummaryLine = null;
+
+              if (isNonPress) {
+                totalDollars = result.total || 0;
+                const winner = totalDollars > 0 ? teamAName : totalDollars < 0 ? teamBName : null;
+                if (result.type === "standard" || result.type === "longshort") {
+                  matchSummaryLine = winner ? `${winner} wins — ${result.label || ""}` : "Tied";
+                } else if (result.type === "match_fbt") {
+                  matchSummaryLine = (result.segments || []).map(s => `${s.label}: ${s.resultLabel}`).join(" · ");
+                } else if (result.type === "stroke") {
+                  matchSummaryLine = (result.segments || []).map(s => {
+                    const w = s.winner > 0 ? teamAName : s.winner < 0 ? teamBName : "Tied";
+                    return `${s.label}: ${w}${s.diff != null ? ` by ${s.diff}` : ""}`;
+                  }).join(" · ");
+                }
+              } else {
+                const totalUnits = (matchup.result || []).reduce((sum, bet) => {
+                  const score = Number(bet.score || 0);
+                  if (score > 0) return sum + 1;
+                  if (score < 0) return sum - 1;
+                  return sum;
+                }, 0);
+                totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
+              }
+
+              const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
               const matchTitle = (
                 <span style={{ color: matchColor }}>
-                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}
+                  {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
+                  {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
                 </span>
               );
 
@@ -1103,6 +1127,28 @@ function TeamGameAudit({
                   key={`${gameIndex}-${matchupIndex}`}
                   title={matchTitle}
                 >
+                  {isNonPress ? (
+                    <div style={{ padding: "8px 0", fontSize: 13 }}>
+                      {result.type === "match_fbt" && (result.segments || []).map(s => (
+                        <div key={s.key} style={{ marginBottom: 4 }}>
+                          <strong>{s.label}:</strong> {s.resultLabel} — {formatMoney(s.dollars)}
+                        </div>
+                      ))}
+                      {result.type === "stroke" && (result.segments || []).map(s => (
+                        <div key={s.key} style={{ marginBottom: 4 }}>
+                          <strong>{s.label}:</strong> {teamAName} {s.aTotal ?? "–"} · {teamBName} {s.bTotal ?? "–"} — {formatMoney(s.dollars)}
+                        </div>
+                      ))}
+                      {(result.type === "standard" || result.type === "longshort") && (
+                        <div>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
+                      )}
+                      {result.type === "longshort" && (
+                        <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
+                          Long: {result.longLabel} ({formatMoney(result.long)}) · Short: {result.shortLabel} ({formatMoney(result.short)})
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                   <TeamGameScorecard
                     game={game}
                     matchup={matchup}
@@ -1120,6 +1166,7 @@ function TeamGameAudit({
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
                   />
+                  )}
                 </AuditSection>
               );
             })}
