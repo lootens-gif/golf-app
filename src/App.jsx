@@ -8,6 +8,7 @@ import {
   getTeamNetScore,
   computeHoleResult,
   playIndividualMatch,
+  playTeamMatch,
   buildLeaderboard,
   playPressMatch,
   scoreRound,
@@ -429,6 +430,12 @@ const lastSyncedAt = useRef(null);
   const [saveToStats, setSaveToStats] = useState(true);
   const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
+  const [teamGameFormat, setTeamGameFormat] = useState("press"); // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
+  const [teamMatchConfig, setTeamMatchConfig] = useState({
+    matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
+    strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
+    strokeFront: false, strokeBack: false, strokeTotal: true,
+  });
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
   const [deviceId] = useState(() => getDeviceId());
@@ -1204,7 +1211,35 @@ function addNinePointMatch() {
 
 
 
-  const teamGameResults = teamGames.map((game, index) => {
+  const teamGameResults = useMemo(() => {
+  // Non-press formats: single whole-round team match
+  if (enableTeamGame && teamGameFormat !== "press") {
+    const selected = getTeamGameSelection(0);
+    if (!selected) return [];
+    const team1 = (selected.team1 || []).filter(Boolean);
+    const team2 = (selected.team2 || []).filter(Boolean);
+    if (!team1.length || !team2.length) return [];
+    const matchDef = {
+      ...teamMatchConfig,
+      type: teamGameFormat,
+      teamA: team1,
+      teamB: team2,
+      bet: Number(teamGameUnitAmount) || 0,
+    };
+    const result = playTeamMatch(matchDef, context);
+    return [{
+      index: 0,
+      start: 1,
+      end: 18,
+      format: teamGameFormat,
+      duplicateError: false,
+      birdieEnabled: birdiesEnabled,
+      matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
+    }];
+  }
+
+  // Press format (existing logic)
+  return teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
   const selected = getTeamGameSelection(index);
   const trigger = game.pressTrigger ?? 1;
@@ -1337,7 +1372,8 @@ function addNinePointMatch() {
 birdieEnabled: enableTeamGame && birdiesEnabled,
     matches: teamMatches,
   };
-});
+  }); // end press format map
+  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, birdiesEnabled, getTeamGameSelection, context, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -1609,6 +1645,8 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     handicapMode,
     handicapDistribution,
     enableTeamGame,
+    teamGameFormat,
+    teamMatchConfig,
     noPar3TeamGame,
     teamGameUnitAmount,
     pressTrigger,
@@ -1675,6 +1713,8 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+  if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
+  if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
   setNoPar3TeamGame(!!round.noPar3TeamGame);
   if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
 
@@ -1898,6 +1938,8 @@ async function handleLoadTemplate(template) {
     if (cfg.handicapMode) setHandicapMode(cfg.handicapMode);
     if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
     if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
+    if (cfg.teamGameFormat) setTeamGameFormat(cfg.teamGameFormat);
+    if (cfg.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...cfg.teamMatchConfig }));
     if (typeof cfg.teamGameUnitAmount === "number") setTeamGameUnitAmount(cfg.teamGameUnitAmount);
     if (cfg.pressTrigger) { setPressTrigger(Number(cfg.pressTrigger)); setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(cfg.pressTrigger) }))); }
     if (typeof cfg.birdiesEnabled === "boolean") setBirdiesEnabled(cfg.birdiesEnabled);
@@ -2049,6 +2091,12 @@ function resetSetup() {
   setBirdieBetAmount(5);
   setScores({});
   setMatches([]);
+  setTeamGameFormat("press");
+  setTeamMatchConfig({
+    matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
+    strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
+    strokeFront: false, strokeBack: false, strokeTotal: true,
+  });
   setTeamGames([
     createDefaultTeamGame(1),
     createDefaultTeamGame(2),
@@ -3002,6 +3050,10 @@ return (
     focusGameTarget={focusGameTarget}
     enableTeamGame={enableTeamGame}
     setEnableTeamGame={setEnableTeamGame}
+    teamGameFormat={teamGameFormat}
+    setTeamGameFormat={setTeamGameFormat}
+    teamMatchConfig={teamMatchConfig}
+    setTeamMatchConfig={setTeamMatchConfig}
     goToLive={goToLive}
     goToResults={goToResults}
     roundName={roundName}

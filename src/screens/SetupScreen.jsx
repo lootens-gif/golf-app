@@ -699,7 +699,8 @@ export default function SetupScreen({
   saveNamedRound, savedRounds, selectedSavedRoundId, setSelectedSavedRoundId,
   loadNamedRound, deleteNamedRound, exportSavedRounds, importSavedRounds,
   setupMessage, course, updateCourseName, updateCoursePar, updateCourseHcp,
-  enableTeamGame, setEnableTeamGame, teamGameUnitAmount, setTeamGameUnitAmount,
+  enableTeamGame, setEnableTeamGame, teamGameFormat, setTeamGameFormat, teamMatchConfig, setTeamMatchConfig,
+  teamGameUnitAmount, setTeamGameUnitAmount,
   pressTrigger, setPressTrigger, birdiesEnabled, setBirdiesEnabled,
   birdieBetAmount, setBirdieBetAmount, toyRule, setToyRule,
   noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution, applyPreset, setTeamGames, teamGames,
@@ -1033,6 +1034,31 @@ export default function SetupScreen({
       {enableTeamGame && (
         <Card>
           <SectionLabel>Team Assignments</SectionLabel>
+
+          {/* Format selector */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Team Game Format</div>
+            <select
+              value={teamGameFormat || "press"}
+              onChange={(e) => {
+                setTeamGameFormat(e.target.value);
+                if (e.target.value === "press") {
+                  setTeamGames([createDefaultTeamGame(1), createDefaultTeamGame(2), createDefaultTeamGame(3)]);
+                } else {
+                  setTeamGames([createDefaultTeamGame(1)]);
+                }
+              }}
+              style={{ padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", width: "100%" }}
+            >
+              <option value="press">Press (6/6/6 · 9/9 · Custom)</option>
+              <option value="standard">Net Holes</option>
+              <option value="longshort">Long / Short</option>
+              <option value="match_fbt">Match Play (F/B/T)</option>
+              <option value="stroke">Stroke Play</option>
+            </select>
+          </div>
+
+          {(teamGameFormat === "press" || !teamGameFormat) && (<>
           <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10, lineHeight: 1.5 }}>
             Each game covers any number of holes — just make sure they add up to 18. Most common formats below, or build your own.
           </div>
@@ -1136,6 +1162,74 @@ export default function SetupScreen({
               </div>
             );
           })}
+          </>)}
+
+          {/* Non-press formats: single team pairing + format options */}
+          {teamGameFormat && teamGameFormat !== "press" && (
+            <div>
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
+                Whole round · 18 holes · one team matchup
+              </div>
+              {renderTeamSelectors(0)}
+
+              {/* Match Play options */}
+              {teamGameFormat === "match_fbt" && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Segments</div>
+                  {[
+                    { key: "matchPlayFront", label: "Front 9" },
+                    { key: "matchPlayBack", label: "Back 9" },
+                    { key: "matchPlayTotal", label: "Total 18" },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 13 }}>
+                      <input type="checkbox" checked={!!teamMatchConfig[key]}
+                        onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, [key]: e.target.checked }))} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Stroke Play options */}
+              {teamGameFormat === "stroke" && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Stroke Options</div>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 13 }}>
+                    <input type="checkbox" checked={!!teamMatchConfig.strokeCombined}
+                      onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, strokeCombined: e.target.checked }))} />
+                    Combined score (sum both players) vs Low Net (best ball)
+                  </label>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Scoring</div>
+                  <select value={teamMatchConfig.strokeScoring || "net"}
+                    onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, strokeScoring: e.target.value }))}
+                    style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}>
+                    <option value="net">Net</option>
+                    <option value="gross">Gross</option>
+                  </select>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Payout</div>
+                  <select value={teamMatchConfig.strokePayoutMode || "winloss"}
+                    onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, strokePayoutMode: e.target.value }))}
+                    style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}>
+                    <option value="winloss">Win / Loss</option>
+                    <option value="differential">By Stroke Differential</option>
+                  </select>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Segments</div>
+                  {[
+                    { key: "strokeFront", label: "Front 9" },
+                    { key: "strokeBack", label: "Back 9" },
+                    { key: "strokeTotal", label: "Total 18" },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 13 }}>
+                      <input type="checkbox" checked={!!teamMatchConfig[key]}
+                        onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, [key]: e.target.checked }))} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <PrimarySetupAction />
+            </div>
+          )}
         </Card>
       )}
 

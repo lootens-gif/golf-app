@@ -556,18 +556,22 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
-  const renderSection = (label, sectionHoles, showPtsLabel = false) => {
-    // Compute section net $ for each player (running total at end of section)
-    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => {
-      const lastPlayed = [...sectionHoles].reverse().find(h => {
-        const s = scores?.[h.hole]?.[p.id];
-        return s != null && Number.isFinite(Number(s));
-      });
-      return [p.id, lastPlayed?.runningTotalsByPlayerId?.[p.id] ?? null];
-    }));
-    // Avg pts per player = 9pts/hole ÷ matchPlayers.length
-    const ptsPerHole = 9; // total points distributed per hole (5+3+1)
-    const sectionAvg = (ptsPerHole / matchPlayers.length) * sectionHoles.length;
+  const renderSection = (label, sectionHoles, showLabel = false) => {
+    // Running total = cumulative through ALL holes played so far (not just this section)
+    // Find the last played hole across the entire round
+    const lastPlayedHole = [...holes].reverse().find(h => {
+      const s = scores?.[h.hole];
+      return s && matchPlayers.some(p => s[p.id] != null && Number.isFinite(Number(s[p.id])));
+    });
+    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => [
+      p.id,
+      lastPlayedHole?.runningTotalsByPlayerId?.[p.id] ?? null
+    ]));
+    // Avg = 3pts/hole × holes played (9 total pts / 3 players = 3 avg per player per hole)
+    const holesPlayed = lastPlayedHole
+      ? holes.findIndex(h => h.hole === lastPlayedHole.hole) + 1
+      : 0;
+    const sectionAvg = 3 * holesPlayed; // 9pts ÷ 3 players = 3 avg per player per hole
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -596,7 +600,7 @@ function NinePointScorecard({
                 const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
                 const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
                 const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
-                const netStr = !showPtsLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netStr = !showLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
                 const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
 
                 return (
@@ -665,44 +669,37 @@ function NinePointScorecard({
     );
   };
 
-  // Compute total net $ per player: points payout + birdie side bet
-  const playerIds = players.map(p => p.id);
-  const pointsBalances = result?.payout?.balancesByPlayerId || {};
-  const birdieTotals = Object.fromEntries(playerIds.map(id => [id, 0]));
-  birdieResults.forEach(entry => {
-    if (entry.source === "nine-point-birdie" && birdieTotals[entry.playerId] !== undefined) {
-      birdieTotals[entry.playerId] += Number(entry.amount || 0);
-    }
+  const backHasScores = back.some(h => {
+    const s = scores?.[h.hole];
+    return s && matchPlayers.some(p => s[p.id] != null && Number.isFinite(Number(s[p.id])));
   });
-  const netTotals = Object.fromEntries(playerIds.map(id => [
-    id,
-    (pointsBalances[id] || 0) + birdieTotals[id]
-  ]));
-  const rankedPlayers = [...players].sort((a, b) => netTotals[b.id] - netTotals[a.id]);
-  const fmtNet = (v) => {
-    if (v === 0) return "Even";
-    const abs = Math.abs(v);
-    const str = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
-    return v > 0 ? `+$${str}` : `-$${str}`;
-  };
 
   return (
     <div style={{ marginTop: 8 }}>
-      {/* Rank-ordered net $ header */}
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 10, paddingLeft: 2 }}>
-        {rankedPlayers.map((player, i) => {
-          const net = netTotals[player.id];
-          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
-          return (
-            <span key={player.id} style={{ fontSize: 14, fontWeight: 700 }}>
-              <span style={{ color: "#1a1a1a" }}>{player.name}</span>
-              <span style={{ color, marginLeft: 4 }}>{fmtNet(net)}</span>
-            </span>
-          );
-        })}
-      </div>
-      {renderSection("Front 9", front)}
-      {renderSection("Back 9", back)}
+      {renderSection("Front 9", front, !backHasScores)}
+      {renderSection("Back 9", back, backHasScores)}
+
+      {/* Total Pts per player */}
+      {(() => {
+        const totals = result?.totalsByPlayerId || {};
+        const ranked = [...matchPlayers].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0));
+        const totalPts = ranked.reduce((sum, p) => sum + (totals[p.id] ?? 0), 0);
+        if (totalPts === 0) return null;
+        return (
+          <div style={{ fontSize: 13, color: "#555", marginTop: 6, paddingLeft: 2, fontWeight: 600 }}>
+            Total Pts:{" "}
+            {ranked.map((p) => {
+              const pts = totals[p.id] ?? 0;
+              return (
+                <span key={p.id} style={{ marginRight: 10 }}>
+                  <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+                  <span style={{ color: "#6b7280", marginLeft: 3 }}>{pts}</span>
+                </span>
+              );
+            })}
+          </div>
+        );
+      })()}
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match?.birdieEnabled
           ? "🚫 No birdies tracked"
@@ -1082,22 +1079,46 @@ function TeamGameAudit({
           >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
-              const teamA = (selection?.[teamAKey] || []).filter(Boolean);
-              const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+              const teamA = matchup.teamA || (selection?.[teamAKey] || []).filter(Boolean);
+              const teamB = matchup.teamB || (selection?.[teamBKey] || []).filter(Boolean);
               const teamAName = getTeamName(players, teamA);
               const teamBName = getTeamName(players, teamB);
-              const totalUnits = (matchup.result || []).reduce((sum, bet) => {
-                const score = Number(bet.score || 0);
-                if (score > 0) return sum + 1;
-                if (score < 0) return sum - 1;
-                return sum;
-              }, 0);
-              const totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
 
-              const matchColor = totalUnits > 0 ? "#137333" : totalUnits < 0 ? "#b3261e" : "#666";
+              // Detect non-press result (has .type field)
+              const result = matchup.result;
+              const isNonPress = result && !Array.isArray(result) && result.type;
+
+              let totalDollars = 0;
+              let matchSummaryLine = null;
+
+              if (isNonPress) {
+                totalDollars = result.total || 0;
+                const winner = totalDollars > 0 ? teamAName : totalDollars < 0 ? teamBName : null;
+                if (result.type === "standard" || result.type === "longshort") {
+                  matchSummaryLine = winner ? `${winner} wins — ${result.label || ""}` : "Tied";
+                } else if (result.type === "match_fbt") {
+                  matchSummaryLine = (result.segments || []).map(s => `${s.label}: ${s.resultLabel}`).join(" · ");
+                } else if (result.type === "stroke") {
+                  matchSummaryLine = (result.segments || []).map(s => {
+                    const w = s.winner > 0 ? teamAName : s.winner < 0 ? teamBName : "Tied";
+                    return `${s.label}: ${w}${s.diff != null ? ` by ${s.diff}` : ""}`;
+                  }).join(" · ");
+                }
+              } else {
+                const totalUnits = (matchup.result || []).reduce((sum, bet) => {
+                  const score = Number(bet.score || 0);
+                  if (score > 0) return sum + 1;
+                  if (score < 0) return sum - 1;
+                  return sum;
+                }, 0);
+                totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
+              }
+
+              const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
               const matchTitle = (
                 <span style={{ color: matchColor }}>
-                  {teamAName} vs {teamBName} | {totalUnits > 0 ? "+" : ""}{totalUnits} bets | {formatMoney(totalDollars)}
+                  {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
+                  {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
                 </span>
               );
 
@@ -1106,6 +1127,28 @@ function TeamGameAudit({
                   key={`${gameIndex}-${matchupIndex}`}
                   title={matchTitle}
                 >
+                  {isNonPress ? (
+                    <div style={{ padding: "8px 0", fontSize: 13 }}>
+                      {result.type === "match_fbt" && (result.segments || []).map(s => (
+                        <div key={s.key} style={{ marginBottom: 4 }}>
+                          <strong>{s.label}:</strong> {s.resultLabel} — {formatMoney(s.dollars)}
+                        </div>
+                      ))}
+                      {result.type === "stroke" && (result.segments || []).map(s => (
+                        <div key={s.key} style={{ marginBottom: 4 }}>
+                          <strong>{s.label}:</strong> {teamAName} {s.aTotal ?? "–"} · {teamBName} {s.bTotal ?? "–"} — {formatMoney(s.dollars)}
+                        </div>
+                      ))}
+                      {(result.type === "standard" || result.type === "longshort") && (
+                        <div>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
+                      )}
+                      {result.type === "longshort" && (
+                        <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
+                          Long: {result.longLabel} ({formatMoney(result.long)}) · Short: {result.shortLabel} ({formatMoney(result.short)})
+                        </div>
+                      )}
+                    </div>
+                  ) : (
                   <TeamGameScorecard
                     game={game}
                     matchup={matchup}
@@ -1123,6 +1166,7 @@ function TeamGameAudit({
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
                   />
+                  )}
                 </AuditSection>
               );
             })}

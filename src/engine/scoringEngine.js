@@ -904,6 +904,123 @@ export function playPressMatch({
   }));
 }
 
+// ─── TEAM MATCH (non-press formats) ────────────────────────────────────────
+// Mirrors playIndividualMatch but uses computeHoleResult for per-hole scoring.
+// teamA / teamB are arrays of player IDs.
+// match.type: "standard" | "longshort" | "match_fbt" | "stroke"
+// match.strokeCombined: if true, stroke = sum of both team members' net scores
+export function playTeamMatch(match, context) {
+  const { players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame } = context;
+  const teamA = match.teamA || [];
+  const teamB = match.teamB || [];
+
+  // Build per-hole result array (1 = teamA wins, -1 = teamB wins, 0 = tie)
+  const holeResults = [];
+  for (let hole = 1; hole <= 18; hole++) {
+    const r = computeHoleResult({ hole, teamA, teamB, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes: !!noPar3TeamGame });
+    if (r === null) break;
+    holeResults.push(r);
+  }
+
+  const bet = Number(match.bet ?? 0);
+
+  // ── Standard (Net Holes) ──
+  if (match.type === "standard") {
+    const segment = decideMatchPlaySegment(holeResults, 1, 18);
+    return {
+      type: "standard",
+      holes: holeResults,
+      total: signUnit(segment.score) * bet,
+      label: segment.label,
+      decidedOn: segment.decidedOn,
+    };
+  }
+
+  // ── Long / Short ──
+  if (match.type === "longshort") {
+    const longSegment = decideMatchPlaySegment(holeResults, 1, 18);
+    const longUnits = signUnit(longSegment.score);
+    const longResult = longUnits * bet;
+    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 10;
+    if (shortStart > 18) shortStart = 19;
+    let shortSegment = { score: 0, units: 0, label: "Tie", decidedOn: null };
+    if (shortStart <= 18) shortSegment = decideMatchPlaySegment(holeResults, shortStart, 18);
+    const shortResult = shortSegment.units * (bet / 2);
+    return {
+      type: "longshort",
+      holes: holeResults,
+      total: longResult + shortResult,
+      long: longResult,
+      short: shortResult,
+      longLabel: longSegment.label,
+      shortLabel: shortSegment.label,
+      longDecidedOn: longSegment.decidedOn,
+      shortDecidedOn: shortSegment.decidedOn,
+    };
+  }
+
+  // ── Match Play (FBT) ──
+  if (match.type === "match_fbt") {
+    const segmentDefs = [
+      { key: "front", label: "Front 9", start: 1, end: 9, enabled: match.matchPlayFront !== false },
+      { key: "back", label: "Back 9", start: 10, end: 18, enabled: match.matchPlayBack !== false },
+      { key: "total", label: "Total 18", start: 1, end: 18, enabled: match.matchPlayTotal !== false },
+    ].filter(s => s.enabled);
+    const safeDefs = segmentDefs.length ? segmentDefs : [{ key: "total", label: "Total 18", start: 1, end: 18 }];
+    const segments = safeDefs.map(seg => {
+      const segment = decideMatchPlaySegment(holeResults, seg.start, seg.end);
+      return { key: seg.key, label: seg.label, units: segment.units, dollars: segment.units * bet, resultLabel: segment.label, decidedOn: segment.decidedOn };
+    });
+    return { type: "match_fbt", holes: holeResults, segments, total: segments.reduce((s, seg) => s + seg.dollars, 0) };
+  }
+
+  // ── Stroke Play ──
+  if (match.type === "stroke") {
+    const strokeScoring = match.strokeScoring || "net";
+    const strokePayoutMode = match.strokePayoutMode || "winloss";
+    const combined = !!match.strokeCombined;
+
+    const segmentDefs = [
+      { key: "front", label: "Front 9", start: 1, end: 9, enabled: !!match.strokeFront },
+      { key: "back", label: "Back 9", start: 10, end: 18, enabled: !!match.strokeBack },
+      { key: "total", label: "Total 18", start: 1, end: 18, enabled: !!match.strokeTotal },
+    ].filter(s => s.enabled);
+
+    // Team score per segment: combined = sum both players, otherwise best net (low)
+    const teamSegmentScore = (team, start, end) => {
+      if (combined) {
+        let total = 0;
+        for (const playerId of team) {
+          const seg = sumStrokeSegment({ playerId, startHole: start, endHole: end, players, course, scores, handicapMode, strokeScoring });
+          if (seg.total === null) return null;
+          total += seg.total;
+        }
+        return total;
+      } else {
+        // Best net: lowest score on team
+        let best = null;
+        for (const playerId of team) {
+          const seg = sumStrokeSegment({ playerId, startHole: start, endHole: end, players, course, scores, handicapMode, strokeScoring });
+          if (seg.total === null) continue;
+          if (best === null || seg.total < best) best = seg.total;
+        }
+        return best;
+      }
+    };
+
+    const segments = segmentDefs.map(seg => {
+      const aTotal = teamSegmentScore(teamA, seg.start, seg.end);
+      const bTotal = teamSegmentScore(teamB, seg.start, seg.end);
+      const settlement = settleStrokeSegment(aTotal, bTotal, strokePayoutMode, bet);
+      return { key: seg.key, label: seg.label, aTotal, bTotal, diff: settlement.diff, units: settlement.units, dollars: settlement.dollars, winner: settlement.winner };
+    });
+
+    return { type: "stroke", holes: holeResults, strokeScoring, strokePayoutMode, strokeCombined: combined, segments, total: segments.reduce((s, seg) => s + seg.dollars, 0) };
+  }
+
+  return { type: match.type, holes: holeResults, total: 0 };
+}
+
 export function buildLeaderboard(ledger = [], context = {}) {
   const board = {};
   const players = context.players || [];
