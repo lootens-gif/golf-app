@@ -2367,9 +2367,7 @@ useEffect(() => {
   }
   document.addEventListener("visibilitychange", handleVisibilityChange);
   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-}, [roundCode, isJoiner]);
-
-// 30-second polling — joiner only (prevents host flash during score entry)
+}, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
 useEffect(() => {
   if (!roundCode || !isJoiner) return;
   const interval = setInterval(() => {
@@ -2385,7 +2383,7 @@ useEffect(() => {
       .catch(() => {});
   }, 30000);
   return () => clearInterval(interval);
-}, [roundCode, isJoiner]);
+}, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
