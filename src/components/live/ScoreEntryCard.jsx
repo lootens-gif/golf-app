@@ -23,6 +23,8 @@ export default function ScoreEntryCard({
   getHandicapStrokesFn,
   isJoiner = false,
   onRefresh,
+  onScoreFocus,
+  onScoreBlur,
 }) {
   const [activePlayerId, setActivePlayerId] = useState(players?.[0]?.id ?? null);
 
@@ -48,9 +50,12 @@ export default function ScoreEntryCard({
 
   function handleKeypadScore(value) {
     if (!activePlayer) return;
+    onScoreFocus?.();
     setScore(currentHole, activePlayer.id, String(value));
     const nextIndex = (activePlayerIndex + 1) % players.length;
     setActivePlayerId(players[nextIndex].id);
+    // Clear entering flag after 2s — enough for debounce to fire and sync to complete
+    setTimeout(() => onScoreBlur?.(), 2000);
   }
 
   function scoreLabel(score, par) {

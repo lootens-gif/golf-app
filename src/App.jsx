@@ -414,6 +414,8 @@ export default function App() {
   const [roundName, setRoundName] = useState("");
   const [syncChannel] = useState(null);
 const lastSyncedAt = useRef(null);
+const lastLocalSaveAt = useRef(null); // timestamp of last local score change
+const isEnteringScore = useRef(false); // true while user is actively typing a score
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [currentHole, setCurrentHole] = useState(5);
@@ -1707,6 +1709,12 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
     return false;
   }
 
+  // Guard: never overwrite local state while user is actively entering a score
+  if (skipScreen && isEnteringScore.current) return false;
+
+  // Guard: don't apply a sync within 3 seconds of a local save (debounce hasn't pushed yet)
+  if (skipScreen && lastLocalSaveAt.current && Date.now() - lastLocalSaveAt.current < 3000) return false;
+
   if (round.mode) setMode(round.mode);
   if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
   if (round.course) setCourse(round.course);
@@ -1735,7 +1743,12 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
     }))
   );
 
-  setMatches(round.matches);
+  // Only overwrite matches if snapshot has same or more (prevents stale sync wiping local additions)
+  if (Array.isArray(round.matches)) {
+    setMatches(prev =>
+      skipScreen && round.matches.length < prev.length ? prev : round.matches
+    );
+  }
   setCurrentHole(Number(round.currentHole || 1));
   setLastHoleSaved(round.lastHoleSaved ?? null);
   setPendingNextGameIndex(null);
@@ -2118,6 +2131,8 @@ function resetSetup() {
     const next = value === "" ? null : Number(value);
     if (value !== "" && !Number.isFinite(next)) return;
 
+    lastLocalSaveAt.current = Date.now(); // mark local edit time for sync guard
+
     setScores((prev) => ({
       ...prev,
       [hole]: {
@@ -2331,16 +2346,17 @@ useEffect(() => {
   };
 }, [syncChannel]);
 
-// Re-fetch from Supabase when tab becomes visible (iOS Safari drops subscriptions)
+// Re-fetch from Supabase when tab becomes visible — joiner only
+// (host relies on realtime subscription; firing for host risks overwriting mid-entry scores)
 useEffect(() => {
   function handleVisibilityChange() {
-    if (document.visibilityState === "visible" && roundCode) {
+    if (document.visibilityState === "visible" && roundCode && isJoiner) {
       fetchRound(roundCode)
         .then(result => {
           if (result?.data) {
           if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
             lastSyncedAt.current = result.updated_at;
-            applyRoundSnapshot(result.data, undefined, true); // skipScreen always for polls
+            applyRoundSnapshot(result.data, undefined, true);
           }
         }
         })
@@ -3217,6 +3233,8 @@ return (
     setScore={setScore}
     handicapMode={handicapMode}
     getHandicapStrokesFn={context.getHandicapStrokesFn}
+    onScoreFocus={() => { isEnteringScore.current = true; }}
+    onScoreBlur={() => { isEnteringScore.current = false; }}
     onPrevHole={() => {
       if (currentHole > 1) setCurrentHole(currentHole - 1);
     }}
