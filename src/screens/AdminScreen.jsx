@@ -109,7 +109,7 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
             const players = (d.allPlayers || []).filter(p => p.name && !p.name.match(/^P\d$/)).map(p => p.name);
             const course = d.course?.name || "—";
             const holesPlayed = Object.keys(d.scores || {}).length > 0
-              ? Math.max(...Object.values(d.scores).map(s => Object.keys(s).length))
+              ? Math.max(...Object.keys(d.scores).map(Number))
               : 0;
             const updatedAt = new Date(r.updated_at);
             const minsAgo = Math.round((Date.now() - updatedAt) / 60000);
