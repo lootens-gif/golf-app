@@ -303,7 +303,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
         {searching && <div style={{ fontSize: 12, color: sc.muted, marginTop: 4 }}>Searching…</div>}
       </div>
 
-      <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />
+      {!loadedCourse && <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />}
 
       {/* Duplicate course warning */}
       {duplicateCourse && (
