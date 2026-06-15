@@ -160,7 +160,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   );
 }
 
-function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId, players, sc, roundName, setRoundName }) {
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId, players, sc, roundName, setRoundName }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -371,6 +371,25 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
               background: "#fff", color: sc.gold, border: `1px solid ${sc.gold}`,
               borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%",
             }}>✏️ Update "{loadedCourse.name}" in library</button>
+          )}
+          {loadedCourse && (
+            <button onClick={async () => {
+              const pin = window.prompt("Admin PIN to delete this course:");
+              if (!pin) return;
+              if (!window.confirm(`Delete "${loadedCourse.name}" from the library? This cannot be undone.`)) return;
+              try {
+                await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
+                setLoadedCourse(null);
+                updateCourseName("");
+                window.alert(`"${loadedCourse.name}" deleted from library.`);
+              } catch (e) {
+                window.alert(e.message === "not_owner" ? "You don't have permission to delete this course." : "Delete failed.");
+              }
+            }} style={{
+              marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600,
+              background: "#fff", color: "#b3261e", border: "1px solid #b3261e",
+              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%",
+            }}>🗑️ Delete "{loadedCourse.name}" from library</button>
           )}
         </div>
       )}
@@ -709,7 +728,7 @@ export default function SetupScreen({
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
   skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover,
   potType, setPotType, potDonation, setPotDonation, potBaseUnit, setPotBaseUnit,
-  saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deviceId,
+  saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId,
   totalHoles, getTeamGameRange, hasDuplicateSelections, getTeamGameSelection,
   renderTeamSelectors, expandedGame, setExpandedGame, modeText,
   addMatch, addNinePointMatch, autoCreateMatches, matches, matchResults,
@@ -1292,6 +1311,7 @@ export default function SetupScreen({
         saveCourseToLibrary={saveCourseToLibrary}
         checkCourseExists={checkCourseExists}
         updateCourseInLibrary={updateCourseInLibrary}
+        deleteCourseFromLibrary={deleteCourseFromLibrary}
         deviceId={deviceId}
         searchCourses={searchCourses}
         players={players}

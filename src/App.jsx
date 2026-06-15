@@ -26,7 +26,7 @@ import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -79,8 +79,8 @@ function isUsableRoundSnapshot(value) {
 function createDefaultCourse() {
   return {
     name: "",
-    pars: Array(18).fill(4),
-    hcp: Array(18).fill(0).map((_, i) => i + 1),
+    pars: Array(18).fill(""),
+    hcp: Array(18).fill(""),
   };
 }
 
@@ -3066,6 +3066,7 @@ return (
     saveCourseToLibrary={saveCourseToLibrary}
     checkCourseExists={checkCourseExists}
     updateCourseInLibrary={updateCourseInLibrary}
+    deleteCourseFromLibrary={deleteCourseFromLibrary}
     deviceId={deviceId}
     searchCourses={searchCourses}
     applyPreset={applyPreset}

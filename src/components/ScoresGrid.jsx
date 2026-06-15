@@ -16,21 +16,19 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
     const nextPlayerId = players[nextPlayerIndex]?.id;
     if (!nextPlayerId) return;
 
-    const nextInput = document.getElementById(
-      `score-${nextHole}-${nextPlayerId}`
-    );
-
-    if (nextInput) {
-      nextInput.focus();
-      nextInput.select?.();
-    }
+    // setTimeout required for iOS Safari — focus() blocked without delay
+    setTimeout(() => {
+      const nextInput = document.getElementById(`score-${nextHole}-${nextPlayerId}`);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select?.();
+      }
+    }, 10);
   }
 
   function handleScoreChange(hole, playerId, rawValue) {
     const cleaned = rawValue.replace(/\D/g, "").slice(0, 1);
-
     onSetScore(hole, playerId, cleaned);
-
     if (cleaned !== "") {
       focusNextScoreField(hole, playerId);
     }

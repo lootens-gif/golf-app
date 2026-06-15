@@ -185,6 +185,27 @@ export async function updateCourseInLibrary(courseId, course, deviceId, adminPin
   return data?.[0];
 }
 
+export async function deleteCourseFromLibrary(courseId, deviceId, adminPin) {
+  const ADMIN_PIN = "1234";
+  const isAdmin = adminPin === ADMIN_PIN;
+
+  if (!isAdmin) {
+    const { data: existing } = await supabase
+      .from("courses")
+      .select("device_id")
+      .eq("id", courseId)
+      .single();
+
+    if (!existing || existing.device_id !== deviceId) {
+      throw new Error("not_owner");
+    }
+  }
+
+  const { error } = await supabase.from("courses").delete().eq("id", courseId);
+  if (error) throw error;
+  return true;
+}
+
 // Search courses by name
 export async function searchCourses(query) {
   const { data, error } = await supabase
