@@ -57,7 +57,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "StoppedCounting <notifications@stoppedc ounting.com>",
+        from: "StoppedCounting <onboarding@resend.dev>",
         to: [NOTIFY_EMAIL],
         subject,
         html,

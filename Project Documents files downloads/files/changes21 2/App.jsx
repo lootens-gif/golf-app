@@ -426,14 +426,9 @@ function notifyRound(event, code) {
     const leaderboard = (computedResults?.playerLedger || [])
       .map(r => ({ name: allPlayers.find(p => p.id === r.playerId)?.name || r.playerId, total: r.total }))
       .sort((a, b) => b.total - a.total);
-    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbXlsbHhocnVndWlmaGRvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjE2NzcsImV4cCI6MjA5NDMzNzY3N30.ihwKM57Ik8BgwHE_20yLbjzp2egARxs9H3jTrgyeb_w";
     fetch(`https://nlmyllxhruguifhdondi.supabase.co/functions/v1/notify-round`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": ANON_KEY,
-        "Authorization": `Bearer ${ANON_KEY}`,
-      },
+      headers: { "Content-Type": "application/json", "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbXlsbHhocnVndWlmaGRvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjE2NzcsImV4cCI6MjA5NDMzNzY3N30.ihwKM57Ik8BgwHE_20yLbjzp2egARxs9H3jTrgyeb_w" },
       body: JSON.stringify({ event, roundCode: code || roundCode, course: course?.name, players: playerNames, leaderboard }),
     }).catch(() => {}); // silent fail — notification is non-critical
   } catch {
