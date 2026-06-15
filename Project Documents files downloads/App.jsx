@@ -3,24 +3,34 @@ import { defaultPlayers } from "./data/defaultPlayers";
 import {
   getActivePlayers,
   getHandicapStrokes,
+  getSpreadHandicapStrokes,
   getRawScore,
   getTeamNetScore,
   computeHoleResult,
   playIndividualMatch,
+  playTeamMatch,
   buildLeaderboard,
   playPressMatch,
   scoreRound,
   buildBirdieResults,
+  settleSkinsRound,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
-
-const STORAGE_KEY = "golf-betting-round-setup-v5";
+import JoinRound from "./JoinRound";
+import BugReportModal from "./BugReportModal";
+import QAScreen from "./QAScreen";
+import HistoryScreen from "./screens/HistoryScreen";
+import AdminScreen from "./screens/AdminScreen";
+import TripScreen from "./screens/TripScreen";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary } from "./lib/roundSync";
+const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
+const ROUND_CODE_KEY = "golf-betting-round-code-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
 
@@ -68,9 +78,9 @@ function isUsableRoundSnapshot(value) {
 
 function createDefaultCourse() {
   return {
-    name: "Westwood",
-    pars: [5,4,3,4,4,5,4,3,4,4,4,5,4,4,3,4,3,5],
-    hcp: [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9],
+    name: "",
+    pars: Array(18).fill(4),
+    hcp: Array(18).fill(0).map((_, i) => i + 1),
   };
 }
 
@@ -119,18 +129,19 @@ function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode)
   return best;
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode) {
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
   const gross = getRawScore(scores, hole, playerId);
 
   if (gross === null || gross === undefined) {
     return "-";
   }
 
-  const strokes = getHandicapStrokes(playerId, hole, players, course, handicapMode);
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const strokes = strokesFn(playerId, hole, players, course, handicapMode);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
-function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode) {
+function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
   const best = getBestBallPlayer(
     teamIds,
     hole,
@@ -148,7 +159,8 @@ function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handica
     players,
     course,
     scores,
-    handicapMode
+    handicapMode,
+    getHandicapStrokesFn
   );
 }
 
@@ -217,6 +229,7 @@ function CompletedTeamGameScorecard({
   course,
   scores,
   handicapMode,
+  getHandicapStrokesFn,
 }) {
   const holes = Array.from(
     { length: Number(end || 0) - Number(start || 0) + 1 },
@@ -237,8 +250,8 @@ function CompletedTeamGameScorecard({
 
     return {
       hole,
-      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode),
-      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode),
+      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
+      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       resultValue: holeResult,
@@ -257,10 +270,7 @@ function CompletedTeamGameScorecard({
 
   const labelCellStyle = {
     ...cellStyle,
-    position: "sticky",
-    left: 0,
     background: "#fff",
-    zIndex: 1,
     textAlign: "left",
     minWidth: 86,
     fontWeight: 700,
@@ -391,34 +401,78 @@ export default function App() {
   const [course, setCourse] = useState(createDefaultCourse());
   const [scores, setScores] = useState({});
   const [handicapMode, setHandicapMode] = useState("relative");
+  const [handicapDistribution, setHandicapDistribution] = useState("standard");
   const [matches, setMatches] = useState([]);
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
   const [selectedSavedRoundId, setSelectedSavedRoundId] = useState("");
+  const [myTemplates, setMyTemplates] = useState([]);
+  const [templateStatus, setTemplateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "loading"
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
-  const [currentHole, setCurrentHole] = useState(1);
+  const [roundCode, setRoundCode] = useState(null);
+  const [roundName, setRoundName] = useState("");
+  const [syncChannel] = useState(null);
+const lastSyncedAt = useRef(null);
+const lastLocalSaveAt = useRef(null); // timestamp of last local score change
+const isEnteringScore = useRef(false); // true while user is actively typing a score
+
+// Fire-and-forget round notification to Edge Function
+function notifyRound(event, code) {
+  try {
+    const playerNames = allPlayers
+      .filter(p => p.name && !p.name.match(/^P\d+$/))
+      .map(p => p.name);
+    const leaderboard = (computedResults?.playerLedger || [])
+      .map(r => ({ name: allPlayers.find(p => p.id === r.playerId)?.name || r.playerId, total: r.total }))
+      .sort((a, b) => b.total - a.total);
+    fetch(`https://nlmyllxhruguifhdondi.supabase.co/functions/v1/notify-round`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbXlsbHhocnVndWlmaGRvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjE2NzcsImV4cCI6MjA5NDMzNzY3N30.ihwKM57Ik8BgwHE_20yLbjzp2egARxs9H3jTrgyeb_w" },
+      body: JSON.stringify({ event, roundCode: code || roundCode, course: course?.name, players: playerNames, leaderboard }),
+    }).catch(() => {}); // silent fail — notification is non-critical
+  } catch {
+    // never throw — notification must never break the app
+  }
+}
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  const [currentHole, setCurrentHole] = useState(5);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
   const [focusGameTarget, setFocusGameTarget] = useState(null);
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
-
+  const [isJoiner, setIsJoiner] = useState(false);
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
+  const [roundSaveName, setRoundSaveName] = useState("");
+  const [saveToStats, setSaveToStats] = useState(true);
+  const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
+  const [teamGameFormat, setTeamGameFormat] = useState("press"); // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
+  const [teamMatchConfig, setTeamMatchConfig] = useState({
+    matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
+    strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
+    strokeFront: false, strokeBack: false, strokeTotal: true,
+  });
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
+  const [deviceId] = useState(() => getDeviceId());
+  const [recentRounds, setRecentRounds] = useState([]);
+  const [showRecentRounds, setShowRecentRounds] = useState(false);
   const scoreEntryRef = useRef(null);
 
 
   function createDefaultTeamGame(index = 0) {
     return {
       id: `team-game-${Date.now()}-${index}`,
-      holes: 6,
+      holes: "",
       birdieEnabled: false,
       birdieBet: 0,
       teams: {},
+      pressTrigger: 1,
     };
   }
 
@@ -428,10 +482,22 @@ export default function App() {
     createDefaultTeamGame(3),
   ]);
 
-  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(1);
+  const [teamGameUnitAmount, setTeamGameUnitAmount] = useState(5);
   const [pressTrigger, setPressTrigger] = useState(1);
   const [birdiesEnabled, setBirdiesEnabled] = useState(false);
-  const [birdieBetAmount, setBirdieBetAmount] = useState(1);
+  const [birdieBetAmount, setBirdieBetAmount] = useState(5);
+
+  // Skins
+  const [skinsEnabled, setSkinsEnabled] = useState(false);
+  const [skinsType, setSkinsType] = useState("value");
+  const [skinsGross, setSkinsGross] = useState(false);
+  const [skinValueAmount, setSkinValueAmount] = useState(5);
+  const [skinCarryover, setSkinCarryover] = useState(true);
+  const [skinBirdie, setSkinBirdie] = useState(false);
+  const [skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover] = useState(false);
+  const [potType, setPotType] = useState("nocarryover");
+  const [potDonation, setPotDonation] = useState(10);
+  const [potBaseUnit, setPotBaseUnit] = useState(1);
   const [toyRule, setToyRule] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
 
@@ -447,18 +513,29 @@ export default function App() {
     [players]
   );
 
+  const is666 = enableTeamGame &&
+    teamGames.length === 3 &&
+    teamGames.every(g => Number(g.holes) === 6);
+
   const context = useMemo(
     () => ({
       players,
       course,
       scores,      
       handicapMode,
+      noPar3TeamGame,
+      getHandicapStrokesFn: (is666 && handicapDistribution === "spread")
+        ? getSpreadHandicapStrokes
+        : getHandicapStrokes,
     }),
     [
       players,
       course,
       scores,
       handicapMode,
+      noPar3TeamGame,
+      is666,
+      handicapDistribution,
     ]
   );
 
@@ -468,7 +545,25 @@ export default function App() {
     setSetupMessage("Mode updated.");
   }
 
+
+  // Auto-capitalize: capitalize first letter of each word
+  function autoCapitalize(str) {
+    return str.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
+  }
+
   function handlePlayerChange(index, field, value) {
+    if (field === "name") value = autoCapitalize(value);
+
+    // Generate round code early when first player name is entered
+    // so Supabase backup starts immediately (protects against iOS localStorage loss)
+    if (field === "name" && value.trim() && !roundCode) {
+      const earlyCode = generateRoundCode();
+      setRoundCode(earlyCode);
+      localStorage.setItem(ROUND_CODE_KEY, earlyCode);
+      // Notify on round start (fire and forget)
+      notifyRound("started", earlyCode);
+    }
+
     setAllPlayers((prev) =>
       prev.map((player, i) => {
         if (i !== index) return player;
@@ -504,15 +599,13 @@ export default function App() {
     return (team || []).filter(Boolean);
   }
 
-function getTeamGameSelection(index) {
+const getTeamGameSelection = useCallback((index) => {
   const game = teamGames[index];
-
   return sanitizeGameSelection(
     game?.teams || getDefaultTeamSelection(),
     mode
   );
-}
-  
+}, [teamGames, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 function applyPreset(preset) {
@@ -1022,6 +1115,46 @@ strokeTotal: true,
   ]);
 }
 
+function autoCreateMatches() {
+  if (players.length < 2) return;
+
+  const numCombinations = (players.length * (players.length - 1)) / 2;
+  const defaultBet = Number(teamGameUnitAmount) || 5;
+
+  if (matches.length > 0) {
+    const confirmed = window.confirm(
+      `Replace ${matches.length} existing match${matches.length === 1 ? "" : "es"} with ${numCombinations} new 1v1 matches?`
+    );
+    if (!confirmed) return;
+  }
+
+  const newMatches = [];
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      newMatches.push({
+        id: createId("match"),
+        p1Id: players[i].id,
+        p2Id: players[j].id,
+        type: "standard",
+        bet: defaultBet,
+        birdieEnabled: true,
+        birdieBet: defaultBet,
+        toyRule: false,
+        noPar3Strokes: false,
+        matchPlayFront: true,
+        matchPlayBack: true,
+        matchPlayTotal: true,
+        strokeScoring: "net",
+        strokePayoutMode: "winloss",
+        strokeFront: true,
+        strokeBack: true,
+        strokeTotal: true,
+      });
+    }
+  }
+  setMatches(newMatches);
+}
+
 function addNinePointMatch() {
     if (mode !== "3p") return;
   if (players.length < 3) return;
@@ -1053,6 +1186,8 @@ function addNinePointMatch() {
       p2Id: defaultIds[1],
       p3Id: defaultIds[2],
       blitzEnabled: false,
+      birdieDoublePoints: false,
+      eagleTriplePoints: false,
       bet: 1,
       birdieEnabled: false,
       birdieBet: 1,
@@ -1097,7 +1232,35 @@ function addNinePointMatch() {
 
 
 
-  const teamGameResults = teamGames.map((game, index) => {
+  const teamGameResults = useMemo(() => {
+  // Non-press formats: single whole-round team match
+  if (enableTeamGame && teamGameFormat !== "press") {
+    const selected = getTeamGameSelection(0);
+    if (!selected) return [];
+    const team1 = (selected.team1 || []).filter(Boolean);
+    const team2 = (selected.team2 || []).filter(Boolean);
+    if (!team1.length || !team2.length) return [];
+    const matchDef = {
+      ...teamMatchConfig,
+      type: teamGameFormat,
+      teamA: team1,
+      teamB: team2,
+      bet: Number(teamGameUnitAmount) || 0,
+    };
+    const result = playTeamMatch(matchDef, context);
+    return [{
+      index: 0,
+      start: 1,
+      end: 18,
+      format: teamGameFormat,
+      duplicateError: false,
+      birdieEnabled: birdiesEnabled,
+      matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
+    }];
+  }
+
+  // Press format (existing logic)
+  return teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
   const selected = getTeamGameSelection(index);
   const trigger = game.pressTrigger ?? 1;
@@ -1108,6 +1271,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
+      birdieEnabled: enableTeamGame && birdiesEnabled,
       matches: [],
     };
   }
@@ -1169,6 +1333,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
+      birdieEnabled: enableTeamGame && birdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1197,6 +1362,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
+      birdieEnabled: enableTeamGame && birdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1224,48 +1390,13 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
+birdieEnabled: enableTeamGame && birdiesEnabled,
     matches: teamMatches,
   };
-});
+  }); // end press format map
+  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, birdiesEnabled, getTeamGameSelection, context, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-console.log("teamGameResults sample", teamGameResults?.[0]);
-console.log("teamGameResults first match", teamGameResults?.[0]?.matches?.[0]);
-console.log(
-  "teamGameResults first match result[0]",
-  teamGameResults?.[0]?.matches?.[0]?.result?.[0]
-);
-
-
-console.log("teamGame selection 0", getTeamGameSelection(0));
-console.log(
-  "teamGame selection 0 full",
-  JSON.stringify(getTeamGameSelection(0), null, 2)
-);
-
-console.log(
-  "teamGame first match full JSON",
-  JSON.stringify(teamGameResults?.[0]?.matches?.[0], null, 2)
-);
-
-console.log(
-  "teamGame first game full JSON",
-  JSON.stringify(teamGameResults?.[0], null, 2)
-);
-
-
-
-console.log("scores full JSON", JSON.stringify(scores, null, 2));
-console.log("score keys", Object.keys(scores || {}));
-
-const firstScoreKey = Object.keys(scores || {})[0];
-console.log("first score key", firstScoreKey);
-console.log(
-  "first score entry",
-  JSON.stringify(firstScoreKey ? scores[firstScoreKey] : null, null, 2)
-);
-console.log("course shape sample", JSON.stringify(course?.holes?.[0] || course, null, 2));
-console.log("mode", mode);
 
 const birdieResults = buildBirdieResults({
   matches,
@@ -1308,6 +1439,7 @@ const leaderboard = useMemo(() => {
 
 const activePlayers = useMemo(() => {
   if (enableTeamGame) return players;
+  if (skinsEnabled && matches.length === 0) return players;
 
   const activePlayerIds = new Set();
 
@@ -1318,7 +1450,27 @@ const activePlayers = useMemo(() => {
   });
 
   return players.filter((player) => activePlayerIds.has(player.id));
-}, [enableTeamGame, players, matches]);
+}, [enableTeamGame, players, matches, skinsEnabled]);
+
+const skinsConfig = useMemo(() => ({
+  skinsType,
+  skinsGross,
+  skinValueAmount: Number(skinValueAmount) || 5,
+  skinCarryover,
+  skinBirdie,
+  skinBirdieDoubleCarryover,
+  potType,
+  potDonation: Number(potDonation) || 10,
+  potBaseUnit: Number(potBaseUnit) || 1,
+}), [skinsType, skinsGross, skinValueAmount, skinCarryover,
+     skinBirdie, skinBirdieDoubleCarryover, potType, potDonation, potBaseUnit]);
+
+const skinsResults = useMemo(() => {
+  if (!skinsEnabled || !activePlayers.length) return null;
+  try {
+    return settleSkinsRound({ players: activePlayers, scores, course, handicapMode, skinsConfig });
+  } catch { return null; }
+}, [skinsEnabled, activePlayers, scores, course, handicapMode, skinsConfig]);
 
 const roundSummaryRows = activePlayers.map((player) => {
   let netTotal = 0;
@@ -1446,8 +1598,19 @@ function loadLastRound() {
 }
 
 setPressTrigger(Number(round.pressTrigger || 1));
+  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
+  if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
+  if (round.skinsType) setSkinsType(round.skinsType);
+  if (typeof round.skinsGross === "boolean") setSkinsGross(round.skinsGross);
+  if (round.skinValueAmount != null) setSkinValueAmount(Number(round.skinValueAmount));
+  if (typeof round.skinCarryover === "boolean") setSkinCarryover(round.skinCarryover);
+  if (typeof round.skinBirdie === "boolean") setSkinBirdie(round.skinBirdie);
+  if (typeof round.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(round.skinBirdieDoubleCarryover);
+  if (round.potType) setPotType(round.potType);
+  if (round.potDonation != null) setPotDonation(Number(round.potDonation));
+  if (round.potBaseUnit != null) setPotBaseUnit(Number(round.potBaseUnit));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1495,18 +1658,32 @@ function saveLastRound() {
 const buildCurrentRoundSnapshot = useCallback(() => {
     return {
     savedAt: new Date().toISOString(),
+    roundName,
     mode,
     allPlayers,
     course,
     scores,
     handicapMode,
+    handicapDistribution,
     enableTeamGame,
+    teamGameFormat,
+    teamMatchConfig,
     noPar3TeamGame,
     teamGameUnitAmount,
     pressTrigger,
     birdiesEnabled,
     birdieBetAmount,
     toyRule,
+    skinsEnabled,
+    skinsType,
+    skinsGross,
+    skinValueAmount,
+    skinCarryover,
+    skinBirdie,
+    skinBirdieDoubleCarryover,
+    potType,
+    potDonation,
+    potBaseUnit,
     teamGames,
     matches,
     screen,
@@ -1514,18 +1691,32 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     lastHoleSaved,
   };
 }, [
+  roundName,
   mode,
   allPlayers,
   course,
   scores,
   handicapMode,
+  handicapDistribution,
   enableTeamGame,
+  teamGameFormat,
+  teamMatchConfig,
   noPar3TeamGame,
   teamGameUnitAmount,
   pressTrigger,
   birdiesEnabled,
   birdieBetAmount,
   toyRule,
+  skinsEnabled,
+  skinsType,
+  skinsGross,
+  skinValueAmount,
+  skinCarryover,
+  skinBirdie,
+  skinBirdieDoubleCarryover,
+  potType,
+  potDonation,
+  potBaseUnit,
   teamGames,
   matches,
   screen,
@@ -1533,25 +1724,36 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   lastHoleSaved,
 ]);
 
-function applyRoundSnapshot(round, successMessage = "Round loaded.") {
+function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen = false) {
   if (!isUsableRoundSnapshot(round)) {
     setSetupMessage("Saved round data was not usable and was ignored.");
     return false;
   }
 
+  // Guard: never overwrite local state while user is actively entering a score
+  if (skipScreen && isEnteringScore.current) return false;
+
+  // Guard: don't apply a sync within 3 seconds of a local save (debounce hasn't pushed yet)
+  if (skipScreen && lastLocalSaveAt.current && Date.now() - lastLocalSaveAt.current < 3000) return false;
+
   if (round.mode) setMode(round.mode);
   if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
-  if (round.course) setCourse(round.course);
+  // Don't overwrite course during background syncs if round is already in progress
+  const roundInProgress = lastHoleSaved !== null || Object.keys(scores).length > 0;
+  if (round.course && (!skipScreen || !roundInProgress)) setCourse(round.course);
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+  if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
+  if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
   setNoPar3TeamGame(!!round.noPar3TeamGame);
   if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
 
   setPressTrigger(Number(round.pressTrigger || 1));
+  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
-  setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+  setBirdieBetAmount(Number(round.birdieBetAmount || 5));
 
   setTeamGames(
     round.teamGames.map((game, index) => ({
@@ -1564,14 +1766,19 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
     }))
   );
 
-  setMatches(round.matches);
+  // Only overwrite matches if snapshot has same or more (prevents stale sync wiping local additions)
+  if (Array.isArray(round.matches)) {
+    setMatches(prev =>
+      skipScreen && round.matches.length < prev.length ? prev : round.matches
+    );
+  }
   setCurrentHole(Number(round.currentHole || 1));
   setLastHoleSaved(round.lastHoleSaved ?? null);
   setPendingNextGameIndex(null);
   setFocusGameTarget(null);
   setShowProjectedSettlement(false);
 
-  if (["setup", "live", "results"].includes(round.screen)) {
+  if (!skipScreen && ["setup", "live", "results"].includes(round.screen)) {
     setScreen(round.screen);
   }
 
@@ -1579,14 +1786,43 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.") {
   return true;
 }
 
+  // Save round from Results screen or Round Complete modal
+  function saveRoundFromResults(nameOverride, toStats = saveToStats) {
+    const today = new Date();
+    const monthDay = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
+    const name = (nameOverride || roundName || roundSaveName || autoName).trim() || autoName;
+    try {
+      const snapshot = buildCurrentRoundSnapshot();
+      const round = {
+        id: createId('saved-round'),
+        name,
+        savedAt: new Date().toISOString(),
+        data: snapshot,
+      };
+      const nextRounds = [round, ...savedRounds];
+      setSavedRounds(nextRounds);
+      localStorage.setItem(SAVED_ROUNDS_KEY, JSON.stringify(nextRounds));
+      setSelectedSavedRoundId(round.id);
+      setRoundName(name);
+
+      // Push to Supabase stats if checked
+      if (toStats && roundCode) {
+        saveRoundToStats(roundCode, { ...snapshot, roundName: name }, deviceId).catch(() => {});
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
 function saveNamedRound() {
   const trimmedName = savedRoundName.trim();
-
   if (!trimmedName) {
     setSetupMessage("Enter a round name first.");
     return;
   }
-
   try {
     const round = {
       id: createId("saved-round"),
@@ -1633,8 +1869,9 @@ function loadNamedRound() {
 }
 
 setPressTrigger(Number(round.pressTrigger || 1));
+  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
 setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 1));
+setBirdieBetAmount(Number(round.birdieBetAmount || 5));
     
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
@@ -1673,6 +1910,138 @@ function deleteNamedRound() {
     setSetupMessage("Named round deleted.");
   } catch (error) {
     setSetupMessage("Could not delete named round.");
+  }
+}
+
+// ── GROUP TEMPLATES ──────────────────────────────────────────────────────────
+
+function buildTemplatePayload(templateName, isPublic) {
+  return {
+    id: "tmpl-" + Math.random().toString(36).slice(2, 10),
+    name: templateName.trim(),
+    is_public: !!isPublic,
+    use_count: 0,
+    players: allPlayers,
+    course,
+    game_config: {
+      mode,
+      handicapMode,
+      handicapDistribution,
+      enableTeamGame,
+      teamGameUnitAmount,
+      pressTrigger,
+      birdiesEnabled,
+      birdieBetAmount,
+      toyRule,
+      noPar3TeamGame,
+      skinsEnabled,
+      skinsType,
+      skinsGross,
+      skinValueAmount,
+      skinCarryover,
+      skinBirdie,
+      skinBirdieDoubleCarryover,
+      potType,
+      potDonation,
+      potBaseUnit,
+      teamGames,
+      matches,
+    },
+  };
+}
+
+async function handleSaveTemplate(templateName, isPublic) {
+  if (!templateName.trim()) return;
+  setTemplateStatus("saving");
+  try {
+    const payload = buildTemplatePayload(templateName, isPublic);
+    const saved = await saveTemplate(payload, deviceId);
+    setMyTemplates(prev => [saved || payload, ...prev.filter(t => t.id !== payload.id)]);
+    setTemplateStatus("saved");
+    setTimeout(() => setTemplateStatus(""), 3000);
+  } catch {
+    setTemplateStatus("error");
+    setTimeout(() => setTemplateStatus(""), 3000);
+  }
+}
+
+async function handleLoadTemplate(template) {
+  const cfg = template.game_config || {};
+  try {
+    if (template.players) setAllPlayers(template.players);
+    if (template.course?.name) setCourse(template.course);
+    if (cfg.mode) setMode(cfg.mode);
+    if (cfg.handicapMode) setHandicapMode(cfg.handicapMode);
+    if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
+    if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
+    if (cfg.teamGameFormat) setTeamGameFormat(cfg.teamGameFormat);
+    if (cfg.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...cfg.teamMatchConfig }));
+    if (typeof cfg.teamGameUnitAmount === "number") setTeamGameUnitAmount(cfg.teamGameUnitAmount);
+    if (cfg.pressTrigger) { setPressTrigger(Number(cfg.pressTrigger)); setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(cfg.pressTrigger) }))); }
+    if (typeof cfg.birdiesEnabled === "boolean") setBirdiesEnabled(cfg.birdiesEnabled);
+    if (typeof cfg.birdieBetAmount === "number") setBirdieBetAmount(cfg.birdieBetAmount);
+    if (typeof cfg.toyRule === "boolean") setToyRule(cfg.toyRule);
+    if (typeof cfg.noPar3TeamGame === "boolean") setNoPar3TeamGame(cfg.noPar3TeamGame);
+    if (typeof cfg.skinsEnabled === "boolean") setSkinsEnabled(cfg.skinsEnabled);
+    if (cfg.skinsType) setSkinsType(cfg.skinsType);
+    if (typeof cfg.skinsGross === "boolean") setSkinsGross(cfg.skinsGross);
+    if (typeof cfg.skinValueAmount === "number") setSkinValueAmount(cfg.skinValueAmount);
+    if (typeof cfg.skinCarryover === "boolean") setSkinCarryover(cfg.skinCarryover);
+    if (typeof cfg.skinBirdie === "boolean") setSkinBirdie(cfg.skinBirdie);
+    if (typeof cfg.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(cfg.skinBirdieDoubleCarryover);
+    if (cfg.potType) setPotType(cfg.potType);
+    if (typeof cfg.potDonation === "number") setPotDonation(cfg.potDonation);
+    if (typeof cfg.potBaseUnit === "number") setPotBaseUnit(cfg.potBaseUnit);
+    if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
+    if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
+    setScores({});
+    setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
+    incrementTemplateUse(template.id).catch(() => {});
+  } catch {
+    setSetupMessage("Could not load template.");
+  }
+}
+
+async function handleDeleteTemplate(templateId) {
+  try {
+    await deleteTemplate(templateId, deviceId);
+    setMyTemplates(prev => prev.filter(t => t.id !== templateId));
+  } catch {
+    setSetupMessage("Could not delete template.");
+  }
+}
+
+async function handleToggleTemplateVisibility(template) {
+  const updated = { ...template, is_public: !template.is_public };
+  try {
+    await saveTemplate(updated, deviceId);
+    setMyTemplates(prev => prev.map(t => t.id === template.id ? updated : t));
+  } catch {
+    setSetupMessage("Could not update template visibility.");
+  }
+}
+
+async function handleUpdateTemplate(template) {
+  try {
+    const updated = {
+      ...buildTemplatePayload(template.name, template.is_public),
+      id: template.id,
+      use_count: template.use_count || 0,
+    };
+    await saveTemplate(updated, deviceId);
+    setMyTemplates(prev => prev.map(t => t.id === template.id ? updated : t));
+    setSetupMessage(`Template "${template.name}" updated.`);
+  } catch {
+    setSetupMessage("Could not update template.");
+  }
+}
+
+async function loadMyTemplates() {
+  try {
+    const templates = await fetchMyTemplates(deviceId);
+    setMyTemplates(templates);
+  } catch {
+    // silently ignore
   }
 }
 
@@ -1753,11 +2122,17 @@ function resetSetup() {
   setAllPlayers(createDefaultAllPlayers());
   setCourse(createDefaultCourse());
   setHandicapMode("relative");
-  setTeamGameUnitAmount(1);
+  setTeamGameUnitAmount(5);
   setBirdiesEnabled(false);
-  setBirdieBetAmount(1);
+  setBirdieBetAmount(5);
   setScores({});
   setMatches([]);
+  setTeamGameFormat("press");
+  setTeamMatchConfig({
+    matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
+    strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
+    strokeFront: false, strokeBack: false, strokeTotal: true,
+  });
   setTeamGames([
     createDefaultTeamGame(1),
     createDefaultTeamGame(2),
@@ -1767,13 +2142,19 @@ function resetSetup() {
   setLastHoleSaved(null);
   setFocusGameTarget(null);
   setScreen("setup");
-
+  setRoundCode(generateRoundCode());
+  setRoundName("");
+  setIsJoiner(false);
+  localStorage.removeItem("golf-betting-is-joiner-v1");
+  localStorage.removeItem(ROUND_CODE_KEY);
   setSetupMessage("Setup reset.");
 }
 
   function setScore(hole, playerId, value) {
     const next = value === "" ? null : Number(value);
     if (value !== "" && !Number.isFinite(next)) return;
+
+    lastLocalSaveAt.current = Date.now(); // mark local edit time for sync guard
 
     setScores((prev) => ({
       ...prev,
@@ -1831,7 +2212,7 @@ function resetSetup() {
   function updateCourseName(value) {
     setCourse((prev) => ({
       ...prev,
-      name: value,
+      name: autoCapitalize(value),
     }));
   }
 
@@ -1839,6 +2220,8 @@ function resetSetup() {
     (sum, game) => sum + (Number(game.holes) || 0),
     0
   );
+
+
 
 useEffect(() => {
   if (!setupMessage) return;
@@ -1865,17 +2248,69 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  // Restore isJoiner state from localStorage (survives iOS Safari page reload)
+  if (localStorage.getItem("golf-betting-is-joiner-v1") === "true") {
+    setIsJoiner(true);
+  }
+
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
 
   if (round && isUsableRoundSnapshot(round)) {
     applyRoundSnapshot(round, "Autosaved round restored.");
+    setAutoRestoreComplete(true);
+  } else {
+    // Try saved code first
+    const savedCode = localStorage.getItem(ROUND_CODE_KEY);
+    if (savedCode) {
+      fetchRound(savedCode)
+        .then(result => {
+          if (result?.data && isUsableRoundSnapshot(result.data)) {
+            applyRoundSnapshot(result.data, "Round restored from cloud ☁️");
+            setRoundCode(savedCode);
+          } else {
+            // Code exists but stale — show recent rounds picker
+            return fetchRecentRounds().then(rounds => {
+              if (rounds.length > 0) {
+                setRecentRounds(rounds);
+                setShowRecentRounds(true);
+              }
+            });
+          }
+        })
+        .catch(() => {
+          // Fetch recent rounds as fallback
+          fetchRecentRounds().then(rounds => {
+            if (rounds.length > 0) {
+              setRecentRounds(rounds);
+              setShowRecentRounds(true);
+            }
+          }).catch(() => {});
+        })
+        .finally(() => setAutoRestoreComplete(true));
+    } else {
+      // No saved code — check for recent rounds
+      fetchRecentRounds()
+        .then(rounds => {
+          if (rounds.length > 0) {
+            setRecentRounds(rounds);
+            setShowRecentRounds(true);
+          }
+        })
+        .catch((err) => { console.log("Fetch error:", err); })
+        .finally(() => setAutoRestoreComplete(true));
+    }
   }
+}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  setAutoRestoreComplete(true);
-}, []);
+useEffect(() => {
+  if (roundCode) {
+    localStorage.setItem(ROUND_CODE_KEY, roundCode);
+  }
+}, [roundCode]);
 
 useEffect(() => {
   if (!autoRestoreComplete) return;
+  if (!roundCode) return;
 
   const timer = setTimeout(() => {
     safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
@@ -1884,6 +2319,7 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [
   autoRestoreComplete,
+  roundCode,
   mode,
   allPlayers,
   course,
@@ -1903,13 +2339,92 @@ useEffect(() => {
   buildCurrentRoundSnapshot,
 ]);
 
+// Auto-sync to Supabase whenever scores change (debounced 800ms)
+// Only runs when a round code exists (i.e. Start Round was tapped)
+const syncTimerRef = useRef(null);
+useEffect(() => {
+  if (!roundCode || !autoRestoreComplete) return;
+
+  clearTimeout(syncTimerRef.current);
+  syncTimerRef.current = setTimeout(async () => {
+    try {
+      setIsSyncing(true);
+      await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      setSyncMessage(`Synced ✓`);
+      setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
+    } catch {
+      setSyncMessage("Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, 800);
+
+  return () => clearTimeout(syncTimerRef.current);
+}, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
+
+// Cleanup sync channel on unmount
+useEffect(() => {
+  return () => {
+    if (syncChannel) unsubscribeFromRound(syncChannel);
+  };
+}, [syncChannel]);
+
+// Re-fetch from Supabase when tab becomes visible — joiner only
+// (host relies on realtime subscription; firing for host risks overwriting mid-entry scores)
+useEffect(() => {
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible" && roundCode && isJoiner) {
+      fetchRound(roundCode)
+        .then(result => {
+          if (result?.data) {
+          if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+            lastSyncedAt.current = result.updated_at;
+            applyRoundSnapshot(result.data, undefined, true);
+          }
+        }
+        })
+        .catch(() => {});
+    }
+  }
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+}, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
+useEffect(() => {
+  if (!roundCode || !isJoiner) return;
+  const interval = setInterval(() => {
+    fetchRound(roundCode)
+      .then(result => {
+        if (result?.data) {
+          if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+            lastSyncedAt.current = result.updated_at;
+            applyRoundSnapshot(result.data, undefined, true);
+          }
+        }
+      })
+      .catch(() => {});
+  }, 30000);
+  return () => clearInterval(interval);
+}, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
+
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-if (enableTeamGame && teamGames.length > 0 && totalHoles !== 18) {
-      setSetupMessage(`Team game holes must equal 18. Currently ${totalHoles}.`);
-    alert(`Team game holes must equal 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGames.length > 0 && totalHoles > 18) {
+      setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+    alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     return;
+  }
+if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
+    setSetupMessage("Please set holes for at least one team game.");
+    alert("Please set holes for at least one team game.");
+    return;
+  }
+
+  // Warn if scores already exist but no round code — would create a duplicate
+  const hasScores = Object.keys(scores).length > 0;
+  if (hasScores && !roundCode) {
+    const confirmed = window.confirm("You have scores entered but no active round code. Starting now will create a new round — previous scores may be lost. Continue?");
+    if (!confirmed) return;
   }
 
   // Round already complete: go back to Live so user can view/edit scorecard
@@ -1985,10 +2500,10 @@ if (enableTeamGame && teamGames.length > 0 && totalHoles !== 18) {
   return;
 }
 
-if (!enableTeamGame) {
+if (!enableTeamGame && !skinsEnabled) {
   if (matches.length === 0) {
-    setSetupMessage("Add at least one 1v1 match before starting.");
-    alert("Add at least one 1v1 match before starting.");
+    setSetupMessage("Add at least one 1v1 match, team game, or enable Skins before starting.");
+    alert("Add at least one 1v1 match, team game, or enable Skins before starting.");
     return;
   }
 
@@ -2014,26 +2529,133 @@ if (!enableTeamGame) {
     setCurrentHole(1);
   }
 
-  setPendingNextGameIndex(null);
-setScreen("live");
+  // Require a course to be selected
+  if (!course?.name || !course?.pars?.length) {
+    alert("Please select a course before starting the round.");
+    return;
+  }
 
-setTimeout(() => {
-  scoreEntryRef.current?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
-}, 0);
+  // Warn about unnamed players (active slots only, not unused P4/P5)
+  const unnamedCount = getActivePlayers(allPlayers, mode).filter(p => !p.name || p.name.match(/^P\d+$/)).length;
+  if (unnamedCount > 0) {
+    const confirmed = window.confirm(`${unnamedCount} player${unnamedCount > 1 ? "s have" : " has"} no name (showing as P1, P2 etc). Continue anyway?`);
+    if (!confirmed) return;
+  }
+
+  setPendingNextGameIndex(null);
+  setScreen("live");
+
+  // Generate a round code if we don't have one, then push initial state
+  const code = roundCode || generateRoundCode();
+  if (!roundCode) setRoundCode(code);
+
+  // Auto-generate round name if blank
+  const today = new Date();
+  const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const autoName = course?.name ? `${monthDay} - ${course.name}` : monthDay;
+  const nameToUse = roundName.trim() || autoName;
+  if (!roundName.trim()) setRoundName(nameToUse);
+
+  // Push to Supabase (fire-and-forget; errors shown via syncMessage)
+  const snapshot = {
+    savedAt: new Date().toISOString(),
+    roundName: nameToUse,
+    mode,
+    allPlayers,
+    course,
+    scores,
+    handicapMode,
+    enableTeamGame,
+    noPar3TeamGame,
+    teamGameUnitAmount,
+    pressTrigger,
+    birdiesEnabled,
+    birdieBetAmount,
+    toyRule,
+    teamGames,
+    matches,
+    screen: "live",
+    currentHole: lastHoleSaved != null ? lastHoleSaved + 1 : 1,
+    lastHoleSaved,
+  };
+
+  setIsSyncing(true);
+  setSyncMessage("Saving...");
+  shareRoundWithDevice(code, snapshot, deviceId)
+    .then(() => setSyncMessage(`Code: ${code}`))
+    .catch(() => setSyncMessage("Save failed — check connection"))
+    .finally(() => setIsSyncing(false));
+
+  setTimeout(() => {
+    scoreEntryRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 0);
 }
 
 function backToSetup() {
   setScreen("setup");
 }
 
+async function shareCurrentRound() {
+  try {
+    setIsSyncing(true);
+    setSyncMessage("Sharing...");
+    const code = roundCode || generateRoundCode();
+    if (!roundCode) setRoundCode(code);
+    const snapshot = buildCurrentRoundSnapshot();
+    await shareRoundWithDevice(code, snapshot, deviceId);
+    setSyncMessage(`Code: ${code}`);
+  } catch (err) {
+    setSyncMessage("Share failed — check connection");
+    console.error("Share error:", err);
+  } finally {
+    setIsSyncing(false);
+  }
+}
+
+function hasValidTeamSetup() {
+  if (!enableTeamGame) return true;
+  if (teamGames.length === 0) return true;
+
+  // Only validate the first game — future games get selected as you go
+  const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
+  const requiredGameIndex = teamGames.findIndex((game, index) => {
+    const range = getTeamGameRange(teamGames, index);
+    return requiredHole >= range.start && requiredHole <= range.end;
+  });
+
+  const gameIndex = requiredGameIndex >= 0 ? requiredGameIndex : 0;
+  const selection = getTeamGameSelection(gameIndex);
+  if (!selection) return false;
+
+  if (mode === "5p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2 &&
+           (selection.team3 || []).filter(Boolean).length === 2 &&
+           (selection.team4 || []).filter(Boolean).length === 2;
+  } else if (mode === "4p") {
+    return (selection.team1 || []).filter(Boolean).length === 2 &&
+           (selection.team2 || []).filter(Boolean).length === 2;
+  }
+  return (selection.team1 || []).filter(Boolean).length === 2 &&
+         (selection.team2 || []).filter(Boolean).length === 1;
+}
+
 function goToResults() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("results");
 }
 
 function goToLive() {
+  if (!hasValidTeamSetup()) {
+    alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
+    return;
+  }
   setScreen("live");
 }
 
@@ -2141,7 +2763,6 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
   return vals.length ? Math.min(...vals) : null;
 };
 
-  const pluralBet = (n) => (n === 1 ? "bet" : "bets");
 
   const matchups =
     mode === "5p"
@@ -2214,24 +2835,19 @@ matchups.forEach(([a, b]) => {
 
   const betScore = (pressResults || []).reduce((sum, bet) => {
     const score = Number(bet.score || 0);
-
     if (score > 0) return sum + 1;
     if (score < 0) return sum - 1;
     return sum;
   }, 0);
 
-  if (betScore > 0) {
-    matchLines.push(
-      `${teamName(A)} ${betScore} ${pluralBet(betScore)} up vs ${teamName(B)}`
-    );
-  } else if (betScore < 0) {
-    const absScore = Math.abs(betScore);
-    matchLines.push(
-      `${teamName(A)} ${absScore} ${pluralBet(absScore)} down to ${teamName(B)}`
-    );
-  } else {
-    matchLines.push(`${teamName(A)} even vs ${teamName(B)}`);
-  }
+  const betScores = (pressResults || []).map(bet => Number(bet.score || 0));
+
+  matchLines.push({
+    teamAName: teamName(A),
+    teamBName: teamName(B),
+    netUnits: betScore,
+    betScores,
+  });
 });
 
 // --- BIRDIES ---
@@ -2269,15 +2885,20 @@ return (
     marginBottom: 12,
   }}
 >
-  <h2 style={{ margin: 0 }}>Golf Betting App</h2>
+  <h2 style={{ margin: 0, whiteSpace: "nowrap" }}>
+  <span style={{ color: "#1a5c35", fontFamily: "'Georgia', serif" }}>Stopped</span>
+  <span style={{ color: "#b8952a", fontFamily: "'Georgia', serif" }}>Counting</span>
+</h2>
 
-  <div style={{ display: "flex", gap: 8 }}>
-    <button
+<div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>    
+<button
       className="secondary-button"
-      onClick={backToSetup}
+      onClick={() => { if (isJoiner) { setScreen("setup"); } else { backToSetup(); } }}
       disabled={screen === "setup"}
+      title={isJoiner ? "You joined this round — Setup is view only" : ""}
+      style={isJoiner ? { opacity: 0.5, cursor: "default" } : {}}
     >
-      Setup
+      {isJoiner ? "👁 Setup" : "Setup"}
     </button>
 
     <button
@@ -2285,7 +2906,7 @@ return (
       onClick={goToLive}
       disabled={screen === "live"}
     >
-      Live
+      Scoring
     </button>
 
     <button
@@ -2295,10 +2916,88 @@ return (
     >
       Results
     </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("join")}
+      disabled={screen === "join"}
+    >
+      Join
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("history")}
+      disabled={screen === "history"}
+    >
+      History
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("admin")}
+      disabled={screen === "admin"}
+    >
+      🔧
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={() => setScreen("trip")}
+      disabled={screen === "trip"}
+    >
+      Trip
+    </button>
+
+    <button
+      className="secondary-button"
+      onClick={shareCurrentRound}
+      disabled={isSyncing}
+    >
+      {isSyncing ? "Syncing…" : roundCode ? `🟢 ${roundCode}` : "Share"}
+    </button>
+
+    {syncMessage && !roundCode && (
+      <span style={{ fontSize: 12, color: "#b3261e", whiteSpace: "nowrap" }}>
+        {syncMessage}
+      </span>
+    )}
+
+    <button
+      onClick={() => setShowBugReport(true)}
+      title="Report a bug"
+      style={{
+        background: "transparent",
+        border: "1px solid #d1d5db",
+        borderRadius: 6,
+        padding: "4px 8px",
+        fontSize: 16,
+        cursor: "pointer",
+        lineHeight: 1,
+      }}
+    >
+      🐛
+    </button>
   </div>
 </div>
 
     {screen === "setup" && (
+      <>
+        {isJoiner && (
+          <div style={{
+            background: "#fef3c7", border: "1px solid #fcd34d",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 12,
+            fontSize: 13, color: "#92400e", fontWeight: 500,
+          }}>
+            👁 You joined this round — Setup is view only.{" "}
+            <button
+              onClick={() => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(generateRoundCode()); setRoundName(""); }}
+              style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
+            >
+              Start my own round →
+            </button>
+          </div>
+        )}
   <SetupScreen
     mode={mode}
     handleModeChange={handleModeChange}
@@ -2336,8 +3035,35 @@ return (
     setBirdieBetAmount={setBirdieBetAmount}
     noPar3TeamGame={noPar3TeamGame}
     setNoPar3TeamGame={setNoPar3TeamGame}
+    handicapDistribution={handicapDistribution}
+    setHandicapDistribution={setHandicapDistribution}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
+    skinsEnabled={skinsEnabled}
+    setSkinsEnabled={setSkinsEnabled}
+    skinsType={skinsType}
+    setSkinsType={setSkinsType}
+    skinsGross={skinsGross}
+    setSkinsGross={setSkinsGross}
+    skinValueAmount={skinValueAmount}
+    setSkinValueAmount={setSkinValueAmount}
+    skinCarryover={skinCarryover}
+    setSkinCarryover={setSkinCarryover}
+    skinBirdie={skinBirdie}
+    setSkinBirdie={setSkinBirdie}
+    skinBirdieDoubleCarryover={skinBirdieDoubleCarryover}
+    setSkinBirdieDoubleCarryover={setSkinBirdieDoubleCarryover}
+    potType={potType}
+    setPotType={setPotType}
+    potDonation={potDonation}
+    setPotDonation={setPotDonation}
+    potBaseUnit={potBaseUnit}
+    setPotBaseUnit={setPotBaseUnit}
+    saveCourseToLibrary={saveCourseToLibrary}
+    checkCourseExists={checkCourseExists}
+    updateCourseInLibrary={updateCourseInLibrary}
+    deviceId={deviceId}
+    searchCourses={searchCourses}
     applyPreset={applyPreset}
     setTeamGames={setTeamGames}
     teamGames={teamGames}
@@ -2350,6 +3076,7 @@ return (
     setExpandedGame={setExpandedGame}
     addMatch={addMatch}
     addNinePointMatch={addNinePointMatch}
+    autoCreateMatches={autoCreateMatches}
     matches={matches}
     matchResults={matchResults}
     birdieResults={birdieResults}
@@ -2360,14 +3087,129 @@ return (
     focusGameTarget={focusGameTarget}
     enableTeamGame={enableTeamGame}
     setEnableTeamGame={setEnableTeamGame}
+    teamGameFormat={teamGameFormat}
+    setTeamGameFormat={setTeamGameFormat}
+    teamMatchConfig={teamMatchConfig}
+    setTeamMatchConfig={setTeamMatchConfig}
     goToLive={goToLive}
     goToResults={goToResults}
-    
+    roundName={roundName}
+    setRoundName={(v) => setRoundName(v.replace(/(?:^|\s)\S/g, c => c.toUpperCase()))}
+    courseName={course?.name || ""}
+    myTemplates={myTemplates}
+    templateStatus={templateStatus}
+    onSaveTemplate={handleSaveTemplate}
+    onLoadTemplate={handleLoadTemplate}
+    onDeleteTemplate={handleDeleteTemplate}
+    onToggleTemplateVisibility={handleToggleTemplateVisibility}
+    onUpdateTemplate={handleUpdateTemplate}
+    onSearchTemplates={searchTemplates}
+    onLoadMyTemplates={loadMyTemplates}
    />
-)}
+      </>
+    )}
 
     {screen === "live" && (
       <>
+
+      {/* ROUND COMPLETE MODAL */}
+      {showRoundCompleteModal && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000, padding: 20,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: 24,
+            width: "100%", maxWidth: 360,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+          }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 48 }}>🏁</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#1a5c35", marginTop: 8 }}>
+                Round Complete!
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+                Save this round to access it later
+              </div>
+            </div>
+
+            <input
+              type="text"
+              value={roundSaveName}
+              onChange={e => setRoundSaveName(e.target.value)}
+              placeholder="Round name"
+              style={{
+                width: "100%", fontSize: 15, fontWeight: 600,
+                padding: "10px 12px", border: "1px solid #c3ddd0",
+                borderRadius: 8, background: "#f0f7f3",
+                color: "#1a1a1a", fontFamily: "inherit",
+                boxSizing: "border-box", marginBottom: 12,
+              }}
+            />
+
+            {/* Save to Stats checkbox */}
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 12px", marginBottom: 16,
+              background: saveToStats ? "#f0f7f3" : "#fafafa",
+              border: `1px solid ${saveToStats ? "#c3ddd0" : "#d1d5db"}`,
+              borderRadius: 8, cursor: "pointer",
+            }}>
+              <input
+                type="checkbox"
+                checked={saveToStats}
+                onChange={e => setSaveToStats(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "#1a5c35", cursor: "pointer" }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a" }}>
+                  Save to History & Stats
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>
+                  Adds to cumulative leaderboard across all rounds
+                </div>
+              </div>
+            </label>
+
+            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 16, textAlign: "center" }}>
+              You can edit any hole score or game setup after saving
+            </div>
+
+            <button
+              onClick={() => {
+                const saved = saveRoundFromResults(roundSaveName);
+                setShowRoundCompleteModal(false);
+                setScreen("results");
+                setSaveMessage(saved ? "Round saved ✓" : null);
+              }}
+              style={{
+                width: "100%", padding: 14, fontSize: 16, fontWeight: 700,
+                background: "#1a5c35", color: "#fff", border: "none",
+                borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                marginBottom: 10,
+              }}
+            >
+              Save Round & See Results
+            </button>
+
+            <button
+              onClick={() => {
+                setShowRoundCompleteModal(false);
+                setCurrentHole(18);
+              }}
+              style={{
+                width: "100%", padding: 12, fontSize: 14, fontWeight: 600,
+                background: "transparent", color: "#6b7280",
+                border: "1px solid #d1d5db", borderRadius: 10,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Edit Hole 18 Scores
+            </button>
+          </div>
+        </div>
+      )}
 {pendingNextGameIndex == null && (
   <>
     {saveMessage && (
@@ -2391,6 +3233,17 @@ return (
       </div>
     )}
 
+    {roundCode && (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "#e8f5e9", border: "1px solid #b7e1cd",
+        borderRadius: 8, padding: "6px 14px", marginBottom: 10, fontSize: 12,
+      }}>
+        <span style={{ color: "#137333", fontWeight: 600 }}>🟢 Code: {roundCode}</span>
+        <span style={{ color: "#888" }}>{isSyncing ? "Syncing…" : syncMessage}</span>
+      </div>
+    )}
+
   
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
@@ -2399,6 +3252,16 @@ return (
     players={activePlayers}
     scores={scores}
     setScore={setScore}
+    handicapMode={handicapMode}
+    getHandicapStrokesFn={context.getHandicapStrokesFn}
+    onScoreFocus={() => { isEnteringScore.current = true; }}
+    onScoreBlur={() => { isEnteringScore.current = false; }}
+    onPrevHole={() => {
+      if (currentHole > 1) setCurrentHole(currentHole - 1);
+    }}
+    onNextHole={() => {
+      if (currentHole < 18) setCurrentHole(currentHole + 1);
+    }}
     onSaveHole={() => {
       const nextHole = currentHole + 1;
 
@@ -2407,6 +3270,14 @@ setSaveMessage(`Hole ${currentHole} saved`);
 
       if (currentHole >= 18) {
   setCurrentHole(19);
+  // Auto-suggest name for the modal
+  const today = new Date();
+  const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
+  setRoundSaveName(roundName || autoName);
+  setShowRoundCompleteModal(true);
+  // Notify on round complete (fire and forget)
+  notifyRound("completed", roundCode);
   return;
 }
 
@@ -2431,8 +3302,14 @@ if (enableTeamGame && nextGameIndex >= 0) {
               (selection.team2 || []).filter(Boolean).length === 1;
 
         if (!hasValidTeams) {
-          setPendingNextGameIndex(nextGameIndex);
-          return;
+          const currentGameIndex = teamGames.findIndex((game, index) => {
+            const range = getTeamGameRange(teamGames, index);
+            return currentHole >= range.start && currentHole <= range.end;
+          });
+          if (nextGameIndex !== currentGameIndex) {
+            setPendingNextGameIndex(nextGameIndex);
+            return;
+          }
         }
       }
 
@@ -2452,6 +3329,15 @@ if (enableTeamGame && nextGameIndex >= 0) {
   matchResults={matchResults}
   players={players}
   mode={mode}
+  pendingNextGameIndex={pendingNextGameIndex}
+  onChooseTeams={pendingNextGameIndex != null ? () => {
+    setFocusGameTarget({
+      gameIndex: pendingNextGameIndex,
+      nonce: Date.now(),
+    });
+    setScreen("setup");
+    setShowProjectedSettlement(false);
+  } : null}
 />
 
 {pendingNextGameIndex != null && (() => {
@@ -2561,6 +3447,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
               course={course}
               scores={scores}
               handicapMode={handicapMode}
+              getHandicapStrokesFn={context.getHandicapStrokesFn}
             />
           );
         })}
@@ -2603,7 +3490,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
 })()}
 {enableTeamGame && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Team Game Standing</div>
+    <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 16 }}>Team Game Standing</div>
     {activePlayers.map((player) => {
       let netTotal = 0;
       teamGames.forEach((game, gameIndex) => {
@@ -2628,9 +3515,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
       const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
       const label = netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even";
       return (
-        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-          <span>{player.name}</span>
-          <span style={{ fontWeight: "bold", color }}>{label}</span>
+        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 15 }}>{player.name}</span>
+          <span style={{ fontWeight: "bold", color, fontSize: 15 }}>{label}</span>
         </div>
       );
     })}
@@ -2638,29 +3525,55 @@ if (enableTeamGame && nextGameIndex >= 0) {
 )}
 
 {/* ── MATCH STATUS ── */}
-{matchResults.filter(({ result }) => result && result.gameType !== "ninePoint").length > 0 && (
+{enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Match Status</div>
-    {matchResults
-      .filter(({ result }) => result && result.gameType !== "ninePoint")
-      .map(({ match, result }) => {
-        const p1 = players.find((p) => p.id === match.p1Id)?.name || "P1";
-        const p2 = players.find((p) => p.id === match.p2Id)?.name || "P2";
-        let statusLine = "";
-        if (result.type === "standard" || result.type === "match_fbt") {
-          const label = result.label || result.overallLabel || "";
-          statusLine = label ? `${p1} vs ${p2}: ${label}` : `${p1} vs ${p2}`;
-        } else if (result.type === "longshort") {
-          statusLine = `${p1} vs ${p2}: Long ${result.longLabel || "-"} | Short ${result.shortLabel || "-"}`;
-        } else {
-          statusLine = `${p1} vs ${p2}: ${result.label || "-"}`;
-        }
-        return (
-          <div key={match.id} style={{ marginBottom: 4, fontSize: 14 }}>
-            {statusLine}
-          </div>
-        );
-      })}
+    <div style={{ fontWeight: "bold", marginBottom: 8 }}>Round Match Status</div>
+    {teamGameResults.map((game, gameIndex) => {
+      const selection = getTeamGameSelection(gameIndex);
+      if (!selection || !(game.matches || []).length) return null;
+
+      return (
+        <div key={gameIndex} style={{ marginBottom: gameIndex < teamGameResults.length - 1 ? 12 : 0 }}>
+          {(game.matches || []).map((matchup, mIdx) => {
+            const parts = matchup.label.split(" ");
+            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+            const teamA = (selection?.[teamAKey] || []).filter(Boolean);
+            const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+            const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
+            const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
+
+            const netUnits = (matchup.result || []).reduce((sum, bet) => {
+              const score = Number(bet.score || 0);
+              if (score > 0) return sum + 1;
+              if (score < 0) return sum - 1;
+              return sum;
+            }, 0);
+
+            const betScores = (matchup.result || []).map(bet => Number(bet.score || 0));
+            const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
+            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
+            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+
+            return (
+              <div key={mIdx} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 6,
+                color,
+                fontSize: 13,
+              }}>
+                <span>{teamAName} {netLabel} vs {teamBName}</span>
+                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+                  {pressStr}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    })}
   </div>
 )}
 
@@ -2684,7 +3597,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
               return (
                 <div key={playerId} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span>{name}</span>
-                  <span style={{ fontWeight: "bold", color }}>{pts > 0 ? `+${pts}` : pts} pts</span>
+                  <span style={{ fontWeight: "bold", color }}>{pts} pts</span>
                 </div>
               );
             })}
@@ -2771,7 +3684,174 @@ if (enableTeamGame && nextGameIndex >= 0) {
     noPar3TeamGame={noPar3TeamGame}
     goToLive={goToLive}
     backToSetup={backToSetup}
+    onUpdateScore={setScore}
+    onSaveRound={saveRoundFromResults}
+    roundName={roundName}
+    savedRounds={savedRounds}
+    skinsResults={skinsResults}
+    skinsEnabled={skinsEnabled}
+    skinsConfig={skinsConfig}
+    getHandicapStrokesFn={context.getHandicapStrokesFn}
+    isJoiner={isJoiner}
+    onRefresh={() => {
+      if (roundCode) {
+        fetchRound(roundCode)
+          .then(result => {
+            if (result?.data) {
+              if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
+                lastSyncedAt.current = result.updated_at;
+              }
+              applyRoundSnapshot(result.data, undefined, true);
+            }
+          })
+          .catch(() => {});
+      }
+    }}
   />
+)}
+
+{screen === "join" && (
+  <JoinRound
+    onBack={() => setScreen("setup")}
+    onJoinSuccess={(code, data) => {
+      if (data) {
+        applyRoundSnapshot(data, "Joined round loaded.");
+        setRoundCode(code);
+        setIsJoiner(true);
+        localStorage.setItem("golf-betting-is-joiner-v1", "true");
+        setScreen("results");
+      }
+    }}
+  />
+)}
+
+{screen === "history" && (
+  <HistoryScreen
+    savedRounds={savedRounds}
+    onBack={() => setScreen("setup")}
+    fetchStatsRounds={fetchStatsRounds}
+    onLoadRound={(round) => {
+      if (round?.data) {
+        applyRoundSnapshot(round.data);
+        setScreen("results");
+      }
+    }}
+  />
+)}
+
+{screen === "qa" && (
+  <QAScreen onBack={() => setScreen("setup")} roundCode={roundCode} />
+)}
+
+{screen === "admin" && (
+  <AdminScreen
+    onBack={() => setScreen("setup")}
+    onReportBug={() => setShowBugReport(true)}
+    onJoinAsAdmin={async (code) => {
+      try {
+        const result = await fetchRound(code);
+        if (result?.data) {
+          applyRoundSnapshot(result.data);
+          setRoundCode(code);
+          setIsJoiner(false); // admin gets full access
+          setScreen("results");
+        }
+      } catch {
+        alert("Could not load round " + code);
+      }
+    }}
+  />
+)}
+
+{screen === "trip" && (
+  <TripScreen
+    deviceId={deviceId}
+    onBack={() => setScreen("setup")}
+  />
+)}
+
+{/* RECENT ROUNDS MODAL */}
+{showRecentRounds && recentRounds.length > 0 && (
+  <div style={{
+    position: "fixed", inset: 0, zIndex: 2000,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex", alignItems: "flex-end", justifyContent: "center",
+  }}>
+    <div style={{
+      background: "#fff", borderRadius: "16px 16px 0 0",
+      width: "100%", maxWidth: 480,
+      padding: 24, paddingBottom: 36,
+      boxShadow: "0 -4px 24px rgba(0,0,0,0.15)",
+    }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "#1a5c35", marginBottom: 6 }}>
+        ☁️ Continue a recent round?
+      </div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+        We found rounds from your device on this course.
+      </div>
+
+      <div style={{ maxHeight: "50vh", overflowY: "auto", marginBottom: 8 }}>
+      {[...recentRounds]
+        .filter(r => Object.keys(r.data?.scores || {}).length > 0)
+        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+        .map(round => {
+        const data = round.data || {};
+        const name = data.roundName || `Round ${round.code}`;
+        const players = (data.allPlayers || []).map(p => p.name).join(", ");
+        const date = new Date(round.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const holesPlayed = Object.keys(data.scores || {}).length;
+
+        return (
+          <div
+            key={round.code}
+            onClick={() => {
+              applyRoundSnapshot(data, "Round restored from cloud ☁️");
+              setRoundCode(round.code);
+              localStorage.setItem(ROUND_CODE_KEY, round.code);
+              setShowRecentRounds(false);
+            }}
+            style={{
+              padding: "12px 14px", marginBottom: 8,
+              border: "1px solid #d1d5db", borderRadius: 10,
+              cursor: "pointer", background: "#f9fafb",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a1a", marginBottom: 3 }}>{name}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {date} · {holesPlayed} holes · {players}
+            </div>
+            <div style={{ fontSize: 12, color: "#1a5c35", marginTop: 2, fontWeight: 600 }}>
+              Code: {round.code}
+            </div>
+          </div>
+        );
+      })}
+      </div>
+
+      <button
+        onClick={() => setShowRecentRounds(false)}
+        style={{
+          width: "100%", padding: 14, marginTop: 8,
+          background: "transparent", border: "1px solid #d1d5db",
+          borderRadius: 10, fontSize: 15, fontWeight: 600,
+          color: "#6b7280", cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        Start fresh
+      </button>
+    </div>
+  </div>
+)}
+
+{/* BUG REPORT SLIDE-UP */}
+{showBugReport && (
+  <BugReportModal
+  screen={screen}
+  roundCode={roundCode}
+  onClose={() => setShowBugReport(false)}
+  onOpenQA={() => setScreen("qa")}
+  players={players}
+/>
 )}
   </div>
 );
