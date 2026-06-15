@@ -378,13 +378,14 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
               if (!pin) return;
               if (!window.confirm(`Delete "${loadedCourse.name}" from the library? This cannot be undone.`)) return;
               try {
+                const deletedName = loadedCourse.name;
                 await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
                 setLoadedCourse(null);
                 updateCourseName("");
-                setSearchResults([]);
                 setSearchQuery("");
-                handleSearch("%"); // refresh the full list
-                window.alert(`"${loadedCourse.name}" deleted from library.`);
+                const results = await searchCourses("%");
+                setSearchResults(results || []);
+                window.alert(`"${deletedName}" deleted.`);
               } catch (e) {
                 window.alert(e.message === "not_owner" ? "You don't have permission to delete this course." : "Delete failed.");
               }
