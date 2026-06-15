@@ -565,8 +565,6 @@ function notifyRound(event, code) {
       const earlyCode = generateRoundCode();
       setRoundCode(earlyCode);
       localStorage.setItem(ROUND_CODE_KEY, earlyCode);
-      // Notify on round start (fire and forget)
-      notifyRound("started", earlyCode);
     }
 
     setAllPlayers((prev) =>
@@ -2553,6 +2551,7 @@ if (!enableTeamGame && !skinsEnabled) {
   // Generate a round code if we don't have one, then push initial state
   const code = roundCode || generateRoundCode();
   if (!roundCode) setRoundCode(code);
+  notifyRound("started", code);
 
   // Auto-generate round name if blank
   const today = new Date();
