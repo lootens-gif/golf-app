@@ -381,6 +381,9 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
                 await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
                 setLoadedCourse(null);
                 updateCourseName("");
+                setSearchResults([]);
+                setSearchQuery("");
+                handleSearch("%"); // refresh the full list
                 window.alert(`"${loadedCourse.name}" deleted from library.`);
               } catch (e) {
                 window.alert(e.message === "not_owner" ? "You don't have permission to delete this course." : "Delete failed.");
