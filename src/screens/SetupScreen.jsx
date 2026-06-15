@@ -376,7 +376,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
             <button onClick={async () => {
               const pin = window.prompt("Admin PIN to delete this course:");
               if (!pin) return;
-              if (!window.confirm(`Delete "${loadedCourse.name}" (id: ${loadedCourse.id}) from the library? This cannot be undone.`)) return;
+              if (!window.confirm(`Delete "${loadedCourse.name}" from the library? This cannot be undone.`)) return;
               try {
                 const deletedName = loadedCourse.name;
                 await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
