@@ -461,6 +461,10 @@ function notifyRound(event, code) {
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
     strokeFront: false, strokeBack: false, strokeTotal: true,
+    // Team game birdie settings (moved from global birdiesEnabled/birdieBetAmount/toyRule)
+    teamBirdiesEnabled: false,
+    teamBirdieBetAmount: 5,
+    teamToyRule: false,
   });
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -1257,7 +1261,7 @@ function addNinePointMatch() {
       end: 18,
       format: teamGameFormat,
       duplicateError: false,
-      birdieEnabled: birdiesEnabled,
+      birdieEnabled: teamMatchConfig.teamBirdiesEnabled,
       matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
     }];
   }
@@ -1274,7 +1278,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: [],
     };
   }
@@ -1336,7 +1340,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1365,7 +1369,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1393,7 +1397,7 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
-birdieEnabled: enableTeamGame && birdiesEnabled,
+birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
     matches: teamMatches,
   };
   }); // end press format map
@@ -1409,9 +1413,9 @@ const birdieResults = buildBirdieResults({
   scores,
   course,
   getTeamGameSelection,
-  birdiesEnabled: enableTeamGame ? birdiesEnabled : false,
-  birdieBetAmount,
-  toyRule,
+  birdiesEnabled: enableTeamGame ? teamMatchConfig.teamBirdiesEnabled : false,
+  birdieBetAmount: teamMatchConfig.teamBirdieBetAmount,
+  toyRule: teamMatchConfig.teamToyRule,
   players,
   handicapMode,
 });
@@ -1428,8 +1432,8 @@ const computedResults = scoreRound(round, {
   teamGameResults,
   teamGameUnitAmount,
   pressTrigger,
-  birdiesEnabled,
-  birdieBetAmount,
+  birdiesEnabled: teamMatchConfig.teamBirdiesEnabled,
+  birdieBetAmount: teamMatchConfig.teamBirdieBetAmount,
   getTeamGameSelection,
   mode,
   birdieResults,
@@ -2135,6 +2139,9 @@ function resetSetup() {
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
     strokeFront: false, strokeBack: false, strokeTotal: true,
+    teamBirdiesEnabled: false,
+    teamBirdieBetAmount: 5,
+    teamToyRule: false,
   });
   setTeamGames([
     createDefaultTeamGame(1),

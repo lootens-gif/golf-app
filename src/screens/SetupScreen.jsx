@@ -724,8 +724,7 @@ export default function SetupScreen({
   setupMessage, course, updateCourseName, updateCoursePar, updateCourseHcp,
   enableTeamGame, setEnableTeamGame, teamGameFormat, setTeamGameFormat, teamMatchConfig, setTeamMatchConfig,
   teamGameUnitAmount, setTeamGameUnitAmount,
-  pressTrigger, setPressTrigger, birdiesEnabled, setBirdiesEnabled,
-  birdieBetAmount, setBirdieBetAmount, toyRule, setToyRule,
+  pressTrigger, setPressTrigger,
   noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution, applyPreset, setTeamGames, teamGames,
   skinsEnabled, setSkinsEnabled, skinsType, setSkinsType,
   skinsGross, setSkinsGross, skinValueAmount, setSkinValueAmount,
@@ -844,212 +843,220 @@ export default function SetupScreen({
         </div>
       )}
 
-      {/* ── BETTING ── */}
+      {/* ── GAMES ── */}
       <Card>
-        <SectionLabel>Betting Setup</SectionLabel>
+        <SectionLabel>Games</SectionLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           <Toggle
             checked={enableTeamGame}
             onChange={setEnableTeamGame}
             label="Team Game"
-            sublabel="Wheel format — 9 games across 18 holes"
+            sublabel="Team vs team — press, match play, stroke and more"
           />
 
-          {enableTeamGame && (
-            <div style={{ paddingLeft: 56, display: "flex", flexDirection: "column", gap: 12 }}>
-              <AmountInput
-                label="Unit bet"
-                value={teamGameUnitAmount}
-                onChange={(e) => setTeamGameUnitAmount(e.target.value)}
-              />
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 13, color: sc.ink, minWidth: 110 }}>Press trigger</span>
-                <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                  {[1, 2].map(n => (
-                    <button key={n} onClick={() => {
-                      setPressTrigger(n);
-                      setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: n })));
-                    }} style={{
-                      padding: "7px 16px", border: "none",
-                      background: Number(pressTrigger) === n ? sc.green : "#fff",
-                      color: Number(pressTrigger) === n ? "#fff" : sc.ink,
-                      fontWeight: 600, fontSize: 14, cursor: "pointer",
-                      borderRight: n < 3 ? `1px solid ${sc.border}` : "none",
-                    }}>{n}</button>
-                  ))}
-                </div>
-                <span style={{ fontSize: 12, color: sc.muted }}>down</span>
-              </div>
-            </div>
-          )}
+          {enableTeamGame && (() => {
+            const betLabel = {
+              press: "Bet per hole won",
+              standard: "Bet per net hole won",
+              longshort: "Long bet value",
+              match_fbt: "Bet per segment",
+              stroke: "Bet per stroke differential",
+            }[teamGameFormat] || "Unit bet";
 
-          <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 14 }}>
-            <Toggle
-              checked={birdiesEnabled}
-              onChange={(val) => {
-                setBirdiesEnabled(val);
-                if (val && (!birdieBetAmount || birdieBetAmount === 0)) {
-                  setBirdieBetAmount(Number(teamGameUnitAmount) || 5);
-                }
-              }}
-              label="Birdie Side Bet"
-              sublabel="Gross birdies pay out to the group"
-            />
-            {birdiesEnabled && (
-              <div style={{ paddingLeft: 56, marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+            return (
+              <div style={{ paddingLeft: 56, display: "flex", flexDirection: "column", gap: 12 }}>
                 <AmountInput
-                  label="Birdie pays"
-                  value={birdieBetAmount}
-                  onChange={(e) => setBirdieBetAmount(Number(e.target.value || 0))}
+                  label={betLabel}
+                  value={teamGameUnitAmount}
+                  onChange={(e) => {
+                    setTeamGameUnitAmount(e.target.value);
+                    // Auto-sync birdie bet to match unit bet
+                    if (!teamMatchConfig.teamBirdiesEnabled) {
+                      setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value) || 5 }));
+                    }
+                  }}
                 />
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input type="checkbox" checked={!!toyRule} onChange={(e) => setToyRule(e.target.checked)}
-                    style={{ width: 16, height: 16, accentColor: sc.green }} />
-                  <span style={{ fontSize: 13, color: sc.muted }}>Toy rule — net birdie ties gross birdie</span>
-                </label>
-              </div>
-            )}
-          </div>
 
-          <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 14 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={!!noPar3TeamGame} onChange={(e) => setNoPar3TeamGame(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: sc.green }} />
-              <span style={{ fontSize: 13, color: sc.muted }}>No handicap strokes on par 3s (team games)</span>
-            </label>
-          </div>
+                {/* Birdie side bet for team game */}
+                <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12 }}>
+                  <Toggle
+                    checked={teamMatchConfig.teamBirdiesEnabled}
+                    onChange={(val) => {
+                      setTeamMatchConfig(prev => ({
+                        ...prev,
+                        teamBirdiesEnabled: val,
+                        teamBirdieBetAmount: val ? (Number(teamGameUnitAmount) || 5) : prev.teamBirdieBetAmount,
+                      }));
+                    }}
+                    label="Birdie Side Bet"
+                    sublabel="Gross birdies pay out between teams"
+                  />
+                  {teamMatchConfig.teamBirdiesEnabled && (
+                    <div style={{ paddingLeft: 56, marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <AmountInput
+                        label="Birdie pays"
+                        value={teamMatchConfig.teamBirdieBetAmount}
+                        onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value || 0) }))}
+                      />
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                        <input type="checkbox" checked={!!teamMatchConfig.teamToyRule}
+                          onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, teamToyRule: e.target.checked }))}
+                          style={{ width: 16, height: 16, accentColor: sc.green }} />
+                        <span style={{ fontSize: 13, color: sc.muted }}>Toy Birdies — net birdie ties gross birdie</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* No par 3 strokes */}
+                <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!noPar3TeamGame} onChange={(e) => setNoPar3TeamGame(e.target.checked)}
+                      style={{ width: 16, height: 16, accentColor: sc.green }} />
+                    <span style={{ fontSize: 13, color: sc.muted }}>No handicap strokes on par 3s</span>
+                  </label>
+                </div>
+              </div>
+            );
+          })()}
+
+        </div>
+      </Card>
+
+      {/* ── SIDE BETS ── */}
+      <Card>
+        <SectionLabel>Side Bets</SectionLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
           {/* ── SKINS ── */}
-          <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 14 }}>
-            <Toggle
-              checked={skinsEnabled}
-              onChange={setSkinsEnabled}
-              label="Skins"
-              sublabel="Side bet — lowest score on a hole wins"
-            />
-            {skinsEnabled && (
-              <div style={{ paddingLeft: 56, marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+          <Toggle
+            checked={skinsEnabled}
+            onChange={setSkinsEnabled}
+            label="Skins"
+            sublabel="Lowest score on a hole wins — open to all players"
+          />
+          {skinsEnabled && (
+            <div style={{ paddingLeft: 56, marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
 
-                {/* Net / Gross */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Scoring</span>
-                  <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                    {[{ v: false, l: "Net" }, { v: true, l: "Gross" }].map(({ v, l }, i) => (
-                      <button key={l} onClick={() => setSkinsGross(v)} style={{
-                        padding: "6px 16px", border: "none",
-                        background: skinsGross === v ? sc.green : "#fff",
-                        color: skinsGross === v ? "#fff" : sc.ink,
-                        fontWeight: 600, fontSize: 13, cursor: "pointer",
-                        borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
-                        fontFamily: "inherit",
-                      }}>{l}</button>
-                    ))}
-                  </div>
+              {/* Net / Gross */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Scoring</span>
+                <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
+                  {[{ v: false, l: "Net" }, { v: true, l: "Gross" }].map(({ v, l }, i) => (
+                    <button key={l} onClick={() => setSkinsGross(v)} style={{
+                      padding: "6px 16px", border: "none",
+                      background: skinsGross === v ? sc.green : "#fff",
+                      color: skinsGross === v ? "#fff" : sc.ink,
+                      fontWeight: 600, fontSize: 13, cursor: "pointer",
+                      borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                      fontFamily: "inherit",
+                    }}>{l}</button>
+                  ))}
                 </div>
-
-                {/* Type: Per Skin | Pot | TV Skins */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Type</span>
-                  <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-                    {[
-                      { v: "value", l: "Per Skin" },
-                      { v: "pot", l: "Pot" },
-                      { v: "tvskins", l: "TV Skins" },
-                    ].map(({ v, l }, i) => (
-                      <button key={v} onClick={() => setSkinsType(v)} style={{
-                        padding: "6px 12px", border: "none",
-                        background: skinsType === v ? sc.green : "#fff",
-                        color: skinsType === v ? "#fff" : sc.ink,
-                        fontWeight: 600, fontSize: 12, cursor: "pointer",
-                        borderRight: i < 2 ? `1px solid ${sc.border}` : "none",
-                        fontFamily: "inherit",
-                      }}>{l}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* PER SKIN options */}
-                {skinsType === "value" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <AmountInput
-                      label="$ per skin"
-                      value={skinValueAmount}
-                      onChange={e => setSkinValueAmount(Number(e.target.value || 0))}
-                    />
-                    <Toggle
-                      checked={skinCarryover}
-                      onChange={setSkinCarryover}
-                      label="Carryover ties"
-                      sublabel="Tied hole carries value to next hole"
-                    />
-                    <Toggle
-                      checked={skinBirdie}
-                      onChange={setSkinBirdie}
-                      label="Birdie doubles"
-                      sublabel="Birdie wins double the hole value"
-                    />
-                    {skinBirdie && (
-                      <div style={{ paddingLeft: 56 }}>
-                        <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
-                          {[
-                            { v: false, l: "Hole only" },
-                            { v: true, l: "+ Carryovers" },
-                          ].map(({ v, l }, i) => (
-                            <button key={l} onClick={() => setSkinBirdieDoubleCarryover(v)} style={{
-                              padding: "6px 14px", border: "none",
-                              background: skinBirdieDoubleCarryover === v ? sc.green : "#fff",
-                              color: skinBirdieDoubleCarryover === v ? "#fff" : sc.ink,
-                              fontWeight: 600, fontSize: 12, cursor: "pointer",
-                              borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
-                              fontFamily: "inherit",
-                            }}>{l}</button>
-                          ))}
-                        </div>
-                        <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
-                          {skinBirdieDoubleCarryover
-                            ? "Double the hole value including all carryovers"
-                            : "Double the base skin value only"}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* POT options — Equal split only */}
-                {skinsType === "pot" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <AmountInput
-                      label="$ per player"
-                      value={potDonation}
-                      onChange={e => setPotDonation(Number(e.target.value || 0))}
-                    />
-                    <div style={{ fontSize: 12, color: sc.muted }}>
-                      Total pot: ${(Number(potDonation) || 0) * (players.length || 0)} · divided equally by skins won
-                    </div>
-                  </div>
-                )}
-
-                {/* TV SKINS options */}
-                {skinsType === "tvskins" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <AmountInput
-                      label="$ base unit"
-                      value={potBaseUnit}
-                      min={0.5}
-                      step={0.5}
-                      onChange={e => setPotBaseUnit(Number(e.target.value || 0))}
-                    />
-                    <div style={{ fontSize: 12, color: sc.muted, background: sc.greenLight, padding: "8px 10px", borderRadius: 8 }}>
-                      Front 6: ${potBaseUnit}/hole · Mid 6: ${(Number(potBaseUnit) * 2)}/hole · Back 6: ${(Number(potBaseUnit) * 3)}/hole
-                      <br/>Each player antes: ${(Number(potBaseUnit) * 36) || 0} · Carryover built in
-                    </div>
-                  </div>
-                )}
-
               </div>
-            )}
-          </div>
+
+              {/* Type: Per Skin | Pot | TV Skins */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 13, color: sc.muted, minWidth: 80 }}>Type</span>
+                <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
+                  {[
+                    { v: "value", l: "Per Skin" },
+                    { v: "pot", l: "Pot" },
+                    { v: "tvskins", l: "TV Skins" },
+                  ].map(({ v, l }, i) => (
+                    <button key={v} onClick={() => setSkinsType(v)} style={{
+                      padding: "6px 12px", border: "none",
+                      background: skinsType === v ? sc.green : "#fff",
+                      color: skinsType === v ? "#fff" : sc.ink,
+                      fontWeight: 600, fontSize: 12, cursor: "pointer",
+                      borderRight: i < 2 ? `1px solid ${sc.border}` : "none",
+                      fontFamily: "inherit",
+                    }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PER SKIN options */}
+              {skinsType === "value" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <AmountInput
+                    label="$ per skin"
+                    value={skinValueAmount}
+                    onChange={e => setSkinValueAmount(Number(e.target.value || 0))}
+                  />
+                  <Toggle
+                    checked={skinCarryover}
+                    onChange={setSkinCarryover}
+                    label="Carryover ties"
+                    sublabel="Tied hole carries value to next hole"
+                  />
+                  <Toggle
+                    checked={skinBirdie}
+                    onChange={setSkinBirdie}
+                    label="Birdie doubles"
+                    sublabel="Birdie wins double the hole value"
+                  />
+                  {skinBirdie && (
+                    <div style={{ paddingLeft: 56 }}>
+                      <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden", width: "fit-content" }}>
+                        {[
+                          { v: false, l: "Hole only" },
+                          { v: true, l: "+ Carryovers" },
+                        ].map(({ v, l }, i) => (
+                          <button key={l} onClick={() => setSkinBirdieDoubleCarryover(v)} style={{
+                            padding: "6px 14px", border: "none",
+                            background: skinBirdieDoubleCarryover === v ? sc.green : "#fff",
+                            color: skinBirdieDoubleCarryover === v ? "#fff" : sc.ink,
+                            fontWeight: 600, fontSize: 12, cursor: "pointer",
+                            borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                            fontFamily: "inherit",
+                          }}>{l}</button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
+                        {skinBirdieDoubleCarryover
+                          ? "Double the hole value including all carryovers"
+                          : "Double the base skin value only"}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* POT options */}
+              {skinsType === "pot" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <AmountInput
+                    label="$ per player"
+                    value={potDonation}
+                    onChange={e => setPotDonation(Number(e.target.value || 0))}
+                  />
+                  <div style={{ fontSize: 12, color: sc.muted }}>
+                    Total pot: ${(Number(potDonation) || 0) * (players.length || 0)} · divided equally by skins won
+                  </div>
+                </div>
+              )}
+
+              {/* TV SKINS options */}
+              {skinsType === "tvskins" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <AmountInput
+                    label="$ base unit"
+                    value={potBaseUnit}
+                    min={0.5}
+                    step={0.5}
+                    onChange={e => setPotBaseUnit(Number(e.target.value || 0))}
+                  />
+                  <div style={{ fontSize: 12, color: sc.muted, background: sc.greenLight, padding: "8px 10px", borderRadius: 8 }}>
+                    Front 6: ${potBaseUnit}/hole · Mid 6: ${(Number(potBaseUnit) * 2)}/hole · Back 6: ${(Number(potBaseUnit) * 3)}/hole
+                    <br/>Each player antes: ${(Number(potBaseUnit) * 36) || 0} · Carryover built in
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
         </div>
       </Card>
 
@@ -1091,6 +1098,26 @@ export default function SetupScreen({
             <OutlineButton onClick={() => setTeamGames(prev => [...prev, createDefaultTeamGame(prev.length + 1)])}>
               + Custom
             </OutlineButton>
+          </div>
+
+          {/* Press Rules */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 13, color: sc.ink, minWidth: 110 }}>Press Rules</span>
+            <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
+              {[1, 2].map(n => (
+                <button key={n} onClick={() => {
+                  setPressTrigger(n);
+                  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: n })));
+                }} style={{
+                  padding: "7px 16px", border: "none",
+                  background: Number(pressTrigger) === n ? sc.green : "#fff",
+                  color: Number(pressTrigger) === n ? "#fff" : sc.ink,
+                  fontWeight: 600, fontSize: 14, cursor: "pointer",
+                  borderRight: n < 2 ? `1px solid ${sc.border}` : "none",
+                }}>{n} down</button>
+              ))}
+            </div>
+            <span style={{ fontSize: 12, color: sc.muted }}>auto-press when down</span>
           </div>
 
           {totalHoles > 0 && (
