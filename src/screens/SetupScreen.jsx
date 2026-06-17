@@ -739,6 +739,7 @@ export default function SetupScreen({
   createDefaultTeamGame, focusGameTarget, goToLive, goToResults,
   roundName, setRoundName,
   myTemplates = [], templateStatus = "", onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onUpdateTemplate, onSearchTemplates, onLoadMyTemplates,
+  loadedTemplate, setLoadedTemplate,
 }) {
   const teamGameRefs = useRef({});
   const hasNinePoint = matches.some(m => m.gameType === "ninePoint");
@@ -762,6 +763,84 @@ export default function SetupScreen({
 
   return (
     <div style={{ fontFamily: "'Georgia', serif" }}>
+
+      {/* ── TEMPLATE FIRST FLOW ── */}
+      {loadedTemplate ? (
+        /* Ready to Start summary */
+        <Card style={{ background: sc.greenLight, border: `1px solid #c3ddd0` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: sc.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Group Loaded</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: sc.ink }}>{loadedTemplate.name}</div>
+            </div>
+            <button onClick={() => setLoadedTemplate(null)} style={{
+              padding: "6px 12px", fontSize: 12, background: "transparent",
+              color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>Edit</button>
+          </div>
+
+          {/* Summary */}
+          <div style={{ fontSize: 13, color: sc.ink, display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
+            {course?.name && (
+              <div>⛳ {course.name}{course.city ? ` · ${course.city}` : ""}</div>
+            )}
+            <div>👥 {players.filter(p => p.name && !p.name.match(/^P\d+$/)).map(p => p.name).join(", ") || "No players set"}</div>
+            {enableTeamGame && (
+              <div>🏌️ Team Game · {
+                { press: "Press", standard: "Net Holes", longshort: "Long/Short", match_fbt: "Match Play", stroke: "Stroke Play" }[teamGameFormat] || teamGameFormat
+              } · ${teamGameUnitAmount}/bet</div>
+            )}
+            {matches.length > 0 && (
+              <div>🎯 {matches.length} 1v1 match{matches.length > 1 ? "es" : ""}</div>
+            )}
+          </div>
+
+          <PrimarySetupAction />
+
+          <button onClick={() => { setLoadedTemplate(null); }} style={{
+            width: "100%", marginTop: 8, padding: "9px", fontSize: 13,
+            background: "transparent", color: sc.muted,
+            border: `1px solid ${sc.border}`, borderRadius: 8,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>Start Fresh instead</button>
+        </Card>
+      ) : (
+        /* Template picker — show at top when no template loaded */
+        <Card>
+          <SectionLabel>Your Groups</SectionLabel>
+          {myTemplates.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "12px 0" }}>
+              <div style={{ fontSize: 14, color: sc.ink, fontWeight: 600, marginBottom: 6 }}>No saved groups yet</div>
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 12 }}>
+                After setup, save your players and games as a group to start instantly next time.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 4 }}>
+              {myTemplates.map(t => (
+                <button key={t.id} onClick={() => onLoadTemplate?.(t)} style={{
+                  width: "100%", padding: "12px 14px", textAlign: "left",
+                  border: `1px solid ${sc.border}`, borderRadius: 10,
+                  background: "white", cursor: "pointer", fontFamily: "inherit",
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: sc.ink }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: sc.muted, marginTop: 3 }}>
+                    {(t.players || []).filter(p => p.name && !p.name.match(/^P\d+$/)).map(p => p.name).join(", ") || "No players"}
+                    {t.use_count > 0 ? ` · used ${t.use_count}×` : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: sc.muted, textAlign: "center", marginTop: 8 }}>
+            ↓ Or fill in the details below to start fresh
+          </div>
+        </Card>
+      )}
+
+      {/* Hide full setup form when template is loaded (show only when editing or fresh) */}
+      {!loadedTemplate && (<>
 
       {/* ── ROUND NAME ── */}
       <Card style={{ background: sc.greenLight, border: "1px solid #c3ddd0" }}>
@@ -1319,12 +1398,12 @@ export default function SetupScreen({
         {!enableTeamGame && <PrimarySetupAction />}
       </Card>
 
-      {/* ── GROUP TEMPLATES ── */}
+      {/* ── SAVE AS GROUP ── */}
       <GroupTemplatesCard
         myTemplates={myTemplates}
         templateStatus={templateStatus}
         onSaveTemplate={onSaveTemplate}
-        onLoadTemplate={onLoadTemplate}
+        onLoadTemplate={(t) => { onLoadTemplate?.(t); }}
         onDeleteTemplate={onDeleteTemplate}
         onToggleTemplateVisibility={onToggleTemplateVisibility}
         onUpdateTemplate={onUpdateTemplate}
@@ -1392,6 +1471,8 @@ export default function SetupScreen({
           </div>
         </details>
       </Card>
+
+      </>)} {/* end !loadedTemplate */}
 
     </div>
   );

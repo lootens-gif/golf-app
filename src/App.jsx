@@ -456,7 +456,8 @@ function notifyRound(event, code) {
   const [saveToStats, setSaveToStats] = useState(true);
   const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
-  const [teamGameFormat, setTeamGameFormat] = useState("press"); // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
+  const [teamGameFormat, setTeamGameFormat] = useState("press");
+  const [loadedTemplate, setLoadedTemplate] = useState(null); // tracks which template is active // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
   const [teamMatchConfig, setTeamMatchConfig] = useState({
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
@@ -2002,6 +2003,7 @@ async function handleLoadTemplate(template) {
     if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
     if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
     setScores({});
+    setLoadedTemplate(template);
     setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
     incrementTemplateUse(template.id).catch(() => {});
   } catch {
@@ -2135,6 +2137,7 @@ function resetSetup() {
   setScores({});
   setMatches([]);
   setTeamGameFormat("press");
+  setLoadedTemplate(null);
   setTeamMatchConfig({
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
@@ -3112,6 +3115,8 @@ return (
     templateStatus={templateStatus}
     onSaveTemplate={handleSaveTemplate}
     onLoadTemplate={handleLoadTemplate}
+    loadedTemplate={loadedTemplate}
+    setLoadedTemplate={setLoadedTemplate}
     onDeleteTemplate={handleDeleteTemplate}
     onToggleTemplateVisibility={handleToggleTemplateVisibility}
     onUpdateTemplate={handleUpdateTemplate}
