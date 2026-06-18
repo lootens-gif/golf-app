@@ -1179,24 +1179,24 @@ export default function SetupScreen({
             </OutlineButton>
           </div>
 
-          {/* Press Rules */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: sc.ink, minWidth: 110 }}>Press Rules</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: sc.ink, whiteSpace: "nowrap" }}>Press Rules</span>
             <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-              {[1, 2].map(n => (
+              {[{ n: 1, l: "1 Downs" }, { n: 2, l: "2 Downs" }].map(({ n, l }, i) => (
                 <button key={n} onClick={() => {
                   setPressTrigger(n);
                   setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: n })));
                 }} style={{
-                  padding: "7px 16px", border: "none",
+                  padding: "7px 14px", border: "none",
                   background: Number(pressTrigger) === n ? sc.green : "#fff",
                   color: Number(pressTrigger) === n ? "#fff" : sc.ink,
-                  fontWeight: 600, fontSize: 14, cursor: "pointer",
-                  borderRight: n < 2 ? `1px solid ${sc.border}` : "none",
-                }}>{n} down</button>
+                  fontWeight: 600, fontSize: 13, cursor: "pointer",
+                  borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                  whiteSpace: "nowrap",
+                }}>{l}</button>
               ))}
             </div>
-            <span style={{ fontSize: 12, color: sc.muted }}>auto-press when down</span>
+            <span style={{ fontSize: 12, color: sc.muted }}>Auto Press</span>
           </div>
 
           {totalHoles > 0 && (
