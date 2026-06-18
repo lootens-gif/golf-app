@@ -1196,7 +1196,7 @@ export default function SetupScreen({
                 }}>{l}</button>
               ))}
             </div>
-            <span style={{ fontSize: 12, color: sc.muted }}>Auto Press</span>
+            <span style={{ fontSize: 12, color: sc.muted }}>Auto Presses</span>
           </div>
 
           {totalHoles > 0 && (
