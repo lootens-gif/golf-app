@@ -1936,6 +1936,8 @@ function buildTemplatePayload(templateName, isPublic) {
       handicapMode,
       handicapDistribution,
       enableTeamGame,
+      teamGameFormat,
+      teamMatchConfig,
       teamGameUnitAmount,
       pressTrigger,
       birdiesEnabled,
@@ -2487,29 +2489,32 @@ if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
     })();
 
  if (enableTeamGame && !hasValidTeamGameForRequiredHole) {
-  const gameLabel =
-    requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
-
-  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
-
-  if (requiredGameIndex >= 0) {
-    setFocusGameTarget({
-      gameIndex: requiredGameIndex,
-      nonce: Date.now(),
-    });
+  // If a template is loaded and teams just aren't set yet, scroll to team assignment
+  // rather than throwing an error — teams are picked on the day
+  if (loadedTemplate) {
+    setSetupMessage("Pick your teams for today, then start.");
+    if (requiredGameIndex >= 0) {
+      setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+      setTimeout(() => {
+        setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+      }, 0);
+    }
+    // Expand the edit form so user can see Team Assignments
+    setLoadedTemplate(null);
+    return;
   }
 
+  const gameLabel = requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
+  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
+  if (requiredGameIndex >= 0) {
+    setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+  }
   alert(`Set teams for ${gameLabel} before continuing.`);
-
   if (requiredGameIndex >= 0) {
     setTimeout(() => {
-      setFocusGameTarget({
-        gameIndex: requiredGameIndex,
-        nonce: Date.now(),
-      });
+      setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
     }, 0);
   }
-
   return;
 }
 
