@@ -1218,12 +1218,14 @@ export default function SetupScreen({
                 Handicap Distribution
               </div>
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-                Spread strokes evenly across each 6-hole game — avoids one game being unfairly weighted (COD format).
+                {handicapDistribution === "spread"
+                  ? "Spread strokes evenly across each 6-hole game — avoids one game being unfairly weighted (COD format)."
+                  : "Handicap strokes applied in rank order across all 18 holes — strokes fall where they fall on the scorecard."}
               </div>
               <div style={{ display: "flex", border: "1px solid #1a5c35", borderRadius: 8, overflow: "hidden" }}>
                 {[
                   { v: "standard", l: "Standard" },
-                  { v: "spread", l: "Spread (2/2/2)" },
+                  { v: "spread", l: "Spread" },
                 ].map(({ v, l }, i) => (
                   <button key={v} onClick={() => setHandicapDistribution(v)} style={{
                     flex: 1, padding: "8px 12px", border: "none",
