@@ -1189,12 +1189,13 @@ function getScoreSymbol(gross, par) {
 }
 
 function ScoreCell({ gross, par, strokes }) {
+  const dotStr = "•".repeat(strokes || 0);
+
   if (gross === null || gross === undefined) {
-    return <span style={{ color: "#aaa" }}>-</span>;
+    return <span style={{ color: "#aaa", fontSize: 9 }}>{dotStr || "-"}</span>;
   }
 
   const symbol = getScoreSymbol(gross, par);
-  const dotStr = "•".repeat(strokes);
   const display = `${gross}${dotStr}`;
 
   if (!symbol) {
@@ -1254,7 +1255,7 @@ function ScoreCell({ gross, par, strokes }) {
   return <span>{display}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn }) {
+function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn, noPar3TeamGame = false }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(initialSelectedPlayer);
 
   // Update if initialSelectedPlayer changes (from leaderboard drill-in)
@@ -1339,7 +1340,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
             <tr>
               <td style={labelStyle}>HCP</td>
               {sectionHoles.map(h => (
-                <td key={h} style={{ ...cellStyle, color: "#888", fontSize: 10 }}>{hcps[h - 1] || "-"}</td>
+                <td key={h} style={{ ...cellStyle, color: "#888", fontSize: 10, textAlign: "right", paddingRight: 3 }}>{hcps[h - 1] || "-"}</td>
               ))}
               <td style={cellStyle}></td>
               {isBack && <td style={cellStyle}></td>}
@@ -1351,7 +1352,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
             {displayPlayers.map(player => {
               const _strokesFn = getHandicapStrokesFn || getHandicapStrokes;
               const strokes = sectionHoles.map(h =>
-                _strokesFn(player.id, h, players, course, handicapMode)
+                _strokesFn(player.id, h, players, course, handicapMode, noPar3TeamGame)
               );
               const grossScores = sectionHoles.map(h => getRawScore(scores, h, player.id));
               const sectionTotal = grossScores.reduce((sum, g) => g !== null ? sum + g : sum, 0);
@@ -1363,7 +1364,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
               const grossTotal = frontTotal + sectionTotal;
               const netStrokes = holes.reduce((sum, h) =>
-                sum + _strokesFn(player.id, h, players, course, handicapMode), 0);
+                sum + _strokesFn(player.id, h, players, course, handicapMode, noPar3TeamGame), 0);
               const netTotal = grossTotal - netStrokes;
               const hasAll = hasAllFront && hasAllBack;
 
@@ -1539,6 +1540,7 @@ export default function AuditTrail({
       onUpdateScore={onUpdateScore}
       initialSelectedPlayer={drillPlayerId}
       getHandicapStrokesFn={getHandicapStrokesFn}
+      noPar3TeamGame={noPar3TeamGame}
     />
   </AuditSection>
 </div>
