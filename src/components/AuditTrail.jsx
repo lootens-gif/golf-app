@@ -1192,24 +1192,27 @@ function ScoreCell({ gross, par, strokes }) {
   const dotStr = "•".repeat(strokes || 0);
 
   if (gross === null || gross === undefined) {
-    return <span style={{ color: "#aaa", fontSize: 9 }}>{dotStr || "-"}</span>;
+    return <span style={{ color: "#999", fontSize: 11, fontWeight: 700, letterSpacing: "-1px" }}>{dotStr || <span style={{ color: "#ccc" }}>-</span>}</span>;
   }
 
   const symbol = getScoreSymbol(gross, par);
-  const display = `${gross}${dotStr}`;
+  const display = gross;
 
   if (!symbol) {
     return <span>{display}</span>;
   }
 
+  const dotsEl = dotStr ? <span style={{ color: "#666", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1 }}>{dotStr}</span> : null;
+
   if (symbol.type === "birdie") {
     return (
       <span style={{
-        display: "inline-block", minWidth: 26, height: 26, lineHeight: "26px",
+        display: "inline-flex", flexDirection: "column", alignItems: "center",
+        minWidth: 26, height: 30, justifyContent: "center",
         borderRadius: "50%", border: `2px solid ${symbol.color}`,
         color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
       }}>
-        {display}
+        {display}{dotsEl}
       </span>
     );
   }
@@ -1217,12 +1220,13 @@ function ScoreCell({ gross, par, strokes }) {
   if (symbol.type === "eagle") {
     return (
       <span style={{
-        display: "inline-block", minWidth: 26, height: 26, lineHeight: "22px",
+        display: "inline-flex", flexDirection: "column", alignItems: "center",
+        minWidth: 26, height: 30, justifyContent: "center",
         borderRadius: "50%", border: `2px solid ${symbol.color}`,
         outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
         color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
       }}>
-        {display}
+        {display}{dotsEl}
       </span>
     );
   }
@@ -1230,11 +1234,12 @@ function ScoreCell({ gross, par, strokes }) {
   if (symbol.type === "bogey") {
     return (
       <span style={{
-        display: "inline-block", minWidth: 26, height: 26, lineHeight: "26px",
+        display: "inline-flex", flexDirection: "column", alignItems: "center",
+        minWidth: 26, height: 30, justifyContent: "center",
         border: `2px solid ${symbol.color}`,
         color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
       }}>
-        {display}
+        {display}{dotsEl}
       </span>
     );
   }
@@ -1242,17 +1247,18 @@ function ScoreCell({ gross, par, strokes }) {
   if (symbol.type === "double") {
     return (
       <span style={{
-        display: "inline-block", minWidth: 26, height: 26, lineHeight: "22px",
+        display: "inline-flex", flexDirection: "column", alignItems: "center",
+        minWidth: 26, height: 30, justifyContent: "center",
         border: `2px solid ${symbol.color}`,
         outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
         color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
       }}>
-        {display}
+        {display}{dotsEl}
       </span>
     );
   }
 
-  return <span>{display}</span>;
+  return <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>{display}{dotsEl}</span>;
 }
 
 function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn, noPar3TeamGame = false }) {
