@@ -518,6 +518,8 @@ function NinePointScorecard({
   teamGameUnitAmount,
   birdieResults = [],
 }) {
+  const [showCumulative, setShowCumulative] = React.useState(false);
+
   const holes = result?.holes || [];
   if (!holes.length) return null;
 
@@ -556,22 +558,41 @@ function NinePointScorecard({
     return { bg: "#fef2f2", color: "#b3261e" }; // 3rd/last - red
   };
 
+
+
   const renderSection = (label, sectionHoles, showLabel = false) => {
-    // Running total = cumulative through ALL holes played so far (not just this section)
-    // Find the last played hole across the entire round
-    const lastPlayedHole = [...holes].reverse().find(h => {
-      const s = scores?.[h.hole];
-      return s && matchPlayers.some(p => s[p.id] != null && Number.isFinite(Number(s[p.id])));
-    });
-    const sectionNetPts = Object.fromEntries(matchPlayers.map(p => [
+    const isFront = label === "Front 9";
+    const isBack = label === "Back 9";
+
+    const payoutBalances = result?.payout?.balancesByPlayerId || {};
+    const fullPtTotals = result?.totalsByPlayerId || {};
+
+    const hasAnyScore = sectionHoles.some(h =>
+      matchPlayers.some(p => {
+        const s = scores?.[h.hole]?.[p.id];
+        return s != null && Number.isFinite(Number(s));
+      })
+    );
+
+    const sectionPtTotals = Object.fromEntries(matchPlayers.map(p => [
       p.id,
-      lastPlayedHole?.runningTotalsByPlayerId?.[p.id] ?? null
+      sectionHoles.reduce((sum, h) => {
+        const hasScore = matchPlayers.some(mp => {
+          const s = scores?.[h.hole]?.[mp.id];
+          return s != null && Number.isFinite(Number(s));
+        });
+        return hasScore ? sum + (h.pointsByPlayerId?.[p.id] ?? 0) : sum;
+      }, 0)
     ]));
-    // Avg = 3pts/hole × holes played (9 total pts / 3 players = 3 avg per player per hole)
-    const holesPlayed = lastPlayedHole
-      ? holes.findIndex(h => h.hole === lastPlayedHole.hole) + 1
-      : 0;
-    const sectionAvg = 3 * holesPlayed; // 9pts ÷ 3 players = 3 avg per player per hole
+
+    const fmtNet = (v) => {
+      if (v === 0) return "Even";
+      const abs = Math.abs(v);
+      const str = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+      return v > 0 ? `+$${str}` : `-$${str}`;
+    };
+
+    const extraCols = (isFront ? 1 : 0) + (isBack ? 2 : 0);
 
     return (
       <div style={{ marginBottom: 16 }}>
@@ -585,53 +606,73 @@ function NinePointScorecard({
                 {sectionHoles.map((h) => (
                   <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280" }}>{h.hole}</td>
                 ))}
+                {isFront && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>Out</td>}
+                {isBack && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>In</td>}
+                {isBack && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>Tot</td>}
               </tr>
 
-              {/* POINTS SECTION HEADER */}
+              {/* POINTS SECTION HEADER with toggle */}
               <tr>
-                <td colSpan={sectionHoles.length + 1} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
-                  Points {betAmt !== 1 ? `($${betAmt})` : ""}
+                <td colSpan={sectionHoles.length + 1 + extraCols} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
+                  <span>Points {betAmt !== 1 ? `($${betAmt})` : ""}</span>
+                  {isFront && (
+                    <button onClick={() => setShowCumulative(c => !c)} style={{
+                      marginLeft: 10, fontSize: 10, padding: "1px 6px",
+                      border: "1px solid #d1d5db", borderRadius: 4,
+                      background: showCumulative ? "#1a5c35" : "white",
+                      color: showCumulative ? "white" : "#6b7280",
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}>
+                      {showCumulative ? "Cumulative" : "Per Hole"}
+                    </button>
+                  )}
                 </td>
               </tr>
 
-              {/* POINTS ROWS — initial + cumulative pts net + hole values */}
+              {/* POINTS ROWS */}
               {matchPlayers.map((player) => {
-                const cumPts = sectionNetPts[player.id];
-                const rawNet = cumPts !== null ? (cumPts - sectionAvg) * betAmt : null;
-                const netAmt = rawNet !== null ? Math.round(rawNet * 100) / 100 : null;
-                const fmtAmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(2);
-                const netStr = !showLabel || netAmt === null ? "" : netAmt > 0 ? `+$${fmtAmt(netAmt)}` : netAmt < 0 ? `-$${fmtAmt(Math.abs(netAmt))}` : "Even";
+                const netAmt = payoutBalances[player.id] ?? null;
                 const netColor = netAmt === null ? "#ccc" : netAmt > 0 ? "#137333" : netAmt < 0 ? "#b3261e" : "#6b7280";
+                const secPts = sectionPtTotals[player.id];
+                const totPts = fullPtTotals[player.id] ?? 0;
 
                 return (
                   <tr key={`pts-${player.id}`}>
                     <td style={{ ...scorecardLabelCellStyle, padding: "3px 4px" }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{initial(player)}</span>
-                      {netStr ? <span style={{ fontSize: 13, fontWeight: 800, color: netColor, marginLeft: 6 }}>{netStr}</span> : null}
+                      {showLabel && netAmt !== null
+                        ? <span style={{ fontSize: 13, fontWeight: 800, color: netColor, marginLeft: 6 }}>{fmtNet(netAmt)}</span>
+                        : null}
                     </td>
                     {sectionHoles.map((h) => {
-                      const hasScore = players.some(p => {
+                      const hasScore = matchPlayers.some(p => {
                         const s = scores?.[h.hole]?.[p.id];
                         return s != null && Number.isFinite(Number(s));
                       });
                       if (!hasScore) return <td key={h.hole} style={{ ...scorecardCellStyle, color: "#e5e7eb", fontSize: 13 }}>–</td>;
 
-                      const pts = h.pointsByPlayerId?.[player.id] ?? 0;
-                      const dollarVal = pts * betAmt;
-                      const { bg, color } = ptColor(pts, hasScore);
+                      const rawPts = h.pointsByPlayerId?.[player.id] ?? 0;
+                      const cumPts = h.runningTotalsByPlayerId?.[player.id] ?? null;
+                      const { bg, color } = ptColor(rawPts, hasScore);
+                      const displayVal = showCumulative
+                        ? (cumPts ?? "–")
+                        : (rawPts * betAmt > 0 ? rawPts * betAmt : "0");
                       return (
-                        <td key={h.hole} style={{ ...scorecardCellStyle, background: bg, fontSize: 13, color: color, fontWeight: 700 }}>
-                          {hasScore ? (dollarVal > 0 ? dollarVal : "0") : "–"}
+                        <td key={h.hole} style={{ ...scorecardCellStyle, background: bg, fontSize: 13, color, fontWeight: 700 }}>
+                          {displayVal}
                         </td>
                       );
                     })}
+                    {isFront && <td style={{ ...scorecardCellStyle, fontWeight: 700, fontSize: 12 }}>{hasAnyScore ? secPts : "–"}</td>}
+                    {isBack && <td style={{ ...scorecardCellStyle, fontWeight: 700, fontSize: 12 }}>{hasAnyScore ? secPts : "–"}</td>}
+                    {isBack && <td style={{ ...scorecardCellStyle, fontWeight: 700, fontSize: 12, color: netColor }}>{hasAnyScore ? totPts : "–"}</td>}
                   </tr>
                 );
               })}
 
               {/* SCORES SECTION HEADER */}
               <tr>
-                <td colSpan={sectionHoles.length + 1} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
+                <td colSpan={sectionHoles.length + 1 + extraCols} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
                   Scores
                 </td>
               </tr>
@@ -660,6 +701,9 @@ function NinePointScorecard({
                       </td>
                     );
                   })}
+                  {isFront && <td style={{ ...scorecardCellStyle }}></td>}
+                  {isBack && <td style={{ ...scorecardCellStyle }}></td>}
+                  {isBack && <td style={{ ...scorecardCellStyle }}></td>}
                 </tr>
               ))}
             </tbody>
