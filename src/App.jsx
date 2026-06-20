@@ -543,6 +543,7 @@ function notifyRound(event, code) {
       handicapMode,
       noPar3TeamGame,
       is666,
+      enableTeamGame,
       handicapDistribution,
     ]
   );
