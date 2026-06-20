@@ -523,9 +523,7 @@ function notifyRound(event, code) {
     [players]
   );
 
-  const is666 = enableTeamGame &&
-    teamGames.length === 3 &&
-    teamGames.every(g => Number(g.holes) === 6);
+  const is666 = enableTeamGame && handicapDistribution === "spread";
 
   const context = useMemo(
     () => ({
@@ -534,7 +532,7 @@ function notifyRound(event, code) {
       scores,      
       handicapMode,
       noPar3TeamGame,
-      getHandicapStrokesFn: (is666 && handicapDistribution === "spread")
+      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread")
         ? getSpreadHandicapStrokes
         : getHandicapStrokes,
     }),

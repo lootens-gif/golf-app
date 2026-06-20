@@ -1182,7 +1182,7 @@ export default function SetupScreen({
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, color: sc.ink, whiteSpace: "nowrap" }}>Press Rules</span>
             <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-              {[{ n: 1, l: "1 Downs" }, { n: 2, l: "2 Downs" }].map(({ n, l }, i) => (
+              {[{ n: 1, l: "1 Down" }, { n: 2, l: "2 Down" }].map(({ n, l }, i) => (
                 <button key={n} onClick={() => {
                   setPressTrigger(n);
                   setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: n })));
@@ -1196,7 +1196,7 @@ export default function SetupScreen({
                 }}>{l}</button>
               ))}
             </div>
-            <span style={{ fontSize: 12, color: sc.muted }}>Auto Presses</span>
+            <span style={{ fontSize: 12, color: sc.muted }}>Auto Press</span>
           </div>
 
           {totalHoles > 0 && (
@@ -1211,8 +1211,8 @@ export default function SetupScreen({
             </div>
           )}
 
-          {/* Handicap Distribution — only for 6/6/6 */}
-          {teamGames.length === 3 && teamGames.every(g => Number(g.holes) === 6) && (
+          {/* Handicap Distribution — for press format */}
+          {(!teamGameFormat || teamGameFormat === "press") && (
             <div style={{ marginBottom: 14, padding: "12px 14px", background: "#fafafa", border: "1px solid #d1d5db", borderRadius: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a", marginBottom: 4 }}>
                 Handicap Distribution
