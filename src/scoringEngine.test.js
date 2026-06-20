@@ -602,14 +602,14 @@ describe('getSpreadHandicapStrokes — Westwood 6/6/6', () => {
     expect(seg3).toBe(2);
   });
 
-  test('8 strokes → 3/3/2 — front and middle get extras (HCP1=hole11, HCP2=hole2)', () => {
+  test('8 strokes → 2/3/3 — seg2 and seg3 get extras (HCP1=hole11, HCP3=hole14)', () => {
     const ps = players(8);
     const seg1 = [1,2,3,4,5,6].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
     const seg2 = [7,8,9,10,11,12].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
     const seg3 = [13,14,15,16,17,18].reduce((s,h) => s + getSpreadHandicapStrokes('A', h, ps, WESTWOOD, 'relative'), 0);
-    expect(seg1).toBe(3);
+    expect(seg1).toBe(2);
     expect(seg2).toBe(3);
-    expect(seg3).toBe(2);
+    expect(seg3).toBe(3);
   });
 
   test('standard getHandicapStrokes unchanged — hole 11 gets stroke with 1 relative', () => {
@@ -1382,5 +1382,97 @@ describe('team birdies — multiple birdies on same team', () => {
     expect(byPlayer['C']).toBe(-5);
     expect(byPlayer['D']).toBe(-5);
     expect(Object.values(byPlayer).reduce((s, v) => s + v, 0)).toBe(0);
+  });
+});
+
+// ─── Spread Handicap Distribution ────────────────────────────────────────────
+
+describe('getSpreadHandicapStrokes — Westwood', () => {
+  const WESTWOOD = {
+    pars: [5,4,3,4,4,5,4,3,4,4,4,5,4,4,3,4,3,5],
+    hcp:  [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9],
+  };
+
+  // Seg1 ranked: H2(2),H4(8),H6(10),H1(12),H5(14) [H3 par3 excluded]
+  // Seg2 ranked: H11(1),H7(4),H12(5),H9(6),H10(11) [H8 par3 excluded]
+  // Seg3 ranked: H14(3),H16(7),H18(9),H13(13) [H15,H17 par3 excluded]
+
+  function strokesForPlayer(hcp, course = WESTWOOD, noPar3 = false) {
+    const players = [{ id: 'p', hcp }];
+    const result = {};
+    for (let h = 1; h <= 18; h++) {
+      result[h] = getSpreadHandicapStrokes('p', h, players, course, 'full', noPar3);
+    }
+    const seg1 = [1,2,3,4,5,6].reduce((s,h) => s + result[h], 0);
+    const seg2 = [7,8,9,10,11,12].reduce((s,h) => s + result[h], 0);
+    const seg3 = [13,14,15,16,17,18].reduce((s,h) => s + result[h], 0);
+    return { seg1, seg2, seg3, total: seg1+seg2+seg3 };
+  }
+
+  test('4 strokes = 1/2/1', () => {
+    const r = strokesForPlayer(4);
+    expect(r).toMatchObject({ seg1: 1, seg2: 2, seg3: 1, total: 4 });
+  });
+
+  test('5 strokes = 1/2/2', () => {
+    const r = strokesForPlayer(5);
+    expect(r).toMatchObject({ seg1: 1, seg2: 2, seg3: 2, total: 5 });
+  });
+
+  test('6 strokes = 2/2/2', () => {
+    const r = strokesForPlayer(6);
+    expect(r).toMatchObject({ seg1: 2, seg2: 2, seg3: 2, total: 6 });
+  });
+
+  test('7 strokes = 2/3/2', () => {
+    const r = strokesForPlayer(7);
+    expect(r).toMatchObject({ seg1: 2, seg2: 3, seg3: 2, total: 7 });
+  });
+
+  test('8 strokes = 2/3/3', () => {
+    const r = strokesForPlayer(8);
+    expect(r).toMatchObject({ seg1: 2, seg2: 3, seg3: 3, total: 8 });
+  });
+
+  test('9 strokes = 3/3/3', () => {
+    const r = strokesForPlayer(9);
+    expect(r).toMatchObject({ seg1: 3, seg2: 3, seg3: 3, total: 9 });
+  });
+
+  test('10 strokes = 3/4/3', () => {
+    const r = strokesForPlayer(10);
+    expect(r).toMatchObject({ seg1: 3, seg2: 4, seg3: 3, total: 10 });
+  });
+
+  test('11 strokes = 4/4/3', () => {
+    const r = strokesForPlayer(11);
+    expect(r).toMatchObject({ seg1: 4, seg2: 4, seg3: 3, total: 11 });
+  });
+
+  test('12 strokes = 4/4/4', () => {
+    const r = strokesForPlayer(12);
+    expect(r).toMatchObject({ seg1: 4, seg2: 4, seg3: 4, total: 12 });
+  });
+
+  test('specific holes for 5 strokes: H11,H7 in seg2, H14,H16 in seg3, H2 in seg1', () => {
+    const players = [{ id: 'p', hcp: 5 }];
+    const fn = (h) => getSpreadHandicapStrokes('p', h, players, WESTWOOD, 'full');
+    expect(fn(2)).toBe(1);  // seg1: only H2
+    expect(fn(4)).toBe(0);  // seg1: H4 not included
+    expect(fn(7)).toBe(1);  // seg2
+    expect(fn(11)).toBe(1); // seg2
+    expect(fn(14)).toBe(1); // seg3
+    expect(fn(16)).toBe(1); // seg3
+  });
+
+  test('specific holes for 6 strokes: H2+H4 seg1, H11+H7 seg2, H14+H16 seg3', () => {
+    const players = [{ id: 'p', hcp: 6 }];
+    const fn = (h) => getSpreadHandicapStrokes('p', h, players, WESTWOOD, 'full');
+    expect(fn(2)).toBe(1);
+    expect(fn(4)).toBe(1);
+    expect(fn(7)).toBe(1);
+    expect(fn(11)).toBe(1);
+    expect(fn(14)).toBe(1);
+    expect(fn(16)).toBe(1);
   });
 });
