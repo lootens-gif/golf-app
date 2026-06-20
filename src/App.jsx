@@ -1267,7 +1267,8 @@ function addNinePointMatch() {
     }];
   }
 
-  // Press format (existing logic)
+  // Press format (existing logic) — only when team game is enabled
+  if (!enableTeamGame) return [];
   return teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
   const selected = getTeamGameSelection(index);
