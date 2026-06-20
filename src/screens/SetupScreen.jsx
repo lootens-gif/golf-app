@@ -1240,6 +1240,68 @@ export default function SetupScreen({
             </div>
           )}
 
+          {/* Spread overflow warning */}
+          {handicapDistribution === "spread" && (() => {
+            const pars = course?.pars || [];
+            const hcpArr = course?.hcp || [];
+            const segments = [[1,2,3,4,5,6],[7,8,9,10,11,12],[13,14,15,16,17,18]];
+            const isPar3 = (h) => pars[h-1] === 3;
+            const holeHcp = (h) => Number(hcpArr[h-1]);
+            const minHcp = Math.min(...players.filter(p => p.hcp != null).map(p => p.hcp));
+
+            const warnings = players
+              .filter(p => p.name && !p.name.match(/^P\d+$/) && p.hcp != null)
+              .map(p => {
+                const totalStrokes = handicapMode === "full"
+                  ? Number(p.hcp)
+                  : Math.max(0, Number(p.hcp) - minHcp);
+                if (totalStrokes <= 0) return null;
+
+                const segEligible = segments.map(seg =>
+                  seg.filter(h => Number.isFinite(holeHcp(h)) && !(noPar3TeamGame && isPar3(h)))
+                    .sort((a,b) => holeHcp(a) - holeHcp(b))
+                );
+
+                const base = Math.floor(totalStrokes / 3);
+                const extra = totalStrokes % 3;
+                const marginals = segments.map((_, i) => ({
+                  segIdx: i,
+                  marginalHcp: segEligible[i][base] ? holeHcp(segEligible[i][base]) : Infinity,
+                })).sort((a,b) => a.marginalHcp - b.marginalHcp);
+
+                const quotas = [base, base, base];
+                for (let e = 0; e < extra; e++) {
+                  if (marginals[e]) quotas[marginals[e].segIdx]++;
+                }
+
+                const doubleHoles = [];
+                segments.forEach((_, i) => {
+                  const overflow = quotas[i] - segEligible[i].length;
+                  if (overflow > 0) {
+                    const allEligible = segments.flat()
+                      .filter(h => !(noPar3TeamGame && isPar3(h)) && Number.isFinite(holeHcp(h)))
+                      .sort((a,b) => holeHcp(a) - holeHcp(b));
+                    for (let o = 0; o < overflow; o++) {
+                      if (allEligible[o]) doubleHoles.push(allEligible[o]);
+                    }
+                  }
+                });
+
+                if (doubleHoles.length === 0) return null;
+                const holeList = [...new Set(doubleHoles)].map(h => `H${h} (HCP ${holeHcp(h)})`).join(" and ");
+                const reason = noPar3TeamGame ? "Par 3 exclusions" : "high handicap";
+                return `⚠️ ${p.name} (HCP ${p.hcp}) will receive 2 strokes on ${holeList} due to ${reason}. Consider turning off the Par 3 toggle.`;
+              })
+              .filter(Boolean);
+
+            if (warnings.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 14, padding: "10px 12px", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
+                {warnings.map((w, i) => <div key={i} style={{ marginBottom: i < warnings.length-1 ? 6 : 0 }}>{w}</div>)}
+              </div>
+            );
+          })()}
+
           {teamGames.map((game, index) => {
             const { start, end } = getTeamGameRange(teamGames, index);
             const duplicateError = hasDuplicateSelections(getTeamGameSelection(index), mode);
