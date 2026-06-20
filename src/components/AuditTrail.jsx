@@ -616,15 +616,19 @@ function NinePointScorecard({
                 <td colSpan={sectionHoles.length + 1 + extraCols} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
                   <span>Points {betAmt !== 1 ? `($${betAmt})` : ""}</span>
                   {isFront && (
-                    <button onClick={() => setShowCumulative(c => !c)} style={{
-                      marginLeft: 10, fontSize: 10, padding: "1px 6px",
-                      border: "1px solid #d1d5db", borderRadius: 4,
-                      background: showCumulative ? "#1a5c35" : "white",
-                      color: showCumulative ? "white" : "#6b7280",
-                      cursor: "pointer", fontFamily: "inherit",
-                    }}>
-                      {showCumulative ? "Cumulative" : "Per Hole"}
-                    </button>
+                    <span style={{ marginLeft: 10 }}>
+                      {[{ v: false, l: "Per Hole" }, { v: true, l: "Cumulative" }].map(({ v, l }, i) => (
+                        <button key={l} onClick={() => setShowCumulative(v)} style={{
+                          padding: "2px 8px", fontSize: 10, fontFamily: "inherit",
+                          border: "1px solid #1a5c35",
+                          borderRight: i === 0 ? "none" : "1px solid #1a5c35",
+                          borderRadius: i === 0 ? "4px 0 0 4px" : "0 4px 4px 0",
+                          background: showCumulative === v ? "#1a5c35" : "white",
+                          color: showCumulative === v ? "white" : "#1a5c35",
+                          cursor: "pointer",
+                        }}>{l}</button>
+                      ))}
+                    </span>
                   )}
                 </td>
               </tr>
