@@ -523,8 +523,6 @@ function notifyRound(event, code) {
     [players]
   );
 
-  const is666 = enableTeamGame && handicapDistribution === "spread";
-
   const context = useMemo(
     () => ({
       players,
