@@ -1242,11 +1242,6 @@ export default function SetupScreen({
 
           {/* Spread overflow warning */}
           {handicapDistribution === "spread" && (() => {
-            const pars = course?.pars || [];
-            const hcpArr = course?.hcp || [];
-            const segments = [[1,2,3,4,5,6],[7,8,9,10,11,12],[13,14,15,16,17,18]];
-            const isPar3 = (h) => pars[h-1] === 3;
-            const holeHcp = (h) => Number(hcpArr[h-1]);
             const validPlayers = players.filter(p => p.name && !p.name.match(/^P\d+$/) && p.hcp != null && Number.isFinite(p.hcp));
             if (!validPlayers.length) return null;
             const minHcp = Math.min(...validPlayers.map(p => p.hcp));
