@@ -41,10 +41,14 @@ export function getHandicapStrokes(
   hole,
   players,
   course,
-  handicapMode
+  handicapMode,
+  noPar3Strokes = false
 ) {
   const player = getPlayerById(players, playerId);
   if (!player) return 0;
+
+  // Skip strokes on par 3 holes if toggle is on
+  if (noPar3Strokes && course?.pars?.[hole - 1] === 3) return 0;
 
   const handicapValue = Number(
     getHandicapBase(player, players, handicapMode) || 0
@@ -59,7 +63,6 @@ export function getHandicapStrokes(
 
   let strokes = fullRounds;
 
-  // Important: MUST be <= so a 1-stroke difference applies on handicap hole 1.
   if (remainder > 0 && holeHcp <= remainder) {
     strokes += 1;
   }

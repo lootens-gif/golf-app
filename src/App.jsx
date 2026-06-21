@@ -2573,7 +2573,8 @@ if (!enableTeamGame && !skinsEnabled) {
   // Generate a round code if we don't have one, then push initial state
   const code = roundCode || generateRoundCode();
   if (!roundCode) setRoundCode(code);
-  notifyRound("started", code);
+  // Only notify on truly new rounds (no scores entered yet)
+  if (Object.keys(scores).length === 0) notifyRound("started", code);
 
   // Auto-generate round name if blank
   const today = new Date();
