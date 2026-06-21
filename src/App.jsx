@@ -523,6 +523,8 @@ function notifyRound(event, code) {
     [players]
   );
 
+  const is666 = enableTeamGame && handicapDistribution === "spread";
+
   const context = useMemo(
     () => ({
       players,
@@ -540,6 +542,7 @@ function notifyRound(event, code) {
       scores,
       handicapMode,
       noPar3TeamGame,
+      is666,
       enableTeamGame,
       handicapDistribution,
     ]
@@ -1959,6 +1962,15 @@ function buildTemplatePayload(templateName, isPublic) {
 
 async function handleSaveTemplate(templateName, isPublic) {
   if (!templateName.trim()) return;
+
+  // Prompt to add course if not loaded
+  if (!course?.name || !course?.pars?.length) {
+    const proceed = window.confirm(
+      "No course is selected. Templates with a course load fastest — tap Cancel to add a course first, or OK to save without one."
+    );
+    if (!proceed) return;
+  }
+
   setTemplateStatus("saving");
   try {
     const payload = buildTemplatePayload(templateName, isPublic);
@@ -2544,8 +2556,8 @@ if (!enableTeamGame && !skinsEnabled) {
     setCurrentHole(1);
   }
 
-  // Require a course to be selected
-  if (!course?.name || !course?.pars?.length) {
+  // Require a course to be selected (skip if round already in progress)
+  if (lastHoleSaved === null && (!course?.name || !course?.pars?.length)) {
     alert("Please select a course before starting the round.");
     return;
   }

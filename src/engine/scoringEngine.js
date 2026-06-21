@@ -101,8 +101,13 @@ export function getSpreadHandicapStrokes(playerId, hole, players, course, handic
       .sort((a, b) => holeHcp(a) - holeHcp(b))
   );
 
-  const base = Math.floor(totalStrokes / 3);
-  const extra = totalStrokes % 3;
+  const totalEligible = segmentEligible.reduce((sum, seg) => sum + seg.length, 0);
+
+  // If par3 strokes excluded, cap total strokes at eligible holes — no overflow, no double strokes
+  const effectiveStrokes = noPar3Strokes ? Math.min(totalStrokes, totalEligible) : totalStrokes;
+
+  const base = Math.floor(effectiveStrokes / 3);
+  const extra = effectiveStrokes % 3;
 
   // Determine how many strokes each segment gets
   const segmentQuotas = [base, base, base];
@@ -117,7 +122,7 @@ export function getSpreadHandicapStrokes(playerId, hole, players, course, handic
         segIdx: i,
         marginalHcp: nextHole ? holeHcp(nextHole) : Infinity,
       };
-    }).sort((a, b) => a.marginalHcp - b.marginalHcp); // lowest HCP = hardest = gets extra first
+    }).sort((a, b) => a.marginalHcp - b.marginalHcp); // lowest HCP = hardest = gets extra first // lowest HCP = hardest = gets extra first
 
     for (let e = 0; e < extra; e++) {
       if (marginals[e]) {
@@ -135,28 +140,28 @@ export function getSpreadHandicapStrokes(playerId, hole, players, course, handic
     segmentEligible[i].slice(0, quota).forEach(h => strokeHoles.add(h));
   });
 
-  // Handle overflow: if a segment's quota exceeds its eligible holes,
-  // remaining strokes go to the hardest eligible hole across ALL segments
-  // (excluding holes already assigned a stroke that aren't yet doubled)
-  const doubleStrokes = new Set(); // holes that get 2 strokes
-  segments.forEach((_, i) => {
-    const quota = segmentQuotas[i];
-    const available = segmentEligible[i].length;
-    if (quota > available && available > 0) {
-      const overflow = quota - available;
-      // Find overflow strokes: hardest eligible holes globally not yet doubled
-      const allEligible = segments.flat()
-        .filter(h => !(noPar3Strokes && isPar3(h)) && Number.isFinite(holeHcp(h)))
-        .filter(h => !doubleStrokes.has(h))
-        .sort((a, b) => holeHcp(a) - holeHcp(b));
-      for (let o = 0; o < overflow; o++) {
-        if (allEligible[o]) {
-          doubleStrokes.add(allEligible[o]);
-          strokeHoles.add(allEligible[o]);
+  // Handle overflow (only possible when par3 toggle OFF and HCP 19+)
+  // Overflow strokes go to hardest eligible holes globally as double strokes
+  const doubleStrokes = new Set();
+  if (!noPar3Strokes) {
+    segments.forEach((_, i) => {
+      const quota = segmentQuotas[i];
+      const available = segmentEligible[i].length;
+      if (quota > available && available > 0) {
+        const overflow = quota - available;
+        const allEligible = segments.flat()
+          .filter(h => Number.isFinite(holeHcp(h)))
+          .filter(h => !doubleStrokes.has(h))
+          .sort((a, b) => holeHcp(a) - holeHcp(b));
+        for (let o = 0; o < overflow; o++) {
+          if (allEligible[o]) {
+            doubleStrokes.add(allEligible[o]);
+            strokeHoles.add(allEligible[o]);
+          }
         }
       }
-    }
-  });
+    });
+  }
 
   // Return: 2 if hole gets double stroke, 1 if gets single, 0 if none
   if (doubleStrokes.has(hole)) return 2;

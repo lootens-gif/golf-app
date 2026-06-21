@@ -478,12 +478,25 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         // Money — always show "if ended now"
         const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
 
+        // Birdie $$ for this match from P1 perspective
+        const matchBirdieNet = (birdieResults || [])
+          .filter(e => e.source === "match-birdie" && e.matchId === match.id && e.playerId === match.p1Id)
+          .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
         const total = Number(result?.total || 0);
         const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
+        const birdieColor = matchBirdieNet > 0 ? "#1a5c35" : matchBirdieNet < 0 ? "#b3261e" : "#6b7280";
+        const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
+
         const oneVOneTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
             <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
+            {matchBirdieNet !== 0 && (
+              <span style={{ color: birdieColor, marginLeft: 6, fontSize: 12 }}>
+                ({fmtMoney(matchBirdieNet)} birdies)
+              </span>
+            )}
           </span>
         );
 
@@ -1056,6 +1069,7 @@ function TeamGameAudit({
   teamGameUnitAmount,
   noPar3TeamGame = false,
   getHandicapStrokesFn,
+  birdieResults = [],
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -1163,10 +1177,26 @@ function TeamGameAudit({
               }
 
               const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
+
+              // Net birdies for this matchup from teamA perspective
+              const teamAIds = teamA.map(id => id);
+              const matchupBirdieNet = (birdieResults || [])
+                .filter(e => e.source === "team-birdie" && e.matchupId === matchup.label)
+                .reduce((sum, e) => teamAIds.includes(e.playerId) ? sum + Number(e.amount || 0) : sum, 0);
+              const birdieCount = Math.abs(matchupBirdieNet) / Number(teamGameUnitAmount || 1);
+              const birdieColor = matchupBirdieNet > 0 ? "#137333" : matchupBirdieNet < 0 ? "#b3261e" : "#6b7280";
+
               const matchTitle = (
-                <span style={{ color: matchColor }}>
-                  {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
-                  {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
+                <span>
+                  <span style={{ color: matchColor }}>
+                    {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
+                    {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
+                  </span>
+                  {matchupBirdieNet !== 0 && (
+                    <span style={{ color: birdieColor, fontSize: 12, marginLeft: 8 }}>
+                      · {birdieCount % 1 === 0 ? birdieCount : birdieCount.toFixed(1)} net birdie{birdieCount !== 1 ? "s" : ""} included
+                    </span>
+                  )}
                 </span>
               );
 
@@ -1558,6 +1588,7 @@ export default function AuditTrail({
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
   noPar3TeamGame={noPar3TeamGame}
+  birdieResults={birdieResults}
 />
 
 {/* 1v1 */}
