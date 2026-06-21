@@ -21,6 +21,7 @@ export default function ScoreEntryCard({
   onNextHole,
   handicapMode,
   getHandicapStrokesFn,
+  noPar3TeamGame = false,
   isJoiner = false,
   onRefresh,
   onScoreFocus,
@@ -134,9 +135,9 @@ export default function ScoreEntryCard({
                 </span>
                 {(() => {
                   if (!getHandicapStrokesFn || !handicapMode) return null;
-                  const strokesThisHole = getHandicapStrokesFn(player.id, currentHole, players, course, handicapMode);
+                  const strokesThisHole = getHandicapStrokesFn(player.id, currentHole, players, course, handicapMode, noPar3TeamGame);
                   const totalStrokes = Array.from({length: 18}, (_, i) => i + 1)
-                    .reduce((s, h) => s + getHandicapStrokesFn(player.id, h, players, course, handicapMode), 0);
+                    .reduce((s, h) => s + getHandicapStrokesFn(player.id, h, players, course, handicapMode, noPar3TeamGame), 0);
                   if (totalStrokes === 0) return null;
                   return (
                     <span style={{ fontSize: 12, color: sc.muted, fontWeight: 400 }}>

@@ -523,6 +523,7 @@ function notifyRound(event, code) {
     [players]
   );
 
+  const is666 = enableTeamGame && handicapDistribution === "spread";
 
   const context = useMemo(
     () => ({
@@ -541,6 +542,7 @@ function notifyRound(event, code) {
       scores,
       handicapMode,
       noPar3TeamGame,
+      is666,
       enableTeamGame,
       handicapDistribution,
     ]
@@ -3285,6 +3287,7 @@ return (
     getHandicapStrokesFn={context.getHandicapStrokesFn}
     onScoreFocus={() => { isEnteringScore.current = true; }}
     onScoreBlur={() => { isEnteringScore.current = false; }}
+    noPar3TeamGame={noPar3TeamGame}
     onPrevHole={() => {
       if (currentHole > 1) setCurrentHole(currentHole - 1);
     }}
