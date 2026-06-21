@@ -1,4 +1,7 @@
-export default function ScoresGrid({ players, scores, onSetScore }) {
+import { getHandicapStrokes as defaultGetHandicapStrokes } from '../engine/scoringEngine';
+
+export default function ScoresGrid({ players, scores, onSetScore, course, handicapMode, getHandicapStrokesFn }) {
+  const strokesFn = getHandicapStrokesFn || defaultGetHandicapStrokes;
   function focusNextScoreField(currentHole, currentPlayerId) {
     const playerIndex = players.findIndex((p) => p.id === currentPlayerId);
     if (playerIndex === -1) return;
@@ -92,7 +95,12 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                   {hole}
                 </td>
 
-                {players.map((player) => (
+                {players.map((player) => {
+                  const strokes = course && handicapMode
+                    ? strokesFn(player.id, hole, players, course, handicapMode)
+                    : 0;
+                  const dotStr = "•".repeat(strokes || 0);
+                  return (
                   <td
                     key={player.id}
                     style={{
@@ -101,6 +109,9 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                       textAlign: "center",
                     }}
                   >
+                    {dotStr && (
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#1a1a1a", letterSpacing: "-1px", lineHeight: 1, marginBottom: 2 }}>{dotStr}</div>
+                    )}
                     <input
                       id={`score-${hole}-${player.id}`}
                       type="text"
@@ -120,7 +131,8 @@ export default function ScoresGrid({ players, scores, onSetScore }) {
                       }}
                     />
                   </td>
-                ))}
+                  );
+                })}
               </tr>
             ))}
           </tbody>

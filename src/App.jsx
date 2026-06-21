@@ -523,6 +523,7 @@ function notifyRound(event, code) {
     [players]
   );
 
+  const is666 = enableTeamGame && handicapDistribution === "spread";
 
   const context = useMemo(
     () => ({
@@ -541,6 +542,7 @@ function notifyRound(event, code) {
       scores,
       handicapMode,
       noPar3TeamGame,
+      is666,
       enableTeamGame,
       handicapDistribution,
     ]
@@ -3687,6 +3689,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
       players={enableTeamGame ? players : activePlayers}
       scores={scores}
       onSetScore={setScore}
+      course={course}
+      handicapMode={handicapMode}
+      getHandicapStrokesFn={context.getHandicapStrokesFn}
     />
   </div>
 )}

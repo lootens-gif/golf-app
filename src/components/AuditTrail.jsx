@@ -1073,8 +1073,93 @@ function TeamGameAudit({
 }) {
   if (!teamGameResults?.length) return null;
 
+  // Helper: compute birdie summary for a set of matchup labels
+  function getBirdieSummary(matchupLabels, teamAIds, birdieResultsArr, unitAmount, birdiesEnabled) {
+    if (!birdiesEnabled) return null;
+    const relevant = (birdieResultsArr || []).filter(e =>
+      e.source === "team-birdie" && matchupLabels.includes(e.matchupId)
+    );
+    // Gross birdies made = positive amounts for any player
+    const grossMade = relevant.filter(e => e.amount > 0).length;
+    if (grossMade === 0) return "No birdies this segment";
+    // Net = number of bets that moved (positive entries for winning team)
+    const netBets = relevant
+      .filter(e => teamAIds.includes(e.playerId) && e.amount > 0)
+      .reduce((sum, e) => sum + 1, 0);
+    const netOpponent = relevant
+      .filter(e => !teamAIds.includes(e.playerId) && e.amount > 0)
+      .reduce((sum, e) => sum + 1, 0);
+    const netIncluded = Math.max(netBets, netOpponent);
+    return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made · ${netIncluded} net included`;
+  }
+
+  // Compute overall player net $$ across ALL games for Level 0 header
+  const overallPlayerDollars = {};
+  players.forEach(p => { overallPlayerDollars[p.id] = 0; });
+  teamGameResults.forEach(game => {
+    (game.matches || []).forEach(matchup => {
+      const sel = getTeamGameSelection?.(game.index ?? 0);
+      const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
+      const teamA = matchup.teamA || (sel?.[teamAKey] || []).filter(Boolean);
+      const teamB = matchup.teamB || (sel?.[teamBKey] || []).filter(Boolean);
+      const result = matchup.result;
+      const isNonPress = result && !Array.isArray(result) && result.type;
+      const dollars = isNonPress
+        ? (result.total || 0)
+        : (result || []).reduce((s, bet) => s + (Number(bet.score || 0) > 0 ? 1 : Number(bet.score || 0) < 0 ? -1 : 0), 0) * Number(teamGameUnitAmount || 0);
+      teamA.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] += dollars; });
+      teamB.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] -= dollars; });
+    });
+    // Add birdies
+    (birdieResults || []).filter(e => e.source === "team-birdie").forEach(e => {
+      if (overallPlayerDollars[e.playerId] !== undefined) overallPlayerDollars[e.playerId] += Number(e.amount || 0);
+    });
+  });
+  // deduplicate birdie additions (they're already summed per game, don't double-add)
+  // reset and redo properly
+  players.forEach(p => { overallPlayerDollars[p.id] = 0; });
+  (birdieResults || []).filter(e => e.source === "team-birdie").forEach(e => {
+    if (overallPlayerDollars[e.playerId] !== undefined) overallPlayerDollars[e.playerId] += Number(e.amount || 0);
+  });
+  teamGameResults.forEach(game => {
+    (game.matches || []).forEach(matchup => {
+      const sel = getTeamGameSelection?.(game.index ?? 0);
+      const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
+      const teamA = matchup.teamA || (sel?.[teamAKey] || []).filter(Boolean);
+      const teamB = matchup.teamB || (sel?.[teamBKey] || []).filter(Boolean);
+      const result = matchup.result;
+      const isNonPress = result && !Array.isArray(result) && result.type;
+      const dollars = isNonPress
+        ? (result.total || 0)
+        : (result || []).reduce((s, bet) => s + (Number(bet.score || 0) > 0 ? 1 : Number(bet.score || 0) < 0 ? -1 : 0), 0) * Number(teamGameUnitAmount || 0);
+      teamA.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] += dollars; });
+      teamB.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] -= dollars; });
+    });
+  });
+
+  const activePlayers = players.filter(p => Object.keys(overallPlayerDollars).includes(p.id) && p.name && !p.name.match(/^P\d+$/));
+  const sortedPlayers = [...activePlayers].sort((a, b) => overallPlayerDollars[b.id] - overallPlayerDollars[a.id]);
+
+  const teamGameTitle = (
+    <span>
+      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Team Game</span>
+      <span style={{ marginLeft: 10, fontSize: 13 }}>
+        {sortedPlayers.map((p, i) => {
+          const net = overallPlayerDollars[p.id] || 0;
+          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+          return (
+            <span key={p.id} style={{ marginRight: 8 }}>
+              <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+              <span style={{ color, marginLeft: 3 }}>{net >= 0 ? "+" : ""}{formatMoney(net)}</span>
+            </span>
+          );
+        })}
+      </span>
+    </span>
+  );
+
   return (
-     <AuditSection title="Team Game" defaultOpen>
+     <AuditSection title={teamGameTitle} defaultOpen>
       {teamGameResults.map((game, gameIndex) => {
         if (game.duplicateError) {
           return (
@@ -1113,6 +1198,11 @@ function TeamGameAudit({
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
 
+        // Birdie summary for this segment
+        const segmentMatchupLabels = (game.matches || []).map(m => m.label);
+        const segmentWheelIds = wheelIds;
+        const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, birdieResults, teamGameUnitAmount, game.birdieEnabled);
+
         const gameTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Holes {game.start}–{game.end}</span>
@@ -1139,6 +1229,11 @@ function TeamGameAudit({
             key={gameIndex}
             title={gameTitle}
           >
+            {segmentBirdieLine && (
+              <div style={{ fontSize: 12, color: "#6b7280", padding: "4px 0 8px", borderBottom: "1px solid #e5e7eb", marginBottom: 8 }}>
+                🐦 {segmentBirdieLine}
+              </div>
+            )}
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
               const teamA = matchup.teamA || (selection?.[teamAKey] || []).filter(Boolean);
@@ -1176,25 +1271,19 @@ function TeamGameAudit({
                 totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
               }
 
+              // Birdie summary for this matchup
+              const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, birdieResults, teamGameUnitAmount, game.birdieEnabled);
+
               const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
-
-              // Net birdies for this matchup from teamA perspective
-              const teamAIds = teamA.map(id => id);
-              const matchupBirdieNet = (birdieResults || [])
-                .filter(e => e.source === "team-birdie" && e.matchupId === matchup.label)
-                .reduce((sum, e) => teamAIds.includes(e.playerId) ? sum + Number(e.amount || 0) : sum, 0);
-              const birdieCount = Math.abs(matchupBirdieNet) / Number(teamGameUnitAmount || 1);
-              const birdieColor = matchupBirdieNet > 0 ? "#137333" : matchupBirdieNet < 0 ? "#b3261e" : "#6b7280";
-
               const matchTitle = (
                 <span>
                   <span style={{ color: matchColor }}>
                     {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
                     {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
                   </span>
-                  {matchupBirdieNet !== 0 && (
-                    <span style={{ color: birdieColor, fontSize: 12, marginLeft: 8 }}>
-                      · {birdieCount % 1 === 0 ? birdieCount : birdieCount.toFixed(1)} net birdie{birdieCount !== 1 ? "s" : ""} included
+                  {matchupBirdieLine && (
+                    <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>
+                      · 🐦 {matchupBirdieLine}
                     </span>
                   )}
                 </span>
@@ -1270,7 +1359,9 @@ function ScoreCell({ gross, par, strokes }) {
   const dotStr = "•".repeat(strokes || 0);
 
   if (gross === null || gross === undefined) {
-    return <span style={{ color: "#999", fontSize: 11, fontWeight: 700, letterSpacing: "-1px" }}>{dotStr || <span style={{ color: "#ccc" }}>-</span>}</span>;
+    return dotStr
+      ? <span style={{ color: "#1a1a1a", fontSize: 11, fontWeight: 700, letterSpacing: "-1px" }}>{dotStr}</span>
+      : <span style={{ color: "#d1d5db" }}>–</span>;
   }
 
   const symbol = getScoreSymbol(gross, par);
@@ -1280,7 +1371,7 @@ function ScoreCell({ gross, par, strokes }) {
     return <span>{display}</span>;
   }
 
-  const dotsEl = dotStr ? <span style={{ color: "#666", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1 }}>{dotStr}</span> : null;
+  const dotsEl = dotStr ? <span style={{ color: "#1a1a1a", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1, fontWeight: 700 }}>{dotStr}</span> : null;
 
   if (symbol.type === "birdie") {
     return (
