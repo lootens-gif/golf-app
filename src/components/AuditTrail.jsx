@@ -1074,34 +1074,34 @@ function TeamGameAudit({
   if (!teamGameResults?.length) return null;
 
   // Helper: compute birdie summary for a set of matchup labels
-  function getBirdieSummary(matchupLabels, teamAIds, birdieResultsArr, unitAmount, birdiesEnabled) {
+  function getBirdieSummary(matchupLabels, teamAIds, birdieResultsArr, unitAmount, birdiesEnabled, scores, course) {
     if (!birdiesEnabled) return null;
     const relevant = (birdieResultsArr || []).filter(e =>
       e.source === "team-birdie" && matchupLabels.includes(e.matchupId)
     );
     if (relevant.length === 0) return "No birdies this segment";
 
-    // Count gross birdies made: distinct (playerId, holeNumber) pairs with positive amount
-    const grossMadeSet = new Set(
-      relevant.filter(e => e.amount > 0).map(e => `${e.playerId}-${e.holeNumber}`)
-    );
+    // Get all player IDs involved in these matchups
+    const allPlayerIds = new Set(relevant.map(e => e.playerId));
+
+    // Count gross birdies from scores directly — distinct (playerId, hole) pairs
+    const grossMadeSet = new Set();
+    const holesInvolved = new Set(relevant.map(e => e.holeNumber));
+    holesInvolved.forEach(hole => {
+      allPlayerIds.forEach(playerId => {
+        if (scores && course && isGrossBirdie(scores, course, hole, playerId)) {
+          grossMadeSet.add(`${playerId}-${hole}`);
+        }
+      });
+    });
     const grossMade = grossMadeSet.size;
     if (grossMade === 0) return "No birdies this segment";
 
-    // Count net birdies: distinct holes where money actually moved (any positive entry)
-    const netHoles = new Set(
-      relevant.filter(e => e.amount > 0).map(e => e.holeNumber)
-    );
-    // Net included = holes where teamA won minus holes where teamB won (absolute diff per hole)
-    const teamAWonHoles = new Set(
-      relevant.filter(e => e.amount > 0 && teamAIds.includes(e.playerId)).map(e => e.holeNumber)
-    );
-    const teamBWonHoles = new Set(
-      relevant.filter(e => e.amount > 0 && !teamAIds.includes(e.playerId)).map(e => e.holeNumber)
-    );
-    const netIncluded = Math.abs(teamAWonHoles.size - teamBWonHoles.size) || netHoles.size;
+    // Net paid = distinct holes where money actually moved
+    const netPaidHoles = new Set(relevant.filter(e => e.amount > 0).map(e => e.holeNumber));
+    const netPaid = netPaidHoles.size;
 
-    return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made · ${netIncluded} net included`;
+    return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made · ${netPaid} net paid`;
   }
 
   // Compute overall player net $$ across ALL games for Level 0 header
@@ -1212,7 +1212,7 @@ function TeamGameAudit({
         // Birdie summary for this segment
         const segmentMatchupLabels = (game.matches || []).map(m => m.label);
         const segmentWheelIds = wheelIds;
-        const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, birdieResults, teamGameUnitAmount, game.birdieEnabled);
+        const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course);
 
         const gameTitle = (
           <span>
@@ -1283,7 +1283,7 @@ function TeamGameAudit({
               }
 
               // Birdie summary for this matchup
-              const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, birdieResults, teamGameUnitAmount, game.birdieEnabled);
+              const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course);
 
               const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
               const matchTitle = (
