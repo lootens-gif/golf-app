@@ -541,7 +541,6 @@ function notifyRound(event, code) {
       scores,
       handicapMode,
       noPar3TeamGame,
-      is666,
       enableTeamGame,
       handicapDistribution,
     ]
