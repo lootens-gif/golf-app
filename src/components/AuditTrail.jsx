@@ -493,8 +493,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
             <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
             {matchBirdieNet !== 0 && (
-              <span style={{ color: birdieColor, marginLeft: 6, fontSize: 12 }}>
-                ({fmtMoney(matchBirdieNet)} birdies)
+              <span style={{ color: birdieColor, marginLeft: 10, fontSize: 13 }}>
+                Birdies {fmtMoney(matchBirdieNet)}
               </span>
             )}
           </span>
