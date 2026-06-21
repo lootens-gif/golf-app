@@ -1079,17 +1079,28 @@ function TeamGameAudit({
     const relevant = (birdieResultsArr || []).filter(e =>
       e.source === "team-birdie" && matchupLabels.includes(e.matchupId)
     );
-    // Gross birdies made = positive amounts for any player
-    const grossMade = relevant.filter(e => e.amount > 0).length;
+    if (relevant.length === 0) return "No birdies this segment";
+
+    // Count gross birdies made: distinct (playerId, holeNumber) pairs with positive amount
+    const grossMadeSet = new Set(
+      relevant.filter(e => e.amount > 0).map(e => `${e.playerId}-${e.holeNumber}`)
+    );
+    const grossMade = grossMadeSet.size;
     if (grossMade === 0) return "No birdies this segment";
-    // Net = number of bets that moved (positive entries for winning team)
-    const netBets = relevant
-      .filter(e => teamAIds.includes(e.playerId) && e.amount > 0)
-      .reduce((sum, e) => sum + 1, 0);
-    const netOpponent = relevant
-      .filter(e => !teamAIds.includes(e.playerId) && e.amount > 0)
-      .reduce((sum, e) => sum + 1, 0);
-    const netIncluded = Math.max(netBets, netOpponent);
+
+    // Count net birdies: distinct holes where money actually moved (any positive entry)
+    const netHoles = new Set(
+      relevant.filter(e => e.amount > 0).map(e => e.holeNumber)
+    );
+    // Net included = holes where teamA won minus holes where teamB won (absolute diff per hole)
+    const teamAWonHoles = new Set(
+      relevant.filter(e => e.amount > 0 && teamAIds.includes(e.playerId)).map(e => e.holeNumber)
+    );
+    const teamBWonHoles = new Set(
+      relevant.filter(e => e.amount > 0 && !teamAIds.includes(e.playerId)).map(e => e.holeNumber)
+    );
+    const netIncluded = Math.abs(teamAWonHoles.size - teamBWonHoles.size) || netHoles.size;
+
     return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made · ${netIncluded} net included`;
   }
 
