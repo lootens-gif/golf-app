@@ -1699,8 +1699,7 @@ export default function AuditTrail({
   getHandicapStrokesFn,
 }) {
   return (
-    <AuditSection title="Scorecards & Match Detail" defaultOpen>
-    <div style={{ paddingTop: 4 }}>
+    <div>
       <div style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
         Tap any section to expand
       </div>
@@ -1760,6 +1759,5 @@ export default function AuditTrail({
 </div>
 
     </div>
-    </AuditSection>
   );
 }
