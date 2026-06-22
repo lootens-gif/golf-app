@@ -1098,11 +1098,13 @@ function TeamGameAudit({
 
     // Net paid = distinct holes with entries (cancelled holes = diff=0 = no entries)
     const relevant = (birdieResultsArr || []).filter(e =>
-      e.source === "team-birdie" && matchupLabels.includes(e.matchupId)
+      e.source === "team-birdie" &&
+      matchupLabels.includes(e.matchupId) &&
+      (!holeRange || (e.holeNumber >= holeRange[0] && e.holeNumber <= holeRange[1]))
     );
     const netPaid = new Set(relevant.map(e => e.holeNumber)).size;
 
-    return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made · ${netPaid} net paid`;
+    return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made`;
   }
 
   // Compute overall player net $$ across ALL games for Level 0 header
@@ -1161,7 +1163,7 @@ function TeamGameAudit({
         return (
           <span key={p.id}>
             <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
-            <span style={{ color, marginLeft: 2 }}>{net >= 0 ? "+" : ""}{formatMoney(net)}</span>
+            <span style={{ color, marginLeft: 2 }}>{formatMoney(net)}</span>
           </span>
         );
       })}
@@ -1213,11 +1215,15 @@ function TeamGameAudit({
         const segmentTeamBIds = players.filter(p => !segmentWheelIds.includes(p.id)).map(p => p.id);
         const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, segmentTeamBIds, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);
 
-        // Birdie $$ per player for this segment
+        // Birdie $$ per player for this segment — filter by hole range to prevent
+        // cross-segment counting (matchup labels repeat across all 3 segments)
         const playerBirdieDollars = {};
         players.forEach(p => { playerBirdieDollars[p.id] = 0; });
         (birdieResults || []).filter(e =>
-          e.source === "team-birdie" && segmentMatchupLabels.includes(e.matchupId)
+          e.source === "team-birdie" &&
+          segmentMatchupLabels.includes(e.matchupId) &&
+          e.holeNumber >= game.start &&
+          e.holeNumber <= game.end
         ).forEach(e => {
           if (playerBirdieDollars[e.playerId] !== undefined) {
             playerBirdieDollars[e.playerId] += Number(e.amount || 0);
