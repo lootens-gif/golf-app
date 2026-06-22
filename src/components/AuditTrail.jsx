@@ -1097,12 +1097,6 @@ function TeamGameAudit({
     if (grossMade === 0) return "No birdies this segment";
 
     // Net paid = distinct holes with entries (cancelled holes = diff=0 = no entries)
-    const relevant = (birdieResultsArr || []).filter(e =>
-      e.source === "team-birdie" &&
-      matchupLabels.includes(e.matchupId) &&
-      (!holeRange || (e.holeNumber >= holeRange[0] && e.holeNumber <= holeRange[1]))
-    );
-
     return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made`;
   }
 
