@@ -199,8 +199,8 @@ export function getNetScore(
 
 
 
-export function isNetBirdie(playerId, hole, players, course, scores, handicapMode) {
-  const net = getNetScore(playerId, hole, players, course, scores, handicapMode);
+export function isNetBirdie(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false) {
+  const net = getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes);
   if (net === null) return false;
   const par = course.pars[hole - 1];
   return net < par;
@@ -1148,8 +1148,9 @@ export function buildMatchBirdieResults(matches, scores, course, toyRule = false
       const p1Gross = isGrossBirdie(scores, course, holeNumber, p1Id);
       const p2Gross = isGrossBirdie(scores, course, holeNumber, p2Id);
       const matchToyRule = !!match.toyRule;
-      const p1Net = matchToyRule ? isNetBirdie(p1Id, holeNumber, players, course, scores, handicapMode) : false;
-      const p2Net = matchToyRule ? isNetBirdie(p2Id, holeNumber, players, course, scores, handicapMode) : false;
+      const matchNoPar3 = !!match.noPar3Strokes;
+      const p1Net = matchToyRule ? isNetBirdie(p1Id, holeNumber, players, course, scores, handicapMode, matchNoPar3) : false;
+      const p2Net = matchToyRule ? isNetBirdie(p2Id, holeNumber, players, course, scores, handicapMode, matchNoPar3) : false;
 
       // Under Toy Rule: gross ties net — only gross birdies win outright
       // A net-only birdie does nothing unless there's a gross birdie to tie

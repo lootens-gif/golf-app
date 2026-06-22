@@ -400,8 +400,8 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, subtitle, children, defaultOpen = false }) {
-  const storageKey = `scorecard-section:${title}`;
+function AuditSection({ title, subtitle, children, defaultOpen = false, storageId }) {
+  const storageKey = `scorecard-section:${storageId || (typeof title === "string" ? title : "")}`;
 
   const [open, setOpen] = useState(() => {
     try {
@@ -1097,6 +1097,13 @@ function TeamGameAudit({
     if (grossMade === 0) return "No birdies this segment";
 
     // Net paid = distinct holes with entries (cancelled holes = diff=0 = no entries)
+    const relevant = (birdieResultsArr || []).filter(e =>
+      e.source === "team-birdie" &&
+      matchupLabels.includes(e.matchupId) &&
+      (!holeRange || (e.holeNumber >= holeRange[0] && e.holeNumber <= holeRange[1]))
+    );
+    const netPaid = new Set(relevant.map(e => e.holeNumber)).size;
+
     return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made`;
   }
 
@@ -1267,6 +1274,7 @@ function TeamGameAudit({
             <AuditSection
               title={gameTitle}
               defaultOpen={false}
+              storageId={`game-${gameIndex}`}
               subtitle={segmentBirdieLine ? `🐦 ${segmentBirdieLine}` : null}
             >
             {(game.matches || []).map((matchup, matchupIndex) => {
@@ -1328,6 +1336,8 @@ function TeamGameAudit({
                 <AuditSection
                   key={`${gameIndex}-${matchupIndex}`}
                   title={matchTitle}
+                  storageId={`matchup-${gameIndex}-${matchupIndex}`}
+                  defaultOpen={false}
                 >
                   {isNonPress ? (
                     <div style={{ padding: "8px 0", fontSize: 13 }}>
