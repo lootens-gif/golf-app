@@ -1224,37 +1224,38 @@ function TeamGameAudit({
           }
         });
 
-        // Wheel team combined match $$ + birdie $$
-        const wheelMatchDollars = wheelBets * Number(teamGameUnitAmount || 0);
-        const wheelBirdieDollars = wheelIds.reduce((sum, id) => sum + (playerBirdieDollars[id] || 0), 0) / Math.max(wheelIds.length, 1);
-        const wheelTotal = wheelMatchDollars + wheelBirdieDollars;
-        const wheelTotalColor = wheelTotal > 0 ? "#1a5c35" : wheelTotal < 0 ? "#b3261e" : "#6b7280";
+        const wheelMatchPerPlayer = wheelBets * Number(teamGameUnitAmount || 0);
+        // Wheel birdie per player — read directly from engine output (same for both wheel players)
+        const wheelBirdiePerPlayer = wheelIds.length > 0 ? (playerBirdieDollars[wheelIds[0]] || 0) : 0;
 
         const fmtAmt = (v) => {
+          if (v === 0) return "$0";
           const abs = Math.abs(v);
           const s = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
-          return v >= 0 ? `+$${s}` : `-$${s}`;
+          return v > 0 ? `+$${s}` : `-$${s}`;
         };
+        const col = (v) => v > 0 ? "#1a5c35" : v < 0 ? "#b3261e" : "#6b7280";
 
         const gameTitle = (
-          <span style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "2px 6px" }}>
-            <span style={{ fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>Holes {game.start}–{game.end}</span>
-            <span style={{ color: wheelTotalColor, fontWeight: 700, whiteSpace: "nowrap" }}>
-              {wheelNames} {fmtAmt(wheelTotal)}
-              {wheelBirdieDollars !== 0 && (
-                <span style={{ fontSize: 11, marginLeft: 3 }}>🐦{fmtAmt(wheelBirdieDollars)}</span>
+          <span style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "2px 6px", fontSize: 13 }}>
+            <span style={{ fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap", fontSize: 14 }}>Holes {game.start}–{game.end}</span>
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 600, color: "#1a1a1a" }}>{wheelNames}</span>{" "}
+              <span style={{ color: col(wheelMatchPerPlayer) }}>{fmtAmt(wheelMatchPerPlayer)}ea</span>
+              {wheelBirdiePerPlayer !== 0 && (
+                <span style={{ color: col(wheelBirdiePerPlayer) }}> {fmtAmt(wheelBirdiePerPlayer)}ea 🐦</span>
               )}
             </span>
             {opponentPlayers.map((p) => {
               const matchDollars = (playerNetBets[p.id] || 0) * Number(teamGameUnitAmount || 0);
               const birdieDollars = playerBirdieDollars[p.id] || 0;
-              const total = matchDollars + birdieDollars;
-              const color = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
               return (
-                <span key={p.id} style={{ color, whiteSpace: "nowrap" }}>
-                  · {p.name.split(" ")[0]} {fmtAmt(total)}
+                <span key={p.id} style={{ whiteSpace: "nowrap" }}>
+                  <span style={{ color: "#6b7280" }}> · </span>
+                  <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>{" "}
+                  <span style={{ color: col(matchDollars) }}>{fmtAmt(matchDollars)}</span>
                   {birdieDollars !== 0 && (
-                    <span style={{ fontSize: 11, marginLeft: 2 }}>🐦</span>
+                    <span style={{ color: col(birdieDollars) }}> {fmtAmt(birdieDollars)} 🐦</span>
                   )}
                 </span>
               );
