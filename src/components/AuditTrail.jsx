@@ -400,7 +400,7 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, children, defaultOpen = false }) {
+function AuditSection({ title, subtitle, children, defaultOpen = false }) {
   const storageKey = `scorecard-section:${title}`;
 
   const [open, setOpen] = useState(() => {
@@ -455,6 +455,7 @@ function AuditSection({ title, children, defaultOpen = false }) {
         <span>{title}</span>
         <span style={{ fontSize: 12, opacity: 0.7 }}>{open ? "▲" : "▼"}</span>
       </button>
+      {subtitle && <div style={{ padding: "4px 14px 8px", background: "#f9fafb", fontSize: 12, color: "#6b7280", borderTop: "1px solid #e5e7eb" }}>{subtitle}</div>}
       {open && <div style={{ padding: 12, background: "#fff" }}>{children}</div>}
     </div>
   );
@@ -1152,25 +1153,23 @@ function TeamGameAudit({
   const sortedPlayers = [...activePlayers].sort((a, b) => overallPlayerDollars[b.id] - overallPlayerDollars[a.id]);
 
   const teamGameTitle = (
-    <span>
+    <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
       <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Team Game</span>
-      <span style={{ marginLeft: 10, fontSize: 13 }}>
-        {sortedPlayers.map((p, i) => {
-          const net = overallPlayerDollars[p.id] || 0;
-          const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
-          return (
-            <span key={p.id} style={{ marginRight: 8 }}>
-              <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
-              <span style={{ color, marginLeft: 3 }}>{net >= 0 ? "+" : ""}{formatMoney(net)}</span>
-            </span>
-          );
-        })}
-      </span>
+      {sortedPlayers.map((p) => {
+        const net = overallPlayerDollars[p.id] || 0;
+        const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+        return (
+          <span key={p.id}>
+            <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+            <span style={{ color, marginLeft: 2 }}>{net >= 0 ? "+" : ""}{formatMoney(net)}</span>
+          </span>
+        );
+      })}
     </span>
   );
 
   return (
-     <AuditSection title={teamGameTitle} defaultOpen>
+     <AuditSection title={teamGameTitle} defaultOpen={false}>
       {teamGameResults.map((game, gameIndex) => {
         if (game.duplicateError) {
           return (
@@ -1204,7 +1203,6 @@ function TeamGameAudit({
         const wheelIds = (selection?.team1 || []).filter(Boolean);
         const wheelNames = wheelIds.map(id => players.find(p => p.id === id)?.name || id).join('/');
         const wheelBets = wheelIds.length > 0 ? (playerNetBets[wheelIds[0]] || 0) : 0;
-        const wheelDollars = wheelBets * Number(teamGameUnitAmount || 0);
 
         // Opponent players (not on wheel team)
         const opponentPlayers = players.filter(p => !wheelIds.includes(p.id));
@@ -1215,37 +1213,62 @@ function TeamGameAudit({
         const segmentTeamBIds = players.filter(p => !segmentWheelIds.includes(p.id)).map(p => p.id);
         const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, segmentTeamBIds, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);
 
+        // Birdie $$ per player for this segment
+        const playerBirdieDollars = {};
+        players.forEach(p => { playerBirdieDollars[p.id] = 0; });
+        (birdieResults || []).filter(e =>
+          e.source === "team-birdie" && segmentMatchupLabels.includes(e.matchupId)
+        ).forEach(e => {
+          if (playerBirdieDollars[e.playerId] !== undefined) {
+            playerBirdieDollars[e.playerId] += Number(e.amount || 0);
+          }
+        });
+
+        // Wheel team combined match $$ + birdie $$
+        const wheelMatchDollars = wheelBets * Number(teamGameUnitAmount || 0);
+        const wheelBirdieDollars = wheelIds.reduce((sum, id) => sum + (playerBirdieDollars[id] || 0), 0) / Math.max(wheelIds.length, 1);
+        const wheelTotal = wheelMatchDollars + wheelBirdieDollars;
+        const wheelTotalColor = wheelTotal > 0 ? "#1a5c35" : wheelTotal < 0 ? "#b3261e" : "#6b7280";
+
+        const fmtAmt = (v) => {
+          const abs = Math.abs(v);
+          const s = Number.isInteger(abs) ? String(abs) : abs.toFixed(2);
+          return v >= 0 ? `+$${s}` : `-$${s}`;
+        };
+
         const gameTitle = (
-          <span>
-            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Holes {game.start}–{game.end}</span>
-            <span style={{ color: wheelBets >= 0 ? "#1a5c35" : "#b3261e", marginLeft: 8, fontWeight: 700 }}>
-              {wheelNames} {wheelBets > 0 ? "+" : ""}{wheelBets} ({formatMoney(wheelDollars)}ea)
+          <span style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "2px 6px" }}>
+            <span style={{ fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>Holes {game.start}–{game.end}</span>
+            <span style={{ color: wheelTotalColor, fontWeight: 700, whiteSpace: "nowrap" }}>
+              {wheelNames} {fmtAmt(wheelTotal)}
+              {wheelBirdieDollars !== 0 && (
+                <span style={{ fontSize: 11, marginLeft: 3 }}>🐦{fmtAmt(wheelBirdieDollars)}</span>
+              )}
             </span>
-            <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
-              {opponentPlayers.map((p, i) => {
-                const bets = playerNetBets[p.id] || 0;
-                const color = bets > 0 ? "#1a5c35" : bets < 0 ? "#b3261e" : "#6b7280";
-                return (
-                  <span key={p.id}>
-                    {i > 0 && " · "}
-                    <span style={{ color }}>{p.name} {bets > 0 ? "+" : ""}{bets}</span>
-                  </span>
-                );
-              })}
-            </span>
+            {opponentPlayers.map((p) => {
+              const matchDollars = (playerNetBets[p.id] || 0) * Number(teamGameUnitAmount || 0);
+              const birdieDollars = playerBirdieDollars[p.id] || 0;
+              const total = matchDollars + birdieDollars;
+              const color = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
+              return (
+                <span key={p.id} style={{ color, whiteSpace: "nowrap" }}>
+                  · {p.name.split(" ")[0]} {fmtAmt(total)}
+                  {birdieDollars !== 0 && (
+                    <span style={{ fontSize: 11, marginLeft: 2 }}>🐦</span>
+                  )}
+                </span>
+              );
+            })}
           </span>
         );
 
         return (
-          <AuditSection
-            key={gameIndex}
-            title={gameTitle}
-          >
-            {segmentBirdieLine && (
-              <div style={{ fontSize: 12, color: "#6b7280", padding: "4px 0 8px", borderBottom: "1px solid #e5e7eb", marginBottom: 8 }}>
-                🐦 {segmentBirdieLine}
-              </div>
-            )}
+          <div key={gameIndex}>
+            <AuditSection
+              title={gameTitle}
+              defaultOpen={false}
+              subtitle={segmentBirdieLine ? `🐦 ${segmentBirdieLine}` : null}
+            >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
               const teamA = matchup.teamA || (selection?.[teamAKey] || []).filter(Boolean);
@@ -1350,6 +1373,7 @@ function TeamGameAudit({
               );
             })}
           </AuditSection>
+          </div>
         );
       })}
     </AuditSection>
@@ -1673,10 +1697,10 @@ export default function AuditTrail({
   getHandicapStrokesFn,
 }) {
   return (
-    <div style={{ border: "2px solid #444", padding: 12, marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>Scorecards</h3>
+    <AuditSection title="Scorecards & Match Detail" defaultOpen>
+    <div style={{ paddingTop: 4 }}>
       <div style={{ fontSize: 13, color: "#555", marginBottom: 10 }}>
-        Tap any match to see hole-by-hole detail
+        Tap any section to expand
       </div>
 
     {/* TEAM GAME FIRST */}
@@ -1734,5 +1758,6 @@ export default function AuditTrail({
 </div>
 
     </div>
+    </AuditSection>
   );
 }
