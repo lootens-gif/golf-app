@@ -469,8 +469,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   if (!sideMatchEntries.length) return null;
 
   return (
-    <AuditSection title="1v1 Matches"defaultOpen>
-      {sideMatchEntries.map((entry) => {
+    <AuditSection title="1v1 Matches" defaultOpen={false} storageId="onevone-matches">
+      {sideMatchEntries.map((entry, entryIndex) => {
         const match = entry.match;
         const result = entry.result || {};
         const p1Name = getPlayerName(players, match.p1Id);
@@ -504,7 +504,10 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         return (
          <AuditSection
   key={match.id}
-title={oneVOneTitle}          >
+  title={oneVOneTitle}
+  storageId={`onevone-match-${entryIndex}`}
+  defaultOpen={false}
+>
   <OneVOneScorecard
     match={match}
     result={result}
