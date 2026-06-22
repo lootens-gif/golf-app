@@ -1102,7 +1102,6 @@ function TeamGameAudit({
       matchupLabels.includes(e.matchupId) &&
       (!holeRange || (e.holeNumber >= holeRange[0] && e.holeNumber <= holeRange[1]))
     );
-    const netPaid = new Set(relevant.map(e => e.holeNumber)).size;
 
     return `${grossMade} birdie${grossMade !== 1 ? "s" : ""} made`;
   }
