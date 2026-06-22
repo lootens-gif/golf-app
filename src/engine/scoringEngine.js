@@ -686,10 +686,11 @@ export function playIndividualMatch(match, context) {
 const noPar3Strokes = !!match.noPar3Strokes;
 if (match.gameType === "ninePoint") {
   const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+  const ninePointPlayers = players.filter(p => playerIds.includes(p.id));
 
   const result = getNinePointMatchSummary(
     playerIds,
-    players,
+    ninePointPlayers,
     course,
     scores,
     handicapMode,
@@ -1149,8 +1150,10 @@ export function buildMatchBirdieResults(matches, scores, course, toyRule = false
       const p2Gross = isGrossBirdie(scores, course, holeNumber, p2Id);
       const matchToyRule = !!match.toyRule;
       const matchNoPar3 = !!match.noPar3Strokes;
-      const p1Net = matchToyRule ? isNetBirdie(p1Id, holeNumber, players, course, scores, handicapMode, matchNoPar3) : false;
-      const p2Net = matchToyRule ? isNetBirdie(p2Id, holeNumber, players, course, scores, handicapMode, matchNoPar3) : false;
+      // Use only the 2 players in this match for relative handicap calculation
+      const matchPlayers = players.filter(p => p.id === p1Id || p.id === p2Id);
+      const p1Net = matchToyRule ? isNetBirdie(p1Id, holeNumber, matchPlayers, course, scores, handicapMode, matchNoPar3) : false;
+      const p2Net = matchToyRule ? isNetBirdie(p2Id, holeNumber, matchPlayers, course, scores, handicapMode, matchNoPar3) : false;
 
       // Under Toy Rule: gross ties net — only gross birdies win outright
       // A net-only birdie does nothing unless there's a gross birdie to tie
