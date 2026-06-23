@@ -1419,6 +1419,7 @@ const birdieResults = buildBirdieResults({
   handicapMode,
 });
 console.log('[BR]', JSON.stringify(birdieResults.filter(e=>e.source==='team-birdie'&&e.amount!==0)));
+console.log('[TGR]', JSON.stringify(teamGameResults.map(g=>({idx:g.index,start:g.start,end:g.end,matches:g.matches?.length,labels:g.matches?.map(m=>m.label)}))));
 // Keyed by gameIndex, then playerId
 const segmentBirdieAmounts = useMemo(() => {
   const result = {};
