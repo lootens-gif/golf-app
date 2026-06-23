@@ -1433,13 +1433,11 @@ for (const entry of birdieResults) {
   ledgerMap[playerId].birdies += amount;
   ledgerMap[playerId].total += amount;
 
-  // Route to correct bucket: team game birdies → mainGame, match birdies → sideMatches
-  // Entries with no source field are legacy/external — don't double-route them
+  // Route to correct bucket: match birdies → sideMatches, all others → birdies only
   if (entry.source === "match-birdie") {
     ledgerMap[playerId].sideMatches += amount;
-  } else if (entry.source === "team-birdie" || entry.source === "nine-point-birdie") {
-    ledgerMap[playerId].mainGame += amount;
   }
+  // team-birdie and nine-point-birdie go to birdies bucket only (not mainGame)
 }
 
 
@@ -1512,7 +1510,6 @@ for (const game of teamGameResults) {
 
     const teamAPlayers = selection[teamAKey] || [];
     const teamBPlayers = selection[teamBKey] || [];
-    console.log(`[ScoreRound] ${matchup.label} teamA=${teamAPlayers} teamB=${teamBPlayers} totalScore=${(matchup.result||[]).reduce((s,b)=>s+(Number(b.score||0)>0?1:Number(b.score||0)<0?-1:0),0)}`);
 
     // sum all scores (base + presses, pay each as a separate unit) to determine total units won/lost for the matchup
     const totalScore = (matchup.result || []).reduce((sum, item) => {
@@ -1534,7 +1531,6 @@ const dollars = totalScore * teamGameUnitAmount;
       if (!ledgerMap[playerId]) return;
       ledgerMap[playerId].mainGame += teamAShare;
       ledgerMap[playerId].total += teamAShare;
-      console.log(`[TeamSettle] ${matchup.label} teamA player=${playerId} share=${teamAShare} newMain=${ledgerMap[playerId].mainGame}`);
       eventLedger.push({
         holeNumber: game.start ?? null,
         playerId,
