@@ -1301,6 +1301,9 @@ export function buildTeamBirdieResults(
       const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
       const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
 
+      // DEBUG
+      if (game.start === 1) console.log(`[EngineDebug] ${match.label} teamA=${teamAPlayers} teamB=${teamBPlayers}`);
+
       const startHole = Number(game.start || 1);
       const endHole = Number(game.end || 18);
 
