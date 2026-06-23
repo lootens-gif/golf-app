@@ -1346,42 +1346,45 @@ describe('team birdies — multiple birdies on same team', () => {
     expect(byPlayer['D']).toBe(-10);
   });
 
-  test('toyRule: net birdie cancels one gross birdie one-for-one', () => {
-    // Team A: 2 gross birdies. Team B: 1 net birdie (no gross).
-    // 1 net cancels 1 gross → Team A wins 1 bet (not 2)
+
+  test('toyRule ON: gross birdie wins hole → pays; gross birdie pushed by net birdie → no pay', () => {
+    // Hole 1: A gross birdie, C has net birdie (stroke+par) → hole pushed → no pay
+    // Hole 2: A gross birdie, C no birdie → A wins hole → pays
+    const tgr = [{ index: 0, start: 1, end: 2, matches: [{ label: 'Team 1 vs Team 2' }] }];
     const players = [
-      { id: 'A', name: 'A', hcp: 18 },
-      { id: 'B', name: 'B', hcp: 18 },
-      { id: 'C', name: 'C', hcp: 36 }, // gets 2 strokes on hcp-3 hole → net birdie
-      { id: 'D', name: 'D', hcp: 0 },
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+      { id: 'C', name: 'C', hcp: 18 }, // gets stroke on hcp-3 hole (hole 1)
+      { id: 'D', name: 'D', hcp: 18 },
     ];
-    const scores = { 1: { A: 3, B: 3, C: 5, D: 6 } };
-    const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, true, players, 'relative');
+    // Hole 1 hcp=3: C gets 1 stroke (18 relative to 0). A=3(birdie), C=4(par+stroke=net3 birdie) → pushed
+    // Hole 2 hcp=13: C gets 0 strokes (18>13? no wait relative: C gets 18 strokes on hcp ≤18). hole2 hcp=13 ≤18 → C gets stroke. C=4(par+stroke=net3 birdie) → pushed again
+    // Let me use a simpler setup: hole 1 pushed, but for hole 2 C shoots worse
+    const scores = {
+      1: { A: 3, B: 5, C: 4, D: 5 }, // A birdie, C par+stroke=net birdie → push
+      2: { A: 3, B: 5, C: 5, D: 5 }, // A birdie, C bogey even with stroke → A wins
+    };
+    const results = buildTeamBirdieResults(teamGames, tgr, scores, course, getSelection, null, true, players, 'relative');
     const byPlayer = {};
     results.forEach(r => { byPlayer[r.playerId] = (byPlayer[r.playerId] || 0) + r.amount; });
-    expect(byPlayer['A']).toBe(5);  // 1 uncancelled birdie × $5
-    expect(byPlayer['B']).toBe(5);
-    expect(byPlayer['C']).toBe(-5);
-    expect(byPlayer['D']).toBe(-5);
+    // Hole 2 only pays (A wins hole with gross birdie)
+    expect(byPlayer['A'] || 0).toBe(5);
+    expect(byPlayer['B'] || 0).toBe(5);
+    expect(byPlayer['C'] || 0).toBe(-5);
+    expect(byPlayer['D'] || 0).toBe(-5);
   });
 
-  test('Tim scenario: A p1+p2 gross birdie, B p1 net birdie, B p2 net par → A wins 1 birdie bet', () => {
-    // Team A: 2 gross birdies. Team B: 1 net birdie cancels 1 gross → net 1 uncancelled
+  test('toyRule ON: both teams gross birdie same hole → hole pushed → no pay', () => {
+    // Team A: A gross birdie. Team B: C gross birdie. Hole pushed.
     const players = [
-      { id: 'A', name: 'A', hcp: 18 },
-      { id: 'B', name: 'B', hcp: 18 },
-      { id: 'C', name: 'C', hcp: 36 }, // net birdie via strokes
-      { id: 'D', name: 'D', hcp: 0 },  // net par
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+      { id: 'C', name: 'C', hcp: 0 },
+      { id: 'D', name: 'D', hcp: 0 },
     ];
-    const scores = { 1: { A: 3, B: 3, C: 5, D: 5 } };
+    const scores = { 1: { A: 3, B: 5, C: 3, D: 5 } };
     const results = buildTeamBirdieResults(teamGames, teamGameResults, scores, course, getSelection, null, true, players, 'relative');
-    const byPlayer = {};
-    results.forEach(r => { byPlayer[r.playerId] = (byPlayer[r.playerId] || 0) + r.amount; });
-    expect(byPlayer['A']).toBe(5);   // 1 uncancelled birdie wins
-    expect(byPlayer['B']).toBe(5);
-    expect(byPlayer['C']).toBe(-5);
-    expect(byPlayer['D']).toBe(-5);
-    expect(Object.values(byPlayer).reduce((s, v) => s + v, 0)).toBe(0);
+    expect(results.filter(r => r.source === 'team-birdie').length).toBe(0);
   });
 });
 
