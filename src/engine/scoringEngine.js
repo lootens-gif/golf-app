@@ -1433,11 +1433,8 @@ for (const entry of birdieResults) {
   ledgerMap[playerId].birdies += amount;
   ledgerMap[playerId].total += amount;
 
-  // Route to correct bucket: match birdies → sideMatches, all others → birdies only
-  if (entry.source === "match-birdie") {
-    ledgerMap[playerId].sideMatches += amount;
-  }
-  // team-birdie and nine-point-birdie go to birdies bucket only (not mainGame)
+  // All birdie sources go to birdies bucket only
+  // match game amounts go to sideMatches separately via matchResults loop below
 }
 
 

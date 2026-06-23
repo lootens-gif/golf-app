@@ -66,7 +66,7 @@ function SettlementSection({ playerLedger = [], tabs = [], players = [], roundSu
         ) : (
           <div>
             {/* Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 68px", gap: 4, padding: "6px 8px", marginBottom: 4 }}>
+            <div style={{ marginBottom: 4 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 55px 55px 55px 68px", gap: 4, padding: "0 8px", marginBottom: 4 }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase" }}>Player</div>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", color: sc.muted, textTransform: "uppercase", textAlign: "center" }}>Team</div>
