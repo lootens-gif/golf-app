@@ -1418,6 +1418,7 @@ const birdieResults = buildBirdieResults({
   players,
   handicapMode,
 });
+console.log('[BirdieResults]', JSON.stringify(birdieResults.filter(e => e.amount !== 0)));
 
 // Per-segment, per-player birdie amounts — computed here where we have full context
 // Keyed by gameIndex, then playerId
