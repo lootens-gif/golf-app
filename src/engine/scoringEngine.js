@@ -1534,6 +1534,7 @@ const dollars = totalScore * teamGameUnitAmount;
       if (!ledgerMap[playerId]) return;
       ledgerMap[playerId].mainGame += teamAShare;
       ledgerMap[playerId].total += teamAShare;
+      console.log(`[TeamSettle] ${matchup.label} teamA player=${playerId} share=${teamAShare} newMain=${ledgerMap[playerId].mainGame}`);
       eventLedger.push({
         holeNumber: game.start ?? null,
         playerId,
