@@ -1312,16 +1312,67 @@ function TeamGameAudit({
               // Birdie summary for this matchup
               const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, teamB, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);
 
+              // Birdie paid count for this matchup
+              const matchupBirdiePaid = (birdieResults || []).filter(e =>
+                e.source === "team-birdie" &&
+                e.matchupId === matchup.label &&
+                e.holeNumber >= game.start &&
+                e.holeNumber <= game.end &&
+                e.amount > 0 &&
+                teamA.includes(e.playerId)
+              );
+              const birdiePaidCount = new Set(matchupBirdiePaid.map(e => e.holeNumber)).size;
+
+              // Press detail for last completed hole
+              const lastScoredHole = (() => {
+                const segHoles = Array.from({ length: game.end - game.start + 1 }, (_, i) => game.end - i);
+                return segHoles.find(h =>
+                  teamA.concat(teamB).some(id => {
+                    const s = scores?.[h]?.[id];
+                    return s != null && Number.isFinite(Number(s));
+                  })
+                );
+              })();
+              const pressDetailStr = lastScoredHole && !isNonPress
+                ? formatPressDetail(getBetStatusesForHole(matchup.result || [], lastScoredHole))
+                : null;
+
+              // Initials helper
+              const initials = (name = "") => name.split(" ").map(w => w[0]).join("").toUpperCase();
+              const teamAInitials = teamA.map(id => initials(players.find(p => p.id === id)?.name)).join("/");
+              const teamBInitials = teamB.map(id => initials(players.find(p => p.id === id)?.name)).join("/");
+
+              // Birdie $$ for this matchup from teamA perspective
+              const matchupBirdieDollars = (birdieResults || []).filter(e =>
+                e.source === "team-birdie" &&
+                e.matchupId === matchup.label &&
+                e.holeNumber >= game.start &&
+                e.holeNumber <= game.end
+              ).filter(e => teamA.includes(e.playerId))
+               .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+              const birdieDolColor = matchupBirdieDollars > 0 ? "#137333" : matchupBirdieDollars < 0 ? "#b3261e" : "#6b7280";
+
               const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
               const matchTitle = (
-                <span>
-                  <span style={{ color: matchColor }}>
-                    {teamAName} vs {teamBName} | {formatMoney(totalDollars)}
-                    {matchSummaryLine ? <span style={{ fontSize: 12, color: "#555", marginLeft: 6 }}>{matchSummaryLine}</span> : null}
+                <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span>
+                    <span style={{ fontWeight: 600, color: matchColor }}>
+                      {teamAInitials} vs {teamBInitials} | {formatMoney(totalDollars)}
+                    </span>
+                    {matchupBirdieDollars !== 0 && (
+                      <span style={{ color: birdieDolColor, marginLeft: 6, fontSize: 12 }}>
+                        {matchupBirdieDollars > 0 ? "+" : ""}{formatMoney(matchupBirdieDollars)} 🐦
+                      </span>
+                    )}
                   </span>
-                  {matchupBirdieLine && (
-                    <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 8 }}>
-                      · 🐦 {matchupBirdieLine}
+                  {pressDetailStr && pressDetailStr !== "-" && (
+                    <span style={{ fontSize: 11, color: "#6b7280" }}>Bets {pressDetailStr}</span>
+                  )}
+                  {game.birdieEnabled && (
+                    <span style={{ fontSize: 11, color: "#6b7280" }}>
+                      🐦 {matchupBirdieLine && matchupBirdieLine !== "No birdies this segment"
+                        ? `${matchupBirdieLine} (${birdiePaidCount} paid)`
+                        : "No birdies this segment"}
                     </span>
                   )}
                 </span>
