@@ -1301,59 +1301,91 @@ export function buildTeamBirdieResults(
       const teamAPlayers = (selection[teamAKey] || []).filter(Boolean);
       const teamBPlayers = (selection[teamBKey] || []).filter(Boolean);
 
-      // DEBUG
-
       const startHole = Number(game.start || 1);
       const endHole = Number(game.end || 18);
 
+      // Accumulate gross birdies per team across ALL holes in segment
+      // then net once per matchup — not per hole
+      let teamAGrossTotal = 0;
+      let teamBGrossTotal = 0;
+      let teamANetBirdieTotal = 0;
+      let teamBNetBirdieTotal = 0;
+      const teamABirdieHoles = [];
+      const teamBBirdieHoles = [];
+
+      // Use only the 2 teams' players for relative handicap
+      const matchPlayers = players.filter(p => teamAPlayers.includes(p.id) || teamBPlayers.includes(p.id));
+
       for (let holeNumber = startHole; holeNumber <= endHole; holeNumber += 1) {
         const holeScores = scores?.[holeNumber] || {};
-
-        const teamAActive = teamAPlayers.filter((playerId) => holeScores[playerId] != null);
-        const teamBActive = teamBPlayers.filter((playerId) => holeScores[playerId] != null);
-
+        const teamAActive = teamAPlayers.filter(id => holeScores[id] != null);
+        const teamBActive = teamBPlayers.filter(id => holeScores[id] != null);
         if (!teamAActive.length || !teamBActive.length) continue;
 
-        const teamAGrossBirdies = teamAActive.filter((playerId) =>
-          isGrossBirdie(scores, course, holeNumber, playerId)
-        ).length;
+        const teamAGross = teamAActive.filter(id => isGrossBirdie(scores, course, holeNumber, id)).length;
+        const teamBGross = teamBActive.filter(id => isGrossBirdie(scores, course, holeNumber, id)).length;
 
-        const teamBGrossBirdies = teamBActive.filter((playerId) =>
-          isGrossBirdie(scores, course, holeNumber, playerId)
-        ).length;
+        if (teamAGross > 0) teamABirdieHoles.push(holeNumber);
+        if (teamBGross > 0) teamBBirdieHoles.push(holeNumber);
 
-        // Team game birdie side bet.
-        // Toy Rule ON: net birdies cancel gross birdies one-for-one across teams.
-        //   e.g. Team A 2 gross, Team B 1 net → 1 uncancelled gross → Team A wins 1 bet
-        // Toy Rule OFF: gross birdies only.
-        // Either way: net diff of uncancelled gross birdies drives payout per player.
-        {
-          let teamANet, teamBNet;
-          if (toyRule) {
-            const teamANetBirdies = teamAActive.filter(
-              (id) => !isGrossBirdie(scores, course, holeNumber, id) &&
-                isNetBirdie(id, holeNumber, players, course, scores, handicapMode)
-            ).length;
-            const teamBNetBirdies = teamBActive.filter(
-              (id) => !isGrossBirdie(scores, course, holeNumber, id) &&
-                isNetBirdie(id, holeNumber, players, course, scores, handicapMode)
-            ).length;
-            teamANet = Math.max(0, teamAGrossBirdies - teamBNetBirdies);
-            teamBNet = Math.max(0, teamBGrossBirdies - teamANetBirdies);
-          } else {
-            teamANet = teamAGrossBirdies;
-            teamBNet = teamBGrossBirdies;
-          }
-          const diff = teamANet - teamBNet;
-          if (diff > 0) {
-            teamAActive.forEach((id) => results.push({ playerId: id, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamBActive.forEach((id) => results.push({ playerId: id, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-          } else if (diff < 0) {
-            teamBActive.forEach((id) => results.push({ playerId: id, amount: -diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-            teamAActive.forEach((id) => results.push({ playerId: id, amount: diff * amount, holeNumber, source: "team-birdie", matchupId: match.label }));
-          }
+        teamAGrossTotal += teamAGross;
+        teamBGrossTotal += teamBGross;
+
+        if (toyRule) {
+          teamANetBirdieTotal += teamAActive.filter(id =>
+            !isGrossBirdie(scores, course, holeNumber, id) &&
+            isNetBirdie(id, holeNumber, matchPlayers, course, scores, handicapMode)
+          ).length;
+          teamBNetBirdieTotal += teamBActive.filter(id =>
+            !isGrossBirdie(scores, course, holeNumber, id) &&
+            isNetBirdie(id, holeNumber, matchPlayers, course, scores, handicapMode)
+          ).length;
         }
       }
+
+      // Net across entire segment
+      const teamANet = toyRule ? Math.max(0, teamAGrossTotal - teamBNetBirdieTotal) : teamAGrossTotal;
+      const teamBNet = toyRule ? Math.max(0, teamBGrossTotal - teamANetBirdieTotal) : teamBGrossTotal;
+      const diff = teamANet - teamBNet;
+
+      if (diff > 0) {
+        const holeNum = teamABirdieHoles[0] ?? startHole;
+        const teamAScored = teamAPlayers.filter(id => {
+          for (let h = startHole; h <= endHole; h++) { if (scores?.[h]?.[id] != null) return true; } return false;
+        });
+        const teamBScored = teamBPlayers.filter(id => {
+          for (let h = startHole; h <= endHole; h++) { if (scores?.[h]?.[id] != null) return true; } return false;
+        });
+        teamAScored.filter(Boolean).forEach(id => results.push({
+          playerId: id, amount: diff * amount, holeNumber: holeNum,
+          source: "team-birdie", matchupId: match.label,
+          grossMade: teamAGrossTotal, netPaid: diff,
+        }));
+        teamBScored.filter(Boolean).forEach(id => results.push({
+          playerId: id, amount: -(diff * amount), holeNumber: holeNum,
+          source: "team-birdie", matchupId: match.label,
+          grossMade: teamAGrossTotal, netPaid: diff,
+        }));
+      } else if (diff < 0) {
+        const holeNum = teamBBirdieHoles[0] ?? startHole;
+        const teamAScored = teamAPlayers.filter(id => {
+          for (let h = startHole; h <= endHole; h++) { if (scores?.[h]?.[id] != null) return true; } return false;
+        });
+        const teamBScored = teamBPlayers.filter(id => {
+          for (let h = startHole; h <= endHole; h++) { if (scores?.[h]?.[id] != null) return true; } return false;
+        });
+        teamBScored.filter(Boolean).forEach(id => results.push({
+          playerId: id, amount: (-diff) * amount, holeNumber: holeNum,
+          source: "team-birdie", matchupId: match.label,
+          grossMade: teamBGrossTotal, netPaid: -diff,
+        }));
+        teamAScored.filter(Boolean).forEach(id => results.push({
+          playerId: id, amount: diff * amount, holeNumber: holeNum,
+          source: "team-birdie", matchupId: match.label,
+          grossMade: teamBGrossTotal, netPaid: -diff,
+        }));
+      }
+      // diff === 0: cancelled, no payment entries
     }
   }
 
