@@ -1301,17 +1301,6 @@ function TeamGameAudit({
               // Birdie summary for this matchup
               const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, teamB, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);
 
-              // Birdie paid count for this matchup
-              const matchupBirdiePaid = (birdieResults || []).filter(e =>
-                e.source === "team-birdie" &&
-                e.matchupId === matchup.label &&
-                e.holeNumber >= game.start &&
-                e.holeNumber <= game.end &&
-                e.amount > 0 &&
-                teamA.includes(e.playerId)
-              );
-              const birdiePaidCount = new Set(matchupBirdiePaid.map(e => e.holeNumber)).size;
-
               // Press detail for last completed hole
               const lastScoredHole = (() => {
                 const segHoles = Array.from({ length: game.end - game.start + 1 }, (_, i) => game.end - i);
@@ -1331,14 +1320,16 @@ function TeamGameAudit({
               const teamAInitials = teamA.map(id => initials(players.find(p => p.id === id)?.name)).join("/");
               const teamBInitials = teamB.map(id => initials(players.find(p => p.id === id)?.name)).join("/");
 
-              // Birdie $$ for this matchup from teamA perspective
-              const matchupBirdieDollars = (birdieResults || []).filter(e =>
+              // Birdie $$ for this matchup from teamA perspective — per player (ea)
+              const matchupBirdieEntry = (birdieResults || []).find(e =>
                 e.source === "team-birdie" &&
                 e.matchupId === matchup.label &&
                 e.holeNumber >= game.start &&
-                e.holeNumber <= game.end
-              ).filter(e => teamA.includes(e.playerId))
-               .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+                e.holeNumber <= game.end &&
+                teamA.includes(e.playerId)
+              );
+              const matchupBirdieDollars = matchupBirdieEntry ? Number(matchupBirdieEntry.amount || 0) : 0;
+              const birdiePaidCount = matchupBirdieEntry ? (matchupBirdieEntry.netPaid || 0) : 0;
               const birdieDolColor = matchupBirdieDollars > 0 ? "#137333" : matchupBirdieDollars < 0 ? "#b3261e" : "#6b7280";
 
               const matchColor = totalDollars > 0 ? "#137333" : totalDollars < 0 ? "#b3261e" : "#666";
@@ -1350,7 +1341,7 @@ function TeamGameAudit({
                     </span>
                     {matchupBirdieDollars !== 0 && (
                       <span style={{ color: birdieDolColor, marginLeft: 6, fontSize: 12 }}>
-                        {matchupBirdieDollars > 0 ? "+" : ""}{formatMoney(matchupBirdieDollars)} 🐦
+                        {formatMoney(matchupBirdieDollars)}ea 🐦
                       </span>
                     )}
                   </span>
