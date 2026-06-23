@@ -1418,7 +1418,6 @@ const birdieResults = buildBirdieResults({
   players,
   handicapMode,
 });
-console.log('[BirdieResults]', JSON.stringify(birdieResults.filter(e => e.amount !== 0)));
 
 // Per-segment, per-player birdie amounts — computed here where we have full context
 // Keyed by gameIndex, then playerId
@@ -2572,8 +2571,8 @@ if (!enableTeamGame && !skinsEnabled) {
     setCurrentHole(1);
   }
 
-  // Require a course to be selected (skip if round already in progress)
-  if (lastHoleSaved === null && (!course?.name || !course?.pars?.length)) {
+  // Require a course to be selected (skip if course already chosen)
+  if (!course?.name || !course?.pars?.length) {
     alert("Please select a course before starting the round.");
     return;
   }
