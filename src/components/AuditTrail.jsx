@@ -1228,6 +1228,7 @@ function TeamGameAudit({
         const wheelMatchPerPlayer = wheelBets * Number(teamGameUnitAmount || 0);
         // Wheel birdie per player — read directly from engine output (same for both wheel players)
         const wheelBirdiePerPlayer = wheelIds.length > 0 ? (playerBirdieDollars[wheelIds[0]] || 0) : 0;
+        console.log(`[BirdieDebug] Seg ${game.start}-${game.end} wheelIds[0]=${wheelIds[0]} birdie=$${wheelBirdiePerPlayer}`, playerBirdieDollars);
 
         const fmtAmt = (v) => {
           if (v === 0) return "$0";
