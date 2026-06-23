@@ -1419,13 +1419,30 @@ const birdieResults = buildBirdieResults({
   handicapMode,
 });
 
-
+// Per-segment, per-player birdie amounts — computed here where we have full context
+// Keyed by gameIndex, then playerId
+const segmentBirdieAmounts = useMemo(() => {
+  const result = {};
+  teamGameResults.forEach((game) => {
+    const gameIndex = game.index ?? 0;
+    result[gameIndex] = {};
+    players.forEach(p => { result[gameIndex][p.id] = 0; });
+    (birdieResults || []).filter(e =>
+      e.source === "team-birdie" &&
+      Number(e.holeNumber) >= game.start &&
+      Number(e.holeNumber) <= game.end
+    ).forEach(e => {
+      if (result[gameIndex][e.playerId] !== undefined) {
+        result[gameIndex][e.playerId] += Number(e.amount || 0);
+      }
+    });
+  });
+  return result;
+}, [teamGameResults, birdieResults, players]);
 
 const computedResults = scoreRound(round, {
   players,
   scores,
-  course,
-  matches,
   matchResults,
   teamGames,
   teamGameResults,
@@ -3726,6 +3743,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     skinsEnabled={skinsEnabled}
     skinsConfig={skinsConfig}
     getHandicapStrokesFn={context.getHandicapStrokesFn}
+    segmentBirdieAmounts={segmentBirdieAmounts}
     isJoiner={isJoiner}
     onRefresh={() => {
       if (roundCode) {

@@ -48,7 +48,7 @@ export default function ResultsScreen({
   noPar3TeamGame = false, goToLive, backToSetup, onUpdateScore,
   onSaveRound, roundName, savedRounds = [],
   skinsResults, skinsEnabled, skinsConfig,
-  getHandicapStrokesFn, isJoiner = false, onRefresh,
+  getHandicapStrokesFn, isJoiner = false, onRefresh, segmentBirdieAmounts = {},
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
@@ -438,6 +438,7 @@ export default function ResultsScreen({
           noPar3TeamGame={noPar3TeamGame} goToLive={goToLive} onUpdateScore={onUpdateScore}
           drillPlayerId={drillPlayerId}
           getHandicapStrokesFn={getHandicapStrokesFn}
+          segmentBirdieAmounts={segmentBirdieAmounts}
         />
       )}
 

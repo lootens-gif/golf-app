@@ -1074,6 +1074,7 @@ function TeamGameAudit({
   noPar3TeamGame = false,
   getHandicapStrokesFn,
   birdieResults = [],
+  segmentBirdieAmounts = {},
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -1210,25 +1211,12 @@ function TeamGameAudit({
         const segmentTeamBIds = players.filter(p => !segmentWheelIds.includes(p.id)).map(p => p.id);
         const segmentBirdieLine = getBirdieSummary(segmentMatchupLabels, segmentWheelIds, segmentTeamBIds, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);
 
-        // Birdie $$ per player for this segment — filter by hole range to prevent
-        // cross-segment counting (matchup labels repeat across all 3 segments)
-        const playerBirdieDollars = {};
-        players.forEach(p => { playerBirdieDollars[p.id] = 0; });
-        (birdieResults || []).filter(e =>
-          e.source === "team-birdie" &&
-          segmentMatchupLabels.includes(e.matchupId) &&
-          e.holeNumber >= game.start &&
-          e.holeNumber <= game.end
-        ).forEach(e => {
-          if (playerBirdieDollars[e.playerId] !== undefined) {
-            playerBirdieDollars[e.playerId] += Number(e.amount || 0);
-          }
-        });
+        // Birdie $$ per player — from pre-computed segmentBirdieAmounts (correct, no cross-segment issues)
+        const playerBirdieDollars = segmentBirdieAmounts[game.index ?? gameIndex] || {};
 
         const wheelMatchPerPlayer = wheelBets * Number(teamGameUnitAmount || 0);
         // Wheel birdie per player — read directly from engine output (same for both wheel players)
         const wheelBirdiePerPlayer = wheelIds.length > 0 ? (playerBirdieDollars[wheelIds[0]] || 0) : 0;
-        console.log(`[BirdieDebug] Seg ${game.start}-${game.end} wheelIds[0]=${wheelIds[0]} birdie=$${wheelBirdiePerPlayer}`, playerBirdieDollars);
 
         const fmtAmt = (v) => {
           if (v === 0) return "$0";
@@ -1752,6 +1740,7 @@ export default function AuditTrail({
   onUpdateScore,
   drillPlayerId = null,
   getHandicapStrokesFn,
+  segmentBirdieAmounts = {},
 }) {
   return (
     <div>
@@ -1772,6 +1761,7 @@ export default function AuditTrail({
   teamGameUnitAmount={teamGameUnitAmount}
   noPar3TeamGame={noPar3TeamGame}
   birdieResults={birdieResults}
+  segmentBirdieAmounts={segmentBirdieAmounts}
 />
 
 {/* 1v1 */}
