@@ -1455,6 +1455,7 @@ const computedResults = scoreRound(round, {
   birdieResults,
   noPar3TeamGame,
 });
+console.log('[LedgerDebug]', computedResults.playerLedger.map(r => `${r.playerId}: main=${r.mainGame} side=${r.sideMatches} bird=${r.birdies} total=${r.total}`));
 
 const leaderboard = useMemo(() => {
   return buildLeaderboard(computedResults.playerLedger, { players });
