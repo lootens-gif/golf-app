@@ -1512,6 +1512,7 @@ for (const game of teamGameResults) {
 
     const teamAPlayers = selection[teamAKey] || [];
     const teamBPlayers = selection[teamBKey] || [];
+    console.log(`[ScoreRound] ${matchup.label} teamA=${teamAPlayers} teamB=${teamBPlayers} totalScore=${(matchup.result||[]).reduce((s,b)=>s+(Number(b.score||0)>0?1:Number(b.score||0)<0?-1:0),0)}`);
 
     // sum all scores (base + presses, pay each as a separate unit) to determine total units won/lost for the matchup
     const totalScore = (matchup.result || []).reduce((sum, item) => {
