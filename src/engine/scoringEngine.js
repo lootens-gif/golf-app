@@ -1347,6 +1347,7 @@ export function buildTeamBirdieResults(
       const teamANet = toyRule ? Math.max(0, teamAGrossTotal - teamBNetBirdieTotal) : teamAGrossTotal;
       const teamBNet = toyRule ? Math.max(0, teamBGrossTotal - teamANetBirdieTotal) : teamBGrossTotal;
       const diff = teamANet - teamBNet;
+      console.log(`[TBR] ${match.label} seg${game.start}-${game.end} teamA=${teamAPlayers} teamB=${teamBPlayers} Agross=${teamAGrossTotal} Bgross=${teamBGrossTotal} diff=${diff}`);
 
       if (diff > 0) {
         const holeNum = teamABirdieHoles[0] ?? startHole;
