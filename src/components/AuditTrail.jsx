@@ -541,7 +541,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             if (totalSeg && !frontSeg && !backSeg) {
               const diff = totalSeg.strokeDiff ?? totalSeg.units ?? 0;
               const lbl = diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`;
-              return <span style={{ color: col(diff) }}>{p1First} {lbl} ({fmtMoney(total)})</span>;
+              return <span style={{ color: col(diff) }}>{p1First} {lbl} strokes ({fmtMoney(total)})</span>;
             }
             return (
               <span>
@@ -557,6 +557,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
                     </span>
                   );
                 })}
+                <span style={{ color: col(total), marginLeft: 6 }}>({fmtMoney(total)})</span>
               </span>
             );
           }
@@ -936,6 +937,18 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const renderSection = (label, sectionHoles) => {
     const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
 
+    // Find if match was decided within this section
+    const decidedHole = result?.decidedOn
+      ?? result?.segments?.reduce((found, s) => found ?? s.decidedOn, null)
+      ?? null;
+    const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
+
+    // Gross totals per player for this section
+    const sectionTotal = (player) => sectionHoles.reduce((sum, h) => {
+      const s = getRawScore(scores, h, player.id);
+      return sum + (s != null && h <= (decidedHole ?? 99) ? Number(s) : 0);
+    }, 0);
+
     return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
@@ -947,18 +960,19 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             {sectionHoles.map(h => (
               <td key={h} style={{ ...scorecardCellStyle, color: "#444" }}>{h}</td>
             ))}
+            <td style={{ ...scorecardCellStyle, fontWeight: 700, color: "#444", borderLeft: "1px solid #ddd" }}>Tot</td>
           </tr>
 
           {[playerA, playerB].map((player) => (
             <tr key={player.id}>
               <td style={scorecardLabelCellStyle}>{player.name}</td>
-
               {sectionHoles.map((hole) => {
+                const afterDecided = decidedInSection && hole > decidedHole;
+                if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
                 const grossBirdie = match.birdieEnabled && isGrossBirdie(scores, course, hole, player.id);
                 const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
-
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: grossBirdie ? "#fef9c3" : "transparent" }}>
                     {grossBirdie ? (
@@ -973,12 +987,17 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                   </td>
                 );
               })}
+              <td style={{ ...scorecardCellStyle, fontWeight: 700, color: "#444", borderLeft: "1px solid #ddd" }}>
+                {sectionTotal(player) || "-"}
+              </td>
             </tr>
           ))}
 
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
             {sectionData.map(({ hole, res }) => {
+              const afterDecided = decidedInSection && hole > decidedHole;
+              if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
               let color = "#666";
               if (res > 0) color = "#137333";
               if (res < 0) color = "#b3261e";
@@ -988,21 +1007,37 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 </td>
               );
             })}
+            <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
 
           <tr>
             <td style={scorecardLabelCellStyle}>Running</td>
             {sectionData.map(({ hole, running, segment }) => {
+              const afterDecided = decidedInSection && hole > decidedHole;
+              if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+              const isDecidingHole = decidedInSection && decidedHole === hole;
               let color = "#666";
               if (running > 0) color = "#137333";
               if (running < 0) color = "#b3261e";
               const prefix = segment ? `${segment[0]}: ` : "";
+              if (isDecidingHole) {
+                const matchLabel = result?.label
+                  ?? result?.segments?.find(s => s.decidedOn === hole)?.label;
+                if (matchLabel) {
+                  return (
+                    <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
+                      {matchLabel}
+                    </td>
+                  );
+                }
+              }
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
                   {prefix}{running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`}
                 </td>
               );
             })}
+            <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
         </tbody>
       </table>
@@ -1010,7 +1045,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     </div>
   );
   };
-
   const birdieCountA = wonBirdieCounts[playerA.id];
   const birdieCountB = wonBirdieCounts[playerB.id];
 
@@ -1075,10 +1109,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
-          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
+          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: frontSeg.label || f.label, color: f.color }); }
+          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: backSeg.label || b.label, color: b.color }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: totalSeg.label || t.label, color: t.color }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: totalSeg.label || t.label, color: t.color }); }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
