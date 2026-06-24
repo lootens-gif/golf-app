@@ -48,14 +48,6 @@ function formatMoney(value) {
 
 
 
-function getOneVOneMoneyLabel(result, p1Name, p2Name) {
-  const total = Number(result?.total || 0);
-
-  if (total > 0) return `${p1Name} ${formatMoney(total)}`;
-  if (total < 0) return `${p2Name} ${formatMoney(Math.abs(total))}`;
-  return "No payout";
-}
-
 
 
 function getPlayerName(players, playerId) {
@@ -475,9 +467,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const result = entry.result || {};
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
-
-        // Money — always show "if ended now"
-        const moneyStr = getOneVOneMoneyLabel(result, p1Name, p2Name);
+        const p1First = p1Name.split(" ")[0];
+        const p2First = p2Name.split(" ")[0];
 
         // Birdie $$ for this match from P1 perspective
         const matchBirdieNet = (birdieResults || [])
@@ -488,11 +479,64 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
         const birdieColor = matchBirdieNet > 0 ? "#1a5c35" : matchBirdieNet < 0 ? "#b3261e" : "#6b7280";
         const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
+        const col = (v) => v > 0 ? "#1a5c35" : v < 0 ? "#b3261e" : "#6b7280";
+
+        // Format-specific detail line
+        const formatDetail = (() => {
+          if (!result) return null;
+          if (result.type === "standard") {
+            const units = result.units || 0;
+            const winner = units > 0 ? p1First : units < 0 ? p2First : null;
+            const uLabel = winner ? `${winner} ${Math.abs(units)} hole${Math.abs(units) !== 1 ? "s" : ""}` : "Even";
+            return <span style={{ color: col(units) }}>{uLabel} ({fmtMoney(total)})</span>;
+          }
+          if (result.type === "longshort") {
+            const longCol = col(result.long || 0);
+            const shortCol = col(result.short || 0);
+            return (
+              <span>
+                <span style={{ color: longCol }}>Long {fmtMoney(result.long || 0)}</span>
+                <span style={{ color: "#6b7280" }}> · </span>
+                <span style={{ color: shortCol }}>Short {fmtMoney(result.short || 0)}</span>
+              </span>
+            );
+          }
+          if (result.type === "match_fbt") {
+            return (
+              <span>
+                {(result.segments || []).map((seg, i) => (
+                  <span key={seg.key}>
+                    {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                    <span style={{ color: col(seg.dollars || 0) }}>
+                      {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {fmtMoney(seg.dollars || 0)}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            );
+          }
+          if (result.type === "stroke") {
+            return (
+              <span>
+                {(result.segments || []).map((seg, i) => (
+                  <span key={seg.key}>
+                    {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                    <span style={{ color: col(seg.dollars || 0) }}>
+                      {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {fmtMoney(seg.dollars || 0)}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            );
+          }
+          // Press (array of bets)
+          return <span style={{ color: headerColor }}>{fmtMoney(total)}</span>;
+        })();
 
         const oneVOneTitle = (
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
-            <span style={{ color: headerColor, marginLeft: 10, fontSize: 13 }}>{moneyStr}</span>
+            {formatDetail && <span style={{ marginLeft: 10, fontSize: 13 }}>{formatDetail}</span>}
             {matchBirdieNet !== 0 && (
               <span style={{ color: birdieColor, marginLeft: 10, fontSize: 13 }}>
                 Birdies {fmtMoney(matchBirdieNet)}
