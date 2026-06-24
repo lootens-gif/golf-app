@@ -503,30 +503,60 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             );
           }
           if (result.type === "match_fbt") {
+            const segs = result.segments || [];
+            const frontSeg = segs.find(s => s.key === "front");
+            const backSeg = segs.find(s => s.key === "back");
+            const totalSeg = segs.find(s => s.key === "total");
+            // Total only — show P1 name + golf notation + $$
+            if (totalSeg && !frontSeg && !backSeg) {
+              const units = totalSeg.units || 0;
+              const lbl = totalSeg.label || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
+              const winner = units > 0 ? p1First : units < 0 ? p2Name.split(" ")[0] : null;
+              const notation = winner ? `${winner} ${lbl}` : "AS";
+              return <span style={{ color: col(total) }}>{notation} ({fmtMoney(total)})</span>;
+            }
+            // F/B or F/B/T — show segment breakdown
             return (
               <span>
-                {(result.segments || []).map((seg, i) => (
-                  <span key={seg.key}>
-                    {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
-                    <span style={{ color: col(seg.dollars || 0) }}>
-                      {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {fmtMoney(seg.dollars || 0)}
+                {segs.map((seg, i) => {
+                  const u = seg.units || 0;
+                  const lbl = u === 0 ? "AS" : `${Math.abs(u)}${u > 0 ? "UP" : "DN"}`;
+                  return (
+                    <span key={seg.key}>
+                      {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                      <span style={{ color: col(u) }}>
+                        {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {lbl}
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </span>
             );
           }
           if (result.type === "stroke") {
+            const segs = result.segments || [];
+            const frontSeg = segs.find(s => s.key === "front");
+            const backSeg = segs.find(s => s.key === "back");
+            const totalSeg = segs.find(s => s.key === "total");
+            if (totalSeg && !frontSeg && !backSeg) {
+              const diff = totalSeg.strokeDiff ?? totalSeg.units ?? 0;
+              const lbl = diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`;
+              return <span style={{ color: col(diff) }}>{p1First} {lbl} ({fmtMoney(total)})</span>;
+            }
             return (
               <span>
-                {(result.segments || []).map((seg, i) => (
-                  <span key={seg.key}>
-                    {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
-                    <span style={{ color: col(seg.dollars || 0) }}>
-                      {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {fmtMoney(seg.dollars || 0)}
+                {segs.map((seg, i) => {
+                  const diff = seg.strokeDiff ?? seg.units ?? 0;
+                  const lbl = diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`;
+                  return (
+                    <span key={seg.key}>
+                      {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                      <span style={{ color: col(diff) }}>
+                        {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {lbl}
+                      </span>
                     </span>
-                  </span>
-                ))}
+                  );
+                })}
               </span>
             );
           }
@@ -1045,10 +1075,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", ...f }); }
-          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", ...b }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", ...t }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", ...t }); }
+          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
+          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -1056,7 +1086,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 <span key={item.key}>
                   {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
                   <span style={{ color: "#555" }}>{item.label} </span>
-                  <span style={{ color: item.color, fontWeight: 700 }}>{item.label}</span>
+                  <span style={{ color: item.color, fontWeight: 700 }}>{item.value}</span>
                 </span>
               ))}
             </div>
@@ -1069,10 +1099,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.strokeDiff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", ...f }); }
-          if (backSeg) { const b = fmtResult(backSeg.strokeDiff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", ...b }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", ...t }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", ...t }); }
+          if (frontSeg) { const f = fmtResult(frontSeg.strokeDiff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
+          if (backSeg) { const b = fmtResult(backSeg.strokeDiff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -1080,7 +1110,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 <span key={item.key}>
                   {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
                   <span style={{ color: "#555" }}>{item.label} </span>
-                  <span style={{ color: item.color, fontWeight: 700 }}>{item.label}</span>
+                  <span style={{ color: item.color, fontWeight: 700 }}>{item.value}</span>
                 </span>
               ))}
             </div>
