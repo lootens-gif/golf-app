@@ -1337,7 +1337,7 @@ function TeamGameAudit({
                 <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <span>
                     <span style={{ fontWeight: 600, color: matchColor }}>
-                      {teamAInitials} vs {teamBInitials} | {formatMoney(totalDollars)}
+                      {teamAInitials} vs {teamBInitials} | {formatMoney(totalDollars)}ea
                     </span>
                     {matchupBirdieDollars !== 0 && (
                       <span style={{ color: birdieDolColor, marginLeft: 6, fontSize: 12 }}>
