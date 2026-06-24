@@ -510,7 +510,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             // Total only — show P1 name + golf notation + $$
             if (totalSeg && !frontSeg && !backSeg) {
               const units = totalSeg.units || 0;
-              const lbl = totalSeg.label || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
+              const lbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
               const winner = units > 0 ? p1First : units < 0 ? p2Name.split(" ")[0] : null;
               const notation = winner ? `${winner} ${lbl}` : "AS";
               return <span style={{ color: col(total) }}>{notation} ({fmtMoney(total)})</span>;
@@ -942,11 +942,15 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       ?? result?.segments?.reduce((found, s) => found ?? s.decidedOn, null)
       ?? null;
     const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
+    // Get the result label for the deciding segment
+    const decidedMatchLabel = result?.label
+      ?? result?.segments?.find(s => s.decidedOn === decidedHole)?.resultLabel
+      ?? null;
 
-    // Gross totals per player for this section
+    // Gross totals per player for this section (all scored holes)
     const sectionTotal = (player) => sectionHoles.reduce((sum, h) => {
       const s = getRawScore(scores, h, player.id);
-      return sum + (s != null && h <= (decidedHole ?? 99) ? Number(s) : 0);
+      return sum + (s != null ? Number(s) : 0);
     }, 0);
 
     return (
@@ -1021,12 +1025,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               if (running < 0) color = "#b3261e";
               const prefix = segment ? `${segment[0]}: ` : "";
               if (isDecidingHole) {
-                const matchLabel = result?.label
-                  ?? result?.segments?.find(s => s.decidedOn === hole)?.label;
-                if (matchLabel) {
+                if (decidedMatchLabel) {
                   return (
                     <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
-                      {matchLabel}
+                      {decidedMatchLabel}
                     </td>
                   );
                 }
@@ -1109,10 +1111,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: frontSeg.label || f.label, color: f.color }); }
-          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: backSeg.label || b.label, color: b.color }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: totalSeg.label || t.label, color: t.color }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: totalSeg.label || t.label, color: t.color }); }
+          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: frontSeg.resultLabel || f.label, color: f.color }); }
+          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: backSeg.resultLabel || b.label, color: b.color }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: totalSeg.resultLabel || t.label, color: t.color }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: totalSeg.resultLabel || t.label, color: t.color }); }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
