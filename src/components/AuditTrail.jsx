@@ -468,7 +468,6 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
         const p1First = p1Name.split(" ")[0];
-        const p2First = p2Name.split(" ")[0];
 
         // Birdie $$ for this match from P1 perspective
         const matchBirdieNet = (birdieResults || [])
@@ -486,9 +485,11 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
           if (!result) return null;
           if (result.type === "standard") {
             const units = result.units || 0;
-            const winner = units > 0 ? p1First : units < 0 ? p2First : null;
-            const uLabel = winner ? `${winner} ${Math.abs(units)} hole${Math.abs(units) !== 1 ? "s" : ""}` : "Even";
-            return <span style={{ color: col(units) }}>{uLabel} ({fmtMoney(total)})</span>;
+            const absUnits = Math.abs(units);
+            if (units === 0) return <span style={{ color: "#6b7280" }}>Even</span>;
+            const sign = units > 0 ? "+" : "-";
+            const label = `${p1First} ${sign}${absUnits} hole${absUnits !== 1 ? "s" : ""} (${fmtMoney(total)})`;
+            return <span style={{ color: col(total) }}>{label}</span>;
           }
           if (result.type === "longshort") {
             const longCol = col(result.long || 0);
@@ -1010,6 +1011,85 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </div>
         );
       })()}
+
+      {/* Match Summary Row */}
+      {(() => {
+        const fmtResult = (v, type) => {
+          if (type === "stroke") {
+            if (v === 0) return { label: "Even", color: "#6b7280" };
+            return { label: v > 0 ? `+${v}` : `${v}`, color: v > 0 ? "#137333" : "#b3261e" };
+          }
+          if (v === 0) return { label: "AS", color: "#6b7280" };
+          const abs = Math.abs(v);
+          return { label: v > 0 ? `${abs}UP` : `${abs}DN`, color: v > 0 ? "#137333" : "#b3261e" };
+        };
+
+        if (result?.type === "longshort") {
+          const longUnits = result.long / (match.bet || 1);
+          const longFmt = fmtResult(longUnits, "match");
+          const longDone = result.longDecidedOn != null;
+          const shortUnits = longDone ? (result.short / (match.bet / 2 || 1)) : null;
+          return (
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longFmt.color, fontWeight: 700 }}>{longFmt.label}</span></span>
+              {longDone && shortUnits !== null && (
+                <span><span style={{ color: "#555" }}>Short </span><span style={{ color: fmtResult(shortUnits, "match").color, fontWeight: 700 }}>{fmtResult(shortUnits, "match").label}</span></span>
+              )}
+            </div>
+          );
+        }
+
+        if (result?.type === "match_fbt") {
+          const segs = result.segments || [];
+          const frontSeg = segs.find(s => s.key === "front");
+          const backSeg = segs.find(s => s.key === "back");
+          const totalSeg = segs.find(s => s.key === "total");
+          const items = [];
+          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", ...f }); }
+          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", ...b }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", ...t }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", ...t }); }
+          if (!items.length) return null;
+          return (
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {items.map((item, i) => (
+                <span key={item.key}>
+                  {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
+                  <span style={{ color: "#555" }}>{item.label} </span>
+                  <span style={{ color: item.color, fontWeight: 700 }}>{item.label}</span>
+                </span>
+              ))}
+            </div>
+          );
+        }
+
+        if (result?.type === "stroke") {
+          const segs = result.segments || [];
+          const frontSeg = segs.find(s => s.key === "front");
+          const backSeg = segs.find(s => s.key === "back");
+          const totalSeg = segs.find(s => s.key === "total");
+          const items = [];
+          if (frontSeg) { const f = fmtResult(frontSeg.strokeDiff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", ...f }); }
+          if (backSeg) { const b = fmtResult(backSeg.strokeDiff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", ...b }); }
+          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", ...t }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", ...t }); }
+          if (!items.length) return null;
+          return (
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {items.map((item, i) => (
+                <span key={item.key}>
+                  {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
+                  <span style={{ color: "#555" }}>{item.label} </span>
+                  <span style={{ color: item.color, fontWeight: 700 }}>{item.label}</span>
+                </span>
+              ))}
+            </div>
+          );
+        }
+
+        return null;
+      })()}
+
       <div style={{ fontSize: 12, color: "#555", marginTop: 4, paddingLeft: 2 }}>
         {!match.birdieEnabled
           ? "🚫 No birdies tracked"
