@@ -510,10 +510,9 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             // Total only — show P1 name + golf notation + $$
             if (totalSeg && !frontSeg && !backSeg) {
               const units = totalSeg.units || 0;
-              const lbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
-              const winner = units > 0 ? p1First : units < 0 ? p2Name.split(" ")[0] : null;
-              const notation = winner ? `${winner} ${lbl}` : "AS";
-              return <span style={{ color: col(total) }}>{notation} ({fmtMoney(total)})</span>;
+              const resultLbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
+              // Always from P1 perspective — show P1 name + result
+              return <span style={{ color: col(total) }}>{p1First} {resultLbl} ({fmtMoney(total)})</span>;
             }
             // F/B or F/B/T — show segment breakdown
             return (
