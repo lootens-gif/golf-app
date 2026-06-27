@@ -766,7 +766,7 @@ export default function SetupScreen({
     const el = teamGameRefs.current[focusGameTarget.gameIndex];
     if (!el) return;
     setTimeout(() => { el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 0);
-  }, [focusGameTarget]);
+  }, [focusGameTarget, setExpandedGame]);
 
   return (
     <div style={{ fontFamily: "'Georgia', serif" }}>
