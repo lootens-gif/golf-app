@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const sc = {
   green:      "#1a5c35",
@@ -45,6 +45,7 @@ export default function ScoreEntryCard({
 
   const par = course.pars?.[currentHole - 1] ?? 4;
   const hcp = course.hcp?.[currentHole - 1] ?? "-";
+  const saveHoleRef = useRef(null);
   const activePlayerIndex = players.findIndex((p) => p.id === activePlayerId);
   const activePlayer = players[activePlayerIndex];
   const allScoresEntered = players.every(p => scores[currentHole]?.[p.id] != null);
@@ -53,10 +54,15 @@ export default function ScoreEntryCard({
     if (!activePlayer) return;
     onScoreFocus?.();
     setScore(currentHole, activePlayer.id, String(value));
-    const nextIndex = (activePlayerIndex + 1) % players.length;
-    setActivePlayerId(players[nextIndex].id);
-    // Clear entering flag after 2s — enough for debounce to fire and sync to complete
-    setTimeout(() => onScoreBlur?.(), 2000);
+    const isLastPlayer = activePlayerIndex === players.length - 1;
+    if (isLastPlayer) {
+      // All scores will be entered — focus Save Hole button
+      setTimeout(() => { saveHoleRef.current?.focus(); onScoreBlur?.(); }, 100);
+    } else {
+      const nextIndex = activePlayerIndex + 1;
+      setActivePlayerId(players[nextIndex].id);
+      setTimeout(() => onScoreBlur?.(), 2000);
+    }
   }
 
   function scoreLabel(score, par) {
@@ -176,7 +182,7 @@ export default function ScoreEntryCard({
           })}
         </div>
 
-        <button onClick={onSaveHole} disabled={!allScoresEntered} style={{
+        <button ref={saveHoleRef} onClick={onSaveHole} disabled={!allScoresEntered} style={{
           width: "100%", padding: 15, fontSize: 17, fontWeight: 700,
           background: allScoresEntered ? sc.green : "#e5e7eb",
           color: allScoresEntered ? "#fff" : sc.muted,
