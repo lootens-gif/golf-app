@@ -178,10 +178,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
 
   // Auto-open search if no course loaded yet
   useEffect(() => {
-    if (!course.name) {
-      // Only auto-focus search if no course selected yet
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    // Don't auto-focus course search - user can click when ready
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get Player 1 name for "Saved by"
@@ -765,6 +762,7 @@ export default function SetupScreen({
 
   useEffect(() => {
     if (!focusGameTarget) return;
+    setExpandedGame(focusGameTarget.gameIndex);
     const el = teamGameRefs.current[focusGameTarget.gameIndex];
     if (!el) return;
     setTimeout(() => { el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 0);
@@ -1295,7 +1293,7 @@ export default function SetupScreen({
                     )}
                   </div>
                 </div>
-                {(index === 0 || expandedGame === index) && (
+                {((!focusGameTarget && index === 0) || expandedGame === index) && (
                   <div style={{ padding: 14 }}>
                     <label style={{ fontSize: 13, color: sc.muted, display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                       Holes:
