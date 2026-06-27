@@ -160,7 +160,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
   );
 }
 
-function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId, players, sc, roundName, setRoundName }) {
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId, players, sc, roundName, setRoundName, roundInProgress }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -178,8 +178,8 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
 
   // Auto-open search if no course loaded yet
   useEffect(() => {
-    if (!course.name || course.name === "Westwood") {
-      handleSearch("");
+    if (!course.name) {
+      // Only auto-focus search if no course selected yet
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,7 +190,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   function handleSearch(q) {
     const capped = q.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
     setSearchQuery(capped);
-    updateCourseName(capped);
+    if (q !== "") updateCourseName(capped); // don't clear course name on empty search
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(async () => {
       setSearching(true);
@@ -264,6 +264,12 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     <Card>
       <SectionLabel>Course Setup</SectionLabel>
 
+      {roundInProgress && course?.name ? (
+        <div style={{ marginBottom: 10, padding: "10px 12px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, fontSize: 14, color: "#166534", fontWeight: 600 }}>
+          ⛳ {course.name}{course.city ? ` · ${course.city}` : ""} — locked during round
+        </div>
+      ) : (
+      <>
       {/* Prompt when no course loaded */}
       {!loadedCourse && !course.name && (
         <div style={{ marginBottom: 10, padding: "10px 12px", background: "#fef9c3", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
@@ -458,6 +464,8 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
       <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
         Once saved, anyone can search and load this course.
       </div>
+      </>
+      )}
     </Card>
   );
 }
@@ -740,6 +748,7 @@ export default function SetupScreen({
   roundName, setRoundName,
   myTemplates = [], templateStatus = "", onSaveTemplate, onLoadTemplate, onDeleteTemplate, onToggleTemplateVisibility, onUpdateTemplate, onSearchTemplates, onLoadMyTemplates,
   loadedTemplate, setLoadedTemplate,
+  lastHoleSaved = null,
 }) {
   const teamGameRefs = useRef({});
   const hasNinePoint = matches.some(m => m.gameType === "ninePoint");
@@ -1453,6 +1462,7 @@ export default function SetupScreen({
         sc={sc}
         roundName={roundName}
         setRoundName={setRoundName}
+        roundInProgress={lastHoleSaved != null}
       />
 
       {/* ── SAVED ROUNDS ── */}
