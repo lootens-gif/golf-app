@@ -161,59 +161,52 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
 }
 
 function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId, players, sc, roundName, setRoundName, roundInProgress }) {
+  const [allCourses, setAllCourses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(""); // "" | "saving" | "saved" | "error"
+  const [sortMode, setSortMode] = useState("recent"); // "recent" | "az" | "state"
+  const [saveStatus, setSaveStatus] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveCity, setSaveCity] = useState("");
   const [saveState, setSaveState] = useState("");
-  const [duplicateCourse, setDuplicateCourse] = useState(null); // existing course with same name
-  const [loadedCourse, setLoadedCourse] = useState(null); // course loaded from library
+  const [duplicateCourse, setDuplicateCourse] = useState(null);
+  const [loadedCourse, setLoadedCourse] = useState(null);
   const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
   const [updatePin, setUpdatePin] = useState("");
-  const [updateStatus, setUpdateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "pin"
-  const searchTimer = useRef(null);
-  const inputRef = useRef(null);
+  const [updateStatus, setUpdateStatus] = useState("");
+  const [showList, setShowList] = useState(false);
 
-  // Auto-open search if no course loaded yet
-  useEffect(() => {
-    // Don't auto-focus course search - user can click when ready
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Get Player 1 name for "Saved by"
   const savedBy = players?.[0]?.name && players[0].name !== "P1" ? players[0].name : "Anonymous";
 
-  function handleSearch(q) {
-    const capped = q.replace(/(?:^|\s)\S/g, c => c.toUpperCase());
-    setSearchQuery(capped);
-    if (q !== "") updateCourseName(capped); // don't clear course name on empty search
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const results = await searchCourses(q || "%");
-        setSearchResults(results);
-      } catch { setSearchResults([]); }
-      finally { setSearching(false); }
-    }, q.length === 0 ? 100 : 400);
-  }
+  // Load all courses once on mount
+  useEffect(() => {
+    searchCourses("%").then(r => setAllCourses(r || [])).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const filteredCourses = allCourses.filter(c =>
+    !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.city || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.state || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const sortedCourses = [...filteredCourses].sort((a, b) => {
+    if (sortMode === "az") return a.name.localeCompare(b.name);
+    if (sortMode === "state") return (a.state || "").localeCompare(b.state || "") || a.name.localeCompare(b.name);
+    // recent: sort by use_count desc as proxy (most used = most recent for now)
+    return (b.use_count || 0) - (a.use_count || 0);
+  });
 
   function loadCourse(c) {
     updateCourseName(c.name);
     c.pars.forEach((par, i) => updateCoursePar(i, par));
     c.hcp.forEach((hcp, i) => updateCourseHcp(i, hcp));
-    setSearchResults([]);
-    setSearchQuery(c.name);
     setLoadedCourse(c);
     setDuplicateCourse(null);
-    // Auto-suggest round name if not already set
+    setShowList(false);
+    setSearchQuery("");
     if (typeof setRoundName === "function") {
       const today = new Date();
       const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const suggested = `${monthDay} - ${c.name}`;
-      // Only auto-set if round name is empty or was previously auto-generated
       setRoundName(prev => (!prev || prev.match(/^[A-Z][a-z]+ \d+ - /)) ? suggested : prev);
     }
   }
@@ -228,12 +221,8 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
       setUpdatePin("");
       setTimeout(() => setUpdateStatus(""), 3000);
     } catch (e) {
-      if (e.message === "not_owner") {
-        setUpdateStatus("pin");
-      } else {
-        setUpdateStatus("error");
-        setTimeout(() => setUpdateStatus(""), 3000);
-      }
+      if (e.message === "not_owner") { setUpdateStatus("pin"); }
+      else { setUpdateStatus("error"); setTimeout(() => setUpdateStatus(""), 3000); }
     }
   }
 
@@ -242,226 +231,201 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     setSaveStatus("saving");
     try {
       const existing = await checkCourseExists(course.name);
-      if (existing) {
-        setDuplicateCourse(existing);
-        setShowSaveForm(false);
-        setSaveStatus("");
-        return;
-      }
+      if (existing) { setDuplicateCourse(existing); setShowSaveForm(false); setSaveStatus(""); return; }
       await saveCourseToLibrary({ ...course, city: saveCity.trim(), state: saveState.trim() }, savedBy);
       setSaveStatus("saved");
+      // Refresh list
+      searchCourses("%").then(r => setAllCourses(r || [])).catch(() => {});
       setTimeout(() => setSaveStatus(""), 3000);
-    } catch {
-      setSaveStatus("error");
-      setTimeout(() => setSaveStatus(""), 3000);
-    }
+    } catch { setSaveStatus("error"); setTimeout(() => setSaveStatus(""), 3000); }
   }
+
+  const SortBtn = ({ mode, label }) => (
+    <button onClick={() => setSortMode(mode)} style={{
+      flex: 1, fontSize: 13, padding: "7px 0", borderRadius: 8,
+      border: sortMode === mode ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
+      background: sortMode === mode ? "#f0fdf4" : "#fff",
+      color: sortMode === mode ? sc.green : sc.muted,
+      cursor: "pointer", fontFamily: "inherit", fontWeight: sortMode === mode ? 600 : 400,
+    }}>{label}</button>
+  );
 
   return (
     <Card>
       <SectionLabel>Course Setup</SectionLabel>
 
+      {/* Locked during round */}
       {roundInProgress && course?.name ? (
-        <div style={{ marginBottom: 10, padding: "10px 12px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, fontSize: 14, color: "#166534", fontWeight: 600 }}>
-          ⛳ {course.name}{course.city ? ` · ${course.city}` : ""} — locked during round
+        <div style={{ padding: "12px 14px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, fontSize: 15, color: "#166534", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+          <span>🔒</span>
+          <div>
+            <div>{course.name}</div>
+            {course.city && <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}>{course.city}{course.state ? `, ${course.state}` : ""} · locked during round</div>}
+          </div>
         </div>
-      ) : (
-      <>
-      {/* Prompt when no course loaded */}
-      {!loadedCourse && !course.name && (
-        <div style={{ marginBottom: 10, padding: "10px 12px", background: "#fef9c3", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
-          ⛳ Select a course from the library below to get started
-        </div>
-      )}
-
-      {/* Search / name input */}
-      <div style={{ marginBottom: 8, position: "relative" }}>
-        <label style={{ fontSize: 13, color: sc.muted, display: "block", marginBottom: 6 }}>
-          Course name — search library or type new
-        </label>
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchQuery || course.name || ""}
-          onFocus={(e) => { e.target.select(); if (course.name) setSearchQuery(course.name); handleSearch(searchQuery || course.name || ""); }}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Search courses or type a name…"
-          style={{ width: "100%", fontSize: 15, fontWeight: 600, padding: "9px 12px", border: `1px solid ${loadedCourse ? sc.green : sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit" }}
-        />
-
-        {/* Search results dropdown */}
-        {searchResults.length > 0 && (
-          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 100, marginTop: 4 }}>
-            {searchResults.map(c => (
-              <div key={c.id} onClick={() => loadCourse(c)} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${sc.border}`, fontSize: 14 }}>
-                <div style={{ fontWeight: 600, color: sc.ink }}>{c.name}</div>
-                <div style={{ fontSize: 11, color: sc.muted }}>{c.city}{c.state ? `, ${c.state}` : ""} · used {c.use_count} time{c.use_count !== 1 ? "s" : ""}</div>
-              </div>
-            ))}
-            <div onClick={() => setSearchResults([])} style={{ padding: "8px 14px", fontSize: 12, color: sc.muted, cursor: "pointer", textAlign: "center" }}>
-              Dismiss
+      ) : loadedCourse && !showList ? (
+        <>
+          {/* Course selected — show green banner */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "#166534" }}>{course.name}</div>
+              {loadedCourse.city && <div style={{ fontSize: 13, color: "#166534", opacity: 0.8 }}>{loadedCourse.city}{loadedCourse.state ? `, ${loadedCourse.state}` : ""} · Par {(loadedCourse.pars || []).reduce((s,p) => s + Number(p||0), 0) || ""}</div>}
             </div>
+            <button onClick={() => setShowList(true)} style={{ fontSize: 13, padding: "6px 14px", borderRadius: 8, border: "1px solid #86efac", background: "transparent", color: "#166534", cursor: "pointer", fontFamily: "inherit" }}>Change</button>
           </div>
-        )}
-        {searching && <div style={{ fontSize: 12, color: sc.muted, marginTop: 4 }}>Searching…</div>}
-      </div>
 
-      {!loadedCourse && <CourseEditor course={course} onParChange={updateCoursePar} onHcpChange={updateCourseHcp} />}
-
-      {/* Duplicate course warning */}
-      {duplicateCourse && (
-        <div style={{ marginTop: 12, padding: 12, background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 6 }}>
-            ⚠️ "{duplicateCourse.name}" already exists in the library
-          </div>
-          <div style={{ fontSize: 12, color: "#92400e", marginBottom: 10 }}>
-            {duplicateCourse.city}{duplicateCourse.state ? `, ${duplicateCourse.state}` : ""}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => { loadCourse(duplicateCourse); setDuplicateCourse(null); }} style={{
-              flex: 1, padding: "7px 12px", fontSize: 13, fontWeight: 600,
-              background: sc.green, color: "#fff", border: "none", borderRadius: 6,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>Load existing</button>
-            <button onClick={() => setDuplicateCourse(null)} style={{
-              padding: "7px 12px", fontSize: 13, background: "transparent",
-              color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>Dismiss</button>
-          </div>
-        </div>
-      )}
-
-      {/* Update loaded course */}
-      {loadedCourse && (
-        <div style={{ marginTop: 12 }}>
+          {/* Update / Delete */}
           {updateStatus === "saved" ? (
-            <div style={{ fontSize: 13, color: sc.green, fontWeight: 600 }}>✓ Course updated in library</div>
+            <div style={{ fontSize: 13, color: sc.green, fontWeight: 600, marginBottom: 8 }}>✓ Course updated in library</div>
           ) : updateStatus === "error" ? (
-            <div style={{ fontSize: 13, color: "#b3261e" }}>Update failed — try again</div>
-          ) : updateStatus === "pin" || showUpdateConfirm ? (
-            <div style={{ padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8 }}>
+            <div style={{ fontSize: 13, color: "#b3261e", marginBottom: 8 }}>Update failed — try again</div>
+          ) : (updateStatus === "pin" || showUpdateConfirm) ? (
+            <div style={{ padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8, marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: sc.ink, marginBottom: 8 }}>
                 {updateStatus === "pin" ? "Admin PIN required to update this course" : `Update "${loadedCourse.name}" in the shared library?`}
               </div>
               {updateStatus === "pin" && (
-                <input
-                  type="password"
-                  value={updatePin}
-                  onChange={e => setUpdatePin(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleUpdate(updatePin)}
-                  placeholder="Admin PIN"
-                  inputMode="numeric"
-                  style={{ width: "100%", fontSize: 15, padding: "8px 12px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
-                />
+                <input type="password" value={updatePin} onChange={e => setUpdatePin(e.target.value)} onKeyDown={e => e.key === "Enter" && handleUpdate(updatePin)} placeholder="Admin PIN" inputMode="numeric"
+                  style={{ width: "100%", fontSize: 15, padding: "8px 12px", border: `1px solid ${sc.border}`, borderRadius: 6, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }} />
               )}
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => handleUpdate(updateStatus === "pin" ? updatePin : "")} disabled={updateStatus === "saving"} style={{
-                  flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700,
-                  background: sc.green, color: "#fff", border: "none", borderRadius: 6,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}>{updateStatus === "saving" ? "Saving…" : "Confirm Update"}</button>
-                <button onClick={() => { setShowUpdateConfirm(false); setUpdateStatus(""); setUpdatePin(""); }} style={{
-                  padding: "8px 12px", fontSize: 13, background: "transparent",
-                  color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}>Cancel</button>
+                <button onClick={() => handleUpdate(updateStatus === "pin" ? updatePin : "")} disabled={updateStatus === "saving"}
+                  style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, background: sc.green, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>
+                  {updateStatus === "saving" ? "Saving…" : "Confirm Update"}
+                </button>
+                <button onClick={() => { setShowUpdateConfirm(false); setUpdateStatus(""); setUpdatePin(""); }}
+                  style={{ padding: "8px 12px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowUpdateConfirm(true)} style={{
-              marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600,
-              background: "#fff", color: sc.gold, border: `1px solid ${sc.gold}`,
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%",
-            }}>✏️ Update "{loadedCourse.name}" in library</button>
+            <button onClick={() => setShowUpdateConfirm(true)}
+              style={{ marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, background: "#fff", color: sc.gold, border: `1px solid ${sc.gold}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+              ✏️ Update "{loadedCourse.name}" in library
+            </button>
           )}
-          {loadedCourse && (
-            <button onClick={async () => {
-              const pin = window.prompt("Admin PIN to delete this course:");
-              if (!pin) return;
-              if (!window.confirm(`Delete "${loadedCourse.name}" from the library? This cannot be undone.`)) return;
-              try {
-                const deletedName = loadedCourse.name;
-                await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
-                setLoadedCourse(null);
-                updateCourseName("");
-                setSearchQuery("");
-                const results = await searchCourses("%");
-                setSearchResults(results || []);
-                window.alert(`"${deletedName}" deleted.`);
-              } catch (e) {
-                window.alert(e.message === "not_owner" ? "You don't have permission to delete this course." : "Delete failed.");
-              }
-            }} style={{
-              marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600,
-              background: "#fff", color: "#b3261e", border: "1px solid #b3261e",
-              borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%",
-            }}>🗑️ Delete "{loadedCourse.name}" from library</button>
+
+          <button onClick={async () => {
+            const pin = window.prompt("Admin PIN to delete this course:");
+            if (!pin) return;
+            if (!window.confirm(`Delete "${loadedCourse.name}" from the library? This cannot be undone.`)) return;
+            try {
+              await deleteCourseFromLibrary(loadedCourse.id, deviceId, pin);
+              setLoadedCourse(null); updateCourseName(""); setShowList(true);
+              searchCourses("%").then(r => setAllCourses(r || [])).catch(() => {});
+            } catch (e) {
+              window.alert(e.message === "not_owner" ? "You don't have permission to delete this course." : "Delete failed.");
+            }
+          }} style={{ marginBottom: 8, padding: "9px 16px", fontSize: 13, fontWeight: 600, background: "#fff", color: "#b3261e", border: "1px solid #b3261e", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+            🗑️ Delete "{loadedCourse.name}" from library
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Course list picker */}
+          {!course.name && (
+            <div style={{ marginBottom: 10, padding: "10px 12px", background: "#fef9c3", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e", fontWeight: 600 }}>
+              ⛳ Select a course to get started
+            </div>
           )}
+
+          {/* Search */}
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search courses…"
+            style={{ width: "100%", fontSize: 16, padding: "10px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
+          />
+
+          {/* Sort toggle */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <SortBtn mode="recent" label="Recent" />
+            <SortBtn mode="az" label="A–Z" />
+            <SortBtn mode="state" label="State" />
+          </div>
+
+          {/* Course list */}
+          <div style={{ border: `1px solid ${sc.border}`, borderRadius: 8, overflow: "hidden", maxHeight: 320, overflowY: "auto" }}>
+            {sortedCourses.length === 0 ? (
+              <div style={{ padding: "16px 14px", fontSize: 14, color: sc.muted, textAlign: "center" }}>No courses found</div>
+            ) : (() => {
+              let lastState = null;
+              return sortedCourses.map((c, i) => {
+                const showStateHeader = sortMode === "state" && c.state !== lastState;
+                if (showStateHeader) lastState = c.state;
+                const isLast = i === sortedCourses.length - 1;
+                return (
+                  <div key={c.id}>
+                    {showStateHeader && (
+                      <div style={{ padding: "5px 14px", background: "#f9fafb", fontSize: 11, fontWeight: 600, color: sc.muted, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: `1px solid ${sc.border}` }}>
+                        {c.state}
+                      </div>
+                    )}
+                    <div onClick={() => loadCourse(c)} style={{ padding: "13px 14px", borderBottom: isLast ? "none" : `1px solid ${sc.border}`, cursor: "pointer", WebkitTapHighlightColor: "rgba(0,0,0,0.05)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: sc.ink }}>{c.name}</div>
+                      <div style={{ fontSize: 13, color: sc.muted }}>{c.city}{c.state ? `, ${c.state}` : ""} · Par {(c.pars || []).reduce((s,p) => s + Number(p||0), 0) || "?"}</div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          {/* Cancel / back if changing */}
+          {showList && loadedCourse && (
+            <button onClick={() => { setShowList(false); setSearchQuery(""); }} style={{ marginTop: 8, width: "100%", padding: "9px 0", fontSize: 13, color: sc.muted, background: "transparent", border: `1px solid ${sc.border}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+              Cancel
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Duplicate warning */}
+      {duplicateCourse && (
+        <div style={{ marginTop: 12, padding: 12, background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 6 }}>⚠️ "{duplicateCourse.name}" already exists in the library</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { loadCourse(duplicateCourse); setDuplicateCourse(null); }}
+              style={{ flex: 1, padding: "7px 12px", fontSize: 13, fontWeight: 600, background: sc.green, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Load existing</button>
+            <button onClick={() => setDuplicateCourse(null)}
+              style={{ padding: "7px 12px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Dismiss</button>
+          </div>
         </div>
       )}
 
       {/* Save to library */}
-      {saveStatus === "saved" ? (
-        <div style={{ marginTop: 12, fontSize: 13, color: sc.green, fontWeight: 600 }}>✓ Saved to course library</div>
-      ) : saveStatus === "error" ? (
-        <div style={{ marginTop: 12, fontSize: 13, color: "#b3261e" }}>Save failed — try again</div>
-      ) : showSaveForm ? (
-        <div style={{ marginTop: 12, padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: sc.ink }}>Save to shared library</div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <input
-              type="text"
-              value={saveCity}
-              onChange={e => setSaveCity(e.target.value)}
-              placeholder="City *"
-              style={{ flex: 1, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}
-            />
-            <input
-              type="text"
-              value={saveState}
-              onChange={e => setSaveState(e.target.value.toUpperCase())}
-              placeholder="ST *"
-              maxLength={2}
-              style={{ width: 50, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit", textTransform: "uppercase" }}
-            />
-          </div>
-          <div style={{ fontSize: 11, color: sc.muted, marginBottom: 8 }}>Saved by: {savedBy}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={handleSave}
-              disabled={!saveCity.trim() || !saveState.trim() || saveStatus === "saving"}
-              style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, background: sc.green, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", opacity: (!saveCity.trim() || !saveState.trim()) ? 0.5 : 1 }}
-            >
-              {saveStatus === "saving" ? "Saving…" : "Save"}
+      {!roundInProgress && (
+        <>
+          {saveStatus === "saved" ? (
+            <div style={{ marginTop: 12, fontSize: 13, color: sc.green, fontWeight: 600 }}>✓ Saved to course library</div>
+          ) : saveStatus === "error" ? (
+            <div style={{ marginTop: 12, fontSize: 13, color: "#b3261e" }}>Save failed — try again</div>
+          ) : showSaveForm ? (
+            <div style={{ marginTop: 12, padding: 12, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: sc.ink }}>Save to shared library</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input type="text" value={saveCity} onChange={e => setSaveCity(e.target.value)} placeholder="City *"
+                  style={{ flex: 1, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }} />
+                <input type="text" value={saveState} onChange={e => setSaveState(e.target.value.toUpperCase())} placeholder="ST *" maxLength={2}
+                  style={{ width: 50, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit", textTransform: "uppercase" }} />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleSave} disabled={!saveCity.trim() || !saveState.trim() || saveStatus === "saving"}
+                  style={{ flex: 1, padding: "8px 12px", fontSize: 13, fontWeight: 700, background: sc.green, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit", opacity: (!saveCity.trim() || !saveState.trim()) ? 0.5 : 1 }}>
+                  {saveStatus === "saving" ? "Saving…" : "Save"}
+                </button>
+                <button onClick={() => setShowSaveForm(false)}
+                  style={{ padding: "8px 12px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSaveForm(true)} disabled={!course.name}
+              style={{ marginTop: 12, padding: "9px 16px", fontSize: 13, fontWeight: 600, background: "#fff", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 8, cursor: course.name ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+              💾 Save course to shared library
             </button>
-            <button
-              onClick={() => setShowSaveForm(false)}
-              style={{ padding: "8px 12px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowSaveForm(true)}
-          disabled={!course.name}
-          style={{
-            marginTop: 12, padding: "9px 16px", fontSize: 13, fontWeight: 600,
-            background: "#fff", color: sc.muted,
-            border: `1px solid ${sc.border}`,
-            borderRadius: 8, cursor: course.name ? "pointer" : "not-allowed",
-            fontFamily: "inherit",
-          }}
-        >
-          💾 Save course to shared library
-        </button>
-      )}
-      <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>
-        Once saved, anyone can search and load this course.
-      </div>
-      </>
+          )}
+          <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>Once saved, anyone can search and load this course.</div>
+        </>
       )}
     </Card>
   );
