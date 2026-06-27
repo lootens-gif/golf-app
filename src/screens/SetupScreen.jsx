@@ -764,8 +764,10 @@ export default function SetupScreen({
     if (!focusGameTarget) return;
     setExpandedGame(focusGameTarget.gameIndex);
     const el = teamGameRefs.current[focusGameTarget.gameIndex];
-    if (!el) return;
-    setTimeout(() => { el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 0);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }, [focusGameTarget, setExpandedGame]);
 
   return (
