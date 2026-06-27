@@ -212,8 +212,7 @@ export async function searchCourses(query) {
     .from("courses")
     .select("*")
     .ilike("name", `%${query}%`)
-    .order("use_count", { ascending: false })
-    .limit(10);
+    .order("name", { ascending: true });
 
   if (error) throw error;
   return data || [];
