@@ -1,5 +1,4 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
-import CourseEditor from "../components/CourseEditor";
 import MatchList from "../components/MatchList";
 import { useEffect, useRef, useState } from "react";
 
