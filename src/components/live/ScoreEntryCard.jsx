@@ -28,6 +28,7 @@ export default function ScoreEntryCard({
   onScoreBlur,
 }) {
   const [activePlayerId, setActivePlayerId] = useState(players?.[0]?.id ?? null);
+  const saveHoleRef = useRef(null);
 
   useEffect(() => {
     setActivePlayerId(players?.[0]?.id ?? null);
@@ -45,7 +46,6 @@ export default function ScoreEntryCard({
 
   const par = course.pars?.[currentHole - 1] ?? 4;
   const hcp = course.hcp?.[currentHole - 1] ?? "-";
-  const saveHoleRef = useRef(null);
   const activePlayerIndex = players.findIndex((p) => p.id === activePlayerId);
   const activePlayer = players[activePlayerIndex];
   const allScoresEntered = players.every(p => scores[currentHole]?.[p.id] != null);
