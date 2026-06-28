@@ -1601,8 +1601,8 @@ function TeamGameAudit({
                   storageId={`matchup-${gameIndex}-${matchupIndex}`}
                   defaultOpen={false}
                 >
-                  {isNonPress ? (
-                    <div style={{ padding: "8px 0", fontSize: 13 }}>
+                  {isNonPress && (
+                    <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
                       {result.type === "match_fbt" && (result.segments || []).map(s => (
                         <div key={s.key} style={{ marginBottom: 4 }}>
                           <strong>{s.label}:</strong> {s.resultLabel} — {formatMoney(s.dollars)}
@@ -1616,13 +1616,8 @@ function TeamGameAudit({
                       {(result.type === "standard" || result.type === "longshort") && (
                         <div>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
                       )}
-                      {result.type === "longshort" && (
-                        <div style={{ fontSize: 12, color: "#555", marginTop: 4 }}>
-                          Long: {result.longLabel} ({formatMoney(result.long)}) · Short: {result.shortLabel} ({formatMoney(result.short)})
-                        </div>
-                      )}
                     </div>
-                  ) : (
+                  )}
                   <TeamGameScorecard
                     game={game}
                     matchup={matchup}
@@ -1636,7 +1631,7 @@ function TeamGameAudit({
                     course={course}
                     scores={scores}
                     handicapMode={handicapMode}
-                    showPressDetail
+                    showPressDetail={!isNonPress}
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
                   />
