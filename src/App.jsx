@@ -263,7 +263,7 @@ function CompletedTeamGameScorecard({
       scores,
       handicapMode,
     });
-    const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
+    const runningValue = getNetActiveBetCountForHole(Array.isArray(matchup?.result) ? matchup.result : [], hole);
 
     return {
       hole,

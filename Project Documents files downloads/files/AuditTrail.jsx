@@ -214,9 +214,8 @@ function TeamGameScorecard({
       noPar3Strokes,
       getHandicapStrokesFn,
     });
-    const pressResult = Array.isArray(matchup?.result) ? matchup.result : [];
-    const statuses = getBetStatusesForHole(pressResult, hole);
-    const runningValue = getNetActiveBetCountForHole(pressResult, hole);
+    const statuses = getBetStatusesForHole(matchup?.result || [], hole);
+    const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
 
     return {
       hole,
@@ -1363,7 +1362,7 @@ function TeamGameAudit({
       const isNonPress = result && !Array.isArray(result) && result.type;
       const dollars = isNonPress
         ? (result.total || 0)
-        : getMatchUnits(result) * Number(teamGameUnitAmount || 0);
+        : (result || []).reduce((s, bet) => s + (Number(bet.score || 0) > 0 ? 1 : Number(bet.score || 0) < 0 ? -1 : 0), 0) * Number(teamGameUnitAmount || 0);
       teamA.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] += dollars; });
       teamB.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] -= dollars; });
     });
@@ -1388,7 +1387,7 @@ function TeamGameAudit({
       const isNonPress = result && !Array.isArray(result) && result.type;
       const dollars = isNonPress
         ? (result.total || 0)
-        : getMatchUnits(result) * Number(teamGameUnitAmount || 0);
+        : (result || []).reduce((s, bet) => s + (Number(bet.score || 0) > 0 ? 1 : Number(bet.score || 0) < 0 ? -1 : 0), 0) * Number(teamGameUnitAmount || 0);
       teamA.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] += dollars; });
       teamB.forEach(id => { if (overallPlayerDollars[id] !== undefined) overallPlayerDollars[id] -= dollars; });
     });
@@ -1549,7 +1548,7 @@ function TeamGameAudit({
                 );
               })();
               const pressDetailStr = lastScoredHole && !isNonPress
-                ? formatPressDetail(getBetStatusesForHole(Array.isArray(matchup.result) ? matchup.result : [], lastScoredHole))
+                ? formatPressDetail(getBetStatusesForHole(matchup.result || [], lastScoredHole))
                 : null;
 
               // Initials helper
