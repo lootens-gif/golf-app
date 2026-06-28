@@ -7,6 +7,7 @@ export default function PlayerSetupPanel({
   onResetSetup,
 }) {
   const [activeHcpIndex, setActiveHcpIndex] = useState(null);
+  const [freshEntry, setFreshEntry] = useState(false); // true = next digit replaces
 
   function displayHcp(hcp) {
     if (hcp === "" || hcp == null) return "";
@@ -18,25 +19,33 @@ export default function PlayerSetupPanel({
   function handleKeypad(index, key) {
     const current = players[index].hcp;
     const isPlus = Number(current) < 0;
-    const digits = String(Math.abs(Number(current) || 0));
+    const absVal = Math.abs(Number(current) || 0);
+    const digits = freshEntry || absVal === 0 ? "" : String(absVal);
 
     if (key === "back") {
       const newDigits = digits.slice(0, -1);
-      if (newDigits === "" || newDigits === "0") {
+      setFreshEntry(false);
+      if (newDigits === "") {
         onPlayerChange(index, "hcp", "");
       } else {
         const n = Number(newDigits);
         onPlayerChange(index, "hcp", isPlus ? -n : n);
       }
     } else if (key === "+") {
-      // Toggle plus handicap
-      const n = Number(digits) || 0;
+      const n = Number(digits) || absVal;
+      setFreshEntry(false);
       if (n > 0) onPlayerChange(index, "hcp", isPlus ? n : -n);
     } else {
-      const newDigits = digits === "0" || digits === "" ? key : digits + key;
+      const newDigits = digits === "" ? key : digits + key;
       const n = Math.min(Number(newDigits), 54);
+      setFreshEntry(false);
       onPlayerChange(index, "hcp", isPlus ? -n : n);
     }
+  }
+
+  function openKeypad(index) {
+    setActiveHcpIndex(index);
+    setFreshEntry(true); // first digit replaces current value
   }
 
   const KeypadButton = ({ label, onPress, color, bg }) => (
@@ -77,7 +86,7 @@ export default function PlayerSetupPanel({
               />
               <span style={{ fontSize: 13, color: "#666" }}>HCP</span>
               <div
-                onClick={() => setActiveHcpIndex(isActive ? null : index)}
+                onClick={() => activeHcpIndex === index ? setActiveHcpIndex(null) : openKeypad(index)}
                 style={{
                   width: 48, fontSize: 15, padding: "5px 6px", textAlign: "center",
                   border: `1px solid ${isActive ? "#1a5c35" : "#d1d5db"}`,

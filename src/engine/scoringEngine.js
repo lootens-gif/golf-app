@@ -8,7 +8,8 @@ export function getActivePlayers(allPlayers, mode) {
 }
 
 export function getLowestHandicap(players) {
-  return Math.min(...players.map((p) => p.hcp));
+  const valid = players.map((p) => Number(p.hcp) || 0);
+  return Math.min(...valid);
 }
 
 export function getPlayerById(players, playerId) {
@@ -22,18 +23,16 @@ export function getPlayerName(players, playerId) {
 
 export function getHandicapBase(player, players, handicapMode) {
   if (!player) return 0;
+  const playerHcp = Number(player.hcp) || 0;
 
   if (handicapMode === "full") {
-    return player.hcp;
+    return playerHcp;
   }
 
+  const validPlayers = players.filter((p) => p && Number.isFinite(Number(p.hcp)));
+  const low = validPlayers.length ? Math.min(...validPlayers.map((p) => Number(p.hcp))) : 0;
 
-  // ✅ FORCE correct comparison set
-  const validPlayers = players.filter((p) => p && typeof p.hcp === "number");
-
-  const low = Math.min(...validPlayers.map((p) => p.hcp));
-
-  return Math.max(0, player.hcp - low);
+  return Math.max(0, playerHcp - low);
 }
 
 export function getHandicapStrokes(
@@ -1530,12 +1529,20 @@ for (const game of teamGameResults) {
     const teamBPlayers = selection[teamBKey] || [];
 
     // sum all scores (base + presses, pay each as a separate unit) to determine total units won/lost for the matchup
-    const totalScore = (matchup.result || []).reduce((sum, item) => {
-    const score = item.score || 0;
-    if (score > 0) return sum + 1;
-    if (score < 0) return sum - 1;
-    return sum;
-  }, 0);
+    let totalScore = 0;
+    if (Array.isArray(matchup.result)) {
+      // Press format: result is array of bet results
+      totalScore = matchup.result.reduce((sum, item) => {
+        const score = item.score || 0;
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0);
+    } else if (matchup.result && typeof matchup.result === "object") {
+      // Non-press format: result is a structured object with a total
+      const dollars = Number(matchup.result.total || 0);
+      totalScore = dollars > 0 ? 1 : dollars < 0 ? -1 : 0;
+    }
 
 const dollars = totalScore * teamGameUnitAmount;
     const teamACount = teamAPlayers.filter(Boolean).length;
