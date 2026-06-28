@@ -76,6 +76,23 @@ function isUsableRoundSnapshot(value) {
   );
 }
 
+// Safely get net units from a team game matchup result (handles both press array and non-press object)
+function getMatchUnits(result) {
+  if (Array.isArray(result)) {
+    return result.reduce((sum, item) => {
+      const score = Number(item.score || 0);
+      if (score > 0) return sum + 1;
+      if (score < 0) return sum - 1;
+      return sum;
+    }, 0);
+  }
+  if (result && typeof result === "object") {
+    const total = Number(result.total || 0);
+    return total > 0 ? 1 : total < 0 ? -1 : 0;
+  }
+  return 0;
+}
+
 function createDefaultCourse() {
   return {
     name: "",
@@ -1418,10 +1435,6 @@ const birdieResults = buildBirdieResults({
   players,
   handicapMode,
 });
-console.log('[BR]', JSON.stringify(birdieResults.filter(e=>e.source==='team-birdie'&&e.amount!==0)));
-console.log('[TGR]', JSON.stringify(teamGameResults.map(g=>({idx:g.index,start:g.start,end:g.end,matches:g.matches?.length,labels:g.matches?.map(m=>m.label)}))));
-console.log('[SEL0]', JSON.stringify(getTeamGameSelection(0)));
-console.log('[SEL2]', JSON.stringify(getTeamGameSelection(2)));
 // Keyed by gameIndex, then playerId
 const segmentBirdieAmounts = useMemo(() => {
   const result = {};
@@ -1516,12 +1529,7 @@ const roundSummaryRows = activePlayers.map((player) => {
       const teamAPlayers = selection?.[teamAKey] || [];
       const teamBPlayers = selection?.[teamBKey] || [];
 
-      const units = (matchup.result || []).reduce((sum, item) => {
-        const score = item.score || 0;
-        if (score > 0) return sum + 1;
-        if (score < 0) return sum - 1;
-        return sum;
-      }, 0);
+      const units = getMatchUnits(matchup.result);
 
       if (teamAPlayers.includes(player.id)) total += units;
       if (teamBPlayers.includes(player.id)) total -= units;
@@ -3408,12 +3416,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     const teamBKey = `team${parts[4] || ""}`.toLowerCase();
     const teamAPlayers = selection?.[teamAKey] || [];
     const teamBPlayers = selection?.[teamBKey] || [];
-    const units = (matchup.result || []).reduce((sum, item) => {
-      const score = item.score || 0;
-      if (score > 0) return sum + 1;
-      if (score < 0) return sum - 1;
-      return sum;
-    }, 0);
+    const units = getMatchUnits(matchup.result);
     teamAPlayers.forEach((id) => { summary[id] = (summary[id] || 0) + units; });
     teamBPlayers.forEach((id) => { summary[id] = (summary[id] || 0) - units; });
   });
@@ -3552,12 +3555,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
           const teamBKey = `team${parts[4] || ""}`.toLowerCase();
           const teamAPlayers = selection?.[teamAKey] || [];
           const teamBPlayers = selection?.[teamBKey] || [];
-          const units = (matchup.result || []).reduce((sum, item) => {
-            const score = item.score || 0;
-            if (score > 0) return sum + 1;
-            if (score < 0) return sum - 1;
-            return sum;
-          }, 0);
+          const units = getMatchUnits(matchup.result);
           if (teamAPlayers.includes(player.id)) netTotal += units;
           if (teamBPlayers.includes(player.id)) netTotal -= units;
         });
@@ -3593,14 +3591,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
             const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
             const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
 
-            const netUnits = (matchup.result || []).reduce((sum, bet) => {
-              const score = Number(bet.score || 0);
-              if (score > 0) return sum + 1;
-              if (score < 0) return sum - 1;
-              return sum;
-            }, 0);
+            const netUnits = getMatchUnits(matchup.result);
 
-            const betScores = (matchup.result || []).map(bet => Number(bet.score || 0));
+            const betScores = Array.isArray(matchup.result) ? matchup.result.map(bet => Number(bet.score || 0)) : [];
             const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
             const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
             const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
