@@ -1,4 +1,12 @@
 import React, { useState } from "react";
+import {
+  computeHoleResult,
+  getHandicapStrokes,
+  getNetScore,
+  getRawScore,
+  isGrossBirdie,
+  isNetBirdie,
+} from "../engine/scoringEngine";
 
 // Safely get net units from a team game matchup result (handles both press array and non-press object)
 function getMatchUnits(result) {
@@ -16,15 +24,6 @@ function getMatchUnits(result) {
   }
   return 0;
 }
-
-import {
-  computeHoleResult,
-  getHandicapStrokes,
-  getNetScore,
-  getRawScore,
-  isGrossBirdie,
-  isNetBirdie,
-} from "../engine/scoringEngine";
 
 const scorecardCellStyle = {
   border: "1px solid #e5e7eb",

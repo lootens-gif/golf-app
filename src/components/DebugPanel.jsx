@@ -1,3 +1,12 @@
+import {
+  getRawScore,
+  getHandicapStrokes,
+  getNetScore,
+  getPlayerName,
+  getTeamNetScore,
+  computeHoleResult,
+} from "../engine/scoringEngine";
+
 function getMatchUnits(result) {
   if (Array.isArray(result)) {
     return result.reduce((sum, item) => {
@@ -13,15 +22,6 @@ function getMatchUnits(result) {
   }
   return 0;
 }
-
-import {
-  getRawScore,
-  getHandicapStrokes,
-  getNetScore,
-  getPlayerName,
-  getTeamNetScore,
-  computeHoleResult,
-} from "../engine/scoringEngine";
 
 function formatHoleResult(result, teamALabel = "Team A", teamBLabel = "Team B") {
   if (result === 1) return `${teamALabel} wins`;
