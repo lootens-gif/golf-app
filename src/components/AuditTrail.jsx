@@ -262,11 +262,11 @@ function TeamGameScorecard({
           <tr>
             <td style={scorecardLabelCellStyle}>{teamAName}</td>
             {rows.map((row) => {
-              const teamAHasBirdie = game.birdieEnabled && teamA.filter(Boolean).some(id =>
+              const teamAHasBirdie = teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#dcfce7" : "transparent", color: teamAHasBirdie ? "#137333" : "#1a1a1a", fontWeight: teamAHasBirdie ? 700 : 400 }}>
                   {row.teamAValue}
                 </td>
               );
@@ -276,11 +276,11 @@ function TeamGameScorecard({
           <tr>
             <td style={scorecardLabelCellStyle}>{teamBName}</td>
             {rows.map((row) => {
-              const teamBHasBirdie = game.birdieEnabled && teamB.filter(Boolean).some(id =>
+              const teamBHasBirdie = teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#fef9c3" : "transparent", color: "#1a1a1a" }}>
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#dcfce7" : "transparent", color: teamBHasBirdie ? "#137333" : "#1a1a1a", fontWeight: teamBHasBirdie ? 700 : 400 }}>
                   {row.teamBValue}
                 </td>
               );
@@ -781,11 +781,17 @@ function NinePointScorecard({
                     const gross = getRawScore(scores, h.hole, player.id);
                     const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
                     const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "–";
-                    const grossBirdie = match?.birdieEnabled && isGrossBirdie(scores, course, h.hole, player.id);
+                    const grossBirdie = isGrossBirdie(scores, course, h.hole, player.id);
+                    const didDouble = grossBirdie && h.birdieMode === "birdie" && h.winnerPlayerId === player.id;
+                    const didEagle = grossBirdie && h.birdieMode === "eagle" && h.winnerPlayerId === player.id;
                     const netBirdie = match?.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, h.hole, players, course, scores, handicapMode, !!match?.noPar3Strokes);
                     return (
                       <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#444" }}>
-                        {grossBirdie ? (
+                        {(didDouble || didEagle) ? (
+                          <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11, outline: didEagle ? "2px solid #b8952a" : "none", outlineOffset: "2px" }}>
+                            {display}
+                          </span>
+                        ) : grossBirdie ? (
                           <span style={{ display: "inline-block", width: 20, height: 20, lineHeight: "20px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
                             {display}
                           </span>
@@ -983,12 +989,12 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = isGrossStroke ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
-                const grossBirdie = !isGrossStroke && match.birdieEnabled && isGrossBirdie(scores, course, hole, player.id);
-                const netBirdie = !isGrossStroke && match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
+                const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
+                const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
                 return (
-                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444", background: grossBirdie ? "#fef9c3" : "transparent" }}>
+                  <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
                     {grossBirdie ? (
-                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", background: "#b8952a", color: "#fff", fontWeight: 700, fontSize: 11 }}>
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
                         {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                       </span>
                     ) : netBirdie ? (

@@ -187,11 +187,23 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     (c.state || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const [sortDir, setSortDir] = useState("asc"); // "asc" | "desc"
+
+  function handleSortMode(mode) {
+    if (sortMode === mode) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortMode(mode);
+      setSortDir("asc");
+    }
+  }
+
   const sortedCourses = [...filteredCourses].sort((a, b) => {
-    if (sortMode === "az") return a.name.localeCompare(b.name);
-    if (sortMode === "state") return (a.state || "").localeCompare(b.state || "") || a.name.localeCompare(b.name);
-    // recent: sort by use_count desc as proxy (most used = most recent for now)
-    return (b.use_count || 0) - (a.use_count || 0);
+    let cmp = 0;
+    if (sortMode === "az") cmp = a.name.localeCompare(b.name);
+    else if (sortMode === "state") cmp = (a.state || "").localeCompare(b.state || "") || a.name.localeCompare(b.name);
+    else cmp = (b.use_count || 0) - (a.use_count || 0); // recent: high use_count first
+    return sortDir === "asc" ? cmp : -cmp;
   });
 
   function loadCourse(c) {
@@ -239,15 +251,19 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     } catch { setSaveStatus("error"); setTimeout(() => setSaveStatus(""), 3000); }
   }
 
-  const SortBtn = ({ mode, label }) => (
-    <button onClick={() => setSortMode(mode)} style={{
-      flex: 1, fontSize: 13, padding: "7px 0", borderRadius: 8,
-      border: sortMode === mode ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
-      background: sortMode === mode ? "#f0fdf4" : "#fff",
-      color: sortMode === mode ? sc.green : sc.muted,
-      cursor: "pointer", fontFamily: "inherit", fontWeight: sortMode === mode ? 600 : 400,
-    }}>{label}</button>
-  );
+  const SortBtn = ({ mode, label }) => {
+    const active = sortMode === mode;
+    const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+    return (
+      <button onClick={() => handleSortMode(mode)} style={{
+        flex: 1, fontSize: 13, padding: "7px 0", borderRadius: 8,
+        border: active ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
+        background: active ? "#f0fdf4" : "#fff",
+        color: active ? sc.green : sc.muted,
+        cursor: "pointer", fontFamily: "inherit", fontWeight: active ? 600 : 400,
+      }}>{label}{arrow}</button>
+    );
+  };
 
   return (
     <Card>
@@ -1224,7 +1240,7 @@ export default function SetupScreen({
                 : Math.max(0, Number(p.hcp) - minHcp);
               if (totalStrokes <= 18) return null;
               const extra = totalStrokes - 18;
-              return `⚠️ ${p.name} (HCP ${p.hcp}) — ${extra} stroke${extra > 1 ? "s" : ""} above 18 will be applied as double strokes on the hardest holes. ${p.name} might want to consider a lesson. 🏌️`;
+              return `⚠️ ${p.name} (HCP ${p.hcp < 0 ? `+${Math.abs(p.hcp)}` : p.hcp}) — ${extra} stroke${extra > 1 ? "s" : ""} above 18 will be applied as double strokes on the hardest holes. ${p.name} might want to consider a lesson. 🏌️`;
             }).filter(Boolean);
 
             if (warnings.length === 0) return null;
