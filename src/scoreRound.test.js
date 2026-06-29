@@ -321,3 +321,143 @@ test('23_1v1_birdie_disabled_match_still_settles', () => {
 
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
+// ── NON-PRESS TEAM GAME FORMAT TESTS ─────────────────────────────────────────
+// These test the exact scenario that caused crashes: result is an object not array
+
+test('24_team_game_nonpress_longshort_result_object', () => {
+  // Non-press team game: result is an object (longshort format), not array
+  const result = scoreRound({}, {
+    players: [
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+      { id: 'C', name: 'C', hcp: 0 },
+      { id: 'D', name: 'D', hcp: 0 },
+    ],
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [
+      {
+        index: 0,
+        duplicateError: false,
+        matches: [
+          {
+            label: 'Team 1 vs Team 2',
+            result: {
+              type: 'longshort',
+              total: 5,
+              long: 5,
+              short: 0,
+              longLabel: '3&2',
+              shortLabel: 'Tie',
+            },
+          },
+        ],
+      },
+    ],
+    getTeamGameSelection: () => ({
+      team1: ['A', 'B'],
+      team2: ['C', 'D'],
+    }),
+  });
+
+  // Should not crash and money should be conserved
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});
+
+test('25_team_game_nonpress_match_fbt_result_object', () => {
+  const result = scoreRound({}, {
+    players: [
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+      { id: 'C', name: 'C', hcp: 0 },
+      { id: 'D', name: 'D', hcp: 0 },
+    ],
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [
+      {
+        index: 0,
+        duplicateError: false,
+        matches: [
+          {
+            label: 'Team 1 vs Team 2',
+            result: {
+              type: 'match_fbt',
+              total: 10,
+              segments: [
+                { key: 'front', label: 'Front 9', units: 1, dollars: 5 },
+                { key: 'back', label: 'Back 9', units: 1, dollars: 5 },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    getTeamGameSelection: () => ({
+      team1: ['A', 'B'],
+      team2: ['C', 'D'],
+    }),
+  });
+
+  expect(sumTotals(result.playerLedger)).toBe(0);
+  // Team 1 wins
+  const ledger = simplifiedLedger(result.playerLedger);
+  expect(ledger.A.total).toBeGreaterThan(0);
+  expect(ledger.C.total).toBeLessThan(0);
+});
+
+test('26_team_game_nonpress_stroke_result_object', () => {
+  const result = scoreRound({}, {
+    players: [
+      { id: 'A', name: 'A', hcp: 0 },
+      { id: 'B', name: 'B', hcp: 0 },
+      { id: 'C', name: 'C', hcp: 0 },
+      { id: 'D', name: 'D', hcp: 0 },
+    ],
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [
+      {
+        index: 0,
+        duplicateError: false,
+        matches: [
+          {
+            label: 'Team 1 vs Team 2',
+            result: {
+              type: 'stroke',
+              total: -5,
+              segments: [
+                { key: 'total', label: 'Total 18', units: -1, dollars: -5, strokeDiff: -3 },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    getTeamGameSelection: () => ({
+      team1: ['A', 'B'],
+      team2: ['C', 'D'],
+    }),
+  });
+
+  expect(sumTotals(result.playerLedger)).toBe(0);
+  // Team 2 wins (negative total means teamB wins)
+  const ledger = simplifiedLedger(result.playerLedger);
+  expect(ledger.C.total).toBeGreaterThan(0);
+  expect(ledger.A.total).toBeLessThan(0);
+});
+
+test('27_getHandicapBase_handles_empty_hcp', () => {
+  // Empty hcp string should not crash
+  const { getHandicapBase } = require('./engine/scoringEngine');
+  const players = [
+    { id: 'A', hcp: '' },
+    { id: 'B', hcp: 10 },
+  ];
+  expect(() => getHandicapBase(players[0], players, 'relative')).not.toThrow();
+  expect(() => getHandicapBase(players[1], players, 'relative')).not.toThrow();
+  expect(getHandicapBase(players[1], players, 'relative')).toBe(10);
+});
