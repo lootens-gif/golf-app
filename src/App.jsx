@@ -1783,21 +1783,31 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
 
   setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
   setBirdieBetAmount(Number(round.birdieBetAmount || 5));
 
-  setTeamGames(
-    round.teamGames.map((game, index) => ({
+  setTeamGames(prev => {
+    const restored = round.teamGames.map((game, index) => ({
       id: game.id || `team-game-${Date.now()}-${index}`,
       holes: Number(game.holes) || 6,
       pressTrigger: Number(game.pressTrigger) || 1,
       birdieEnabled: !!game.birdieEnabled,
       birdieBet: Number(game.birdieBet) || 0,
       teams: game.teams || {},
-    }))
-  );
+    }));
+    // If syncing in background (skipScreen), never overwrite teams that are already set
+    if (skipScreen) {
+      return restored.map((game, i) => {
+        const prevGame = prev[i];
+        const prevTeams = prevGame?.teams || {};
+        const hasExistingTeams = Object.values(prevTeams).some(t => Array.isArray(t) && t.some(Boolean));
+        const hasRestoredTeams = Object.values(game.teams || {}).some(t => Array.isArray(t) && t.some(Boolean));
+        return hasExistingTeams && !hasRestoredTeams ? { ...game, teams: prevTeams } : game;
+      });
+    }
+    return restored;
+  });
 
   // Only overwrite matches if snapshot has same or more (prevents stale sync wiping local additions)
   if (Array.isArray(round.matches)) {
