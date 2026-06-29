@@ -1672,7 +1672,9 @@ function ScoreCell({ gross, par, strokes }) {
   const display = gross;
 
   if (!symbol) {
-    return <span>{display}</span>;
+    return dotsEl
+      ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>{display}{dotsEl}</span>
+      : <span>{display}</span>;
   }
 
   const dotsEl = dotStr ? <span style={{ color: "#1a1a1a", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1, fontWeight: 700 }}>{dotStr}</span> : null;
@@ -2020,7 +2022,7 @@ export default function AuditTrail({
       goToLive={goToLive}
       onUpdateScore={onUpdateScore}
       initialSelectedPlayer={drillPlayerId}
-      getHandicapStrokesFn={getHandicapStrokesFn}
+      getHandicapStrokesFn={null}
       noPar3TeamGame={noPar3TeamGame}
     />
   </AuditSection>
