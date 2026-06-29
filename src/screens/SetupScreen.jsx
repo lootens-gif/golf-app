@@ -130,7 +130,7 @@ function Toggle({ checked, onChange, label, sublabel }) {
   );
 }
 
-function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
+function AmountInput({ label, value, onChange, disabled, min = 0, step = 1, inputRef }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <span style={{ fontSize: 13, color: disabled ? sc.muted : sc.ink, minWidth: 110 }}>{label}</span>
@@ -144,6 +144,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1 }) {
       }}>
         <span style={{ padding: "7px 10px", background: sc.greenLight, color: sc.green, fontWeight: 600, fontSize: 13 }}>$</span>
         <input
+          ref={inputRef}
           type="number"
           value={value}
           min={min}
@@ -749,6 +750,13 @@ export default function SetupScreen({
     }, 100);
   }, [focusGameTarget, setExpandedGame]);
 
+  const betAmountRef = useRef(null);
+  useEffect(() => {
+    if (enableTeamGame) {
+      setTimeout(() => { betAmountRef.current?.focus(); betAmountRef.current?.select(); }, 100);
+    }
+  }, [enableTeamGame]);
+
   return (
     <div style={{ fontFamily: "'Georgia', serif" }}>
 
@@ -936,6 +944,7 @@ export default function SetupScreen({
                 <AmountInput
                   label={betLabel}
                   value={teamGameUnitAmount}
+                  inputRef={betAmountRef}
                   onChange={(e) => {
                     setTeamGameUnitAmount(e.target.value);
                     // Auto-sync birdie bet to match unit bet

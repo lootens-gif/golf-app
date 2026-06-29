@@ -37,7 +37,8 @@ export default function PlayerSetupPanel({
       if (n > 0) onPlayerChange(index, "hcp", isPlus ? n : -n);
     } else {
       const newDigits = digits === "" ? key : digits + key;
-      const n = Math.min(Number(newDigits), 54);
+      if (newDigits.length > 2) return; // 2-digit max
+      const n = Number(newDigits);
       setFreshEntry(false);
       onPlayerChange(index, "hcp", isPlus ? -n : n);
     }
@@ -81,6 +82,7 @@ export default function PlayerSetupPanel({
                 placeholder="Name"
                 onFocus={(e) => { setActiveHcpIndex(null); setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0); }}
                 onClick={(e) => setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0)}
+                onBlur={() => { if (player.name && player.name.trim()) openKeypad(index); }}
                 onChange={(e) => onPlayerChange(index, "name", e.target.value)}
                 style={{ fontSize: 15, padding: "5px 8px", flex: 1, minWidth: 0, maxWidth: 160 }}
               />
