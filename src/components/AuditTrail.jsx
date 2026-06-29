@@ -1670,14 +1670,13 @@ function ScoreCell({ gross, par, strokes }) {
 
   const symbol = getScoreSymbol(gross, par);
   const display = gross;
+  const dotsEl = dotStr ? <span style={{ color: "#1a1a1a", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1, fontWeight: 700 }}>{dotStr}</span> : null;
 
   if (!symbol) {
     return dotsEl
       ? <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>{display}{dotsEl}</span>
       : <span>{display}</span>;
   }
-
-  const dotsEl = dotStr ? <span style={{ color: "#1a1a1a", fontSize: 9, letterSpacing: "-1px", display: "block", lineHeight: 1, fontWeight: 700 }}>{dotStr}</span> : null;
 
   if (symbol.type === "birdie") {
     return (
