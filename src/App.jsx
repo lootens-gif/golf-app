@@ -1780,7 +1780,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
   setNoPar3TeamGame(!!round.noPar3TeamGame);
-  if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
+  if (round.teamGameUnitAmount != null && !isNaN(Number(round.teamGameUnitAmount))) setTeamGameUnitAmount(Number(round.teamGameUnitAmount));
 
   setPressTrigger(Number(round.pressTrigger || 1));
   setBirdiesEnabled(!!round.birdiesEnabled);
