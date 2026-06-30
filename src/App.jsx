@@ -2318,6 +2318,7 @@ useEffect(() => {
   if (round && isUsableRoundSnapshot(round)) {
     applyRoundSnapshot(round, "Autosaved round restored.");
     justRestoredRef.current = true;
+    restoreTimeRef.current = Date.now();
     setAutoRestoreComplete(true);
   } else {
     // Try saved code first
@@ -2328,6 +2329,7 @@ useEffect(() => {
           if (result?.data && isUsableRoundSnapshot(result.data)) {
             applyRoundSnapshot(result.data, "Round restored from cloud ☁️");
             justRestoredRef.current = true;
+            restoreTimeRef.current = Date.now();
             setRoundCode(savedCode);
           } else {
             // Code exists but stale — show recent rounds picker
@@ -2371,14 +2373,13 @@ useEffect(() => {
 }, [roundCode]);
 
 const justRestoredRef = useRef(false);
+const restoreTimeRef = useRef(0);
 
 useEffect(() => {
   if (!autoRestoreComplete) return;
   if (!roundCode) return;
-  if (justRestoredRef.current) {
-    justRestoredRef.current = false;
-    return;
-  }
+  // Skip writes for 1.5 seconds after restore to let all state fully hydrate
+  if (Date.now() - restoreTimeRef.current < 1500) return;
 
   const timer = setTimeout(() => {
     safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
