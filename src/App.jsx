@@ -3175,7 +3175,10 @@ return (
     goToLive={goToLive}
     goToResults={goToResults}
     roundName={roundName}
-    setRoundName={(v) => setRoundName(v.replace(/(?:^|\s)\S/g, c => c.toUpperCase()))}
+    setRoundName={(v) => setRoundName(prev => {
+      const next = typeof v === "function" ? v(prev) : v;
+      return typeof next === "string" ? next.replace(/(?:^|\s)\S/g, c => c.toUpperCase()) : next;
+    })}
     courseName={course?.name || ""}
     myTemplates={myTemplates}
     templateStatus={templateStatus}
