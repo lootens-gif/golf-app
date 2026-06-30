@@ -721,6 +721,26 @@ function NinePointScorecard({
                 {isBack && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#6b7280", fontWeight: 700 }}>Tot</td>}
               </tr>
 
+              <tr>
+                <td style={{ ...scorecardLabelCellStyle, fontSize: 12 }}>Par</td>
+                {sectionHoles.map((h) => (
+                  <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#9ca3af" }}>{course?.pars?.[h.hole - 1] ?? "-"}</td>
+                ))}
+                {isFront && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#9ca3af" }}>{sectionHoles.reduce((s, h) => s + (Number(course?.pars?.[h.hole - 1]) || 0), 0)}</td>}
+                {isBack && <td style={{ ...scorecardCellStyle, fontSize: 12, color: "#9ca3af" }}>{sectionHoles.reduce((s, h) => s + (Number(course?.pars?.[h.hole - 1]) || 0), 0)}</td>}
+                {isBack && <td style={{ ...scorecardCellStyle }}></td>}
+              </tr>
+
+              <tr>
+                <td style={{ ...scorecardLabelCellStyle, fontSize: 12 }}>HCP</td>
+                {sectionHoles.map((h) => (
+                  <td key={h.hole} style={{ ...scorecardCellStyle, fontSize: 12, color: "#9ca3af" }}>{course?.hcp?.[h.hole - 1] ?? "-"}</td>
+                ))}
+                {isFront && <td style={{ ...scorecardCellStyle }}></td>}
+                {isBack && <td style={{ ...scorecardCellStyle }}></td>}
+                {isBack && <td style={{ ...scorecardCellStyle }}></td>}
+              </tr>
+
               {/* POINTS SECTION HEADER with toggle */}
               <tr>
                 <td colSpan={sectionHoles.length + 1 + extraCols} style={{ padding: "6px 4px 2px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", borderTop: "2px solid #e5e7eb" }}>
@@ -821,9 +841,15 @@ function NinePointScorecard({
                       </td>
                     );
                   })}
-                  {isFront && <td style={{ ...scorecardCellStyle }}></td>}
-                  {isBack && <td style={{ ...scorecardCellStyle }}></td>}
-                  {isBack && <td style={{ ...scorecardCellStyle }}></td>}
+                  {isFront && <td style={{ ...scorecardCellStyle, fontWeight: 700 }}>
+                    {sectionHoles.reduce((s, h) => { const v = getRawScore(scores, h.hole, player.id); return s + (v != null ? Number(v) : 0); }, 0) || "-"}
+                  </td>}
+                  {isBack && <td style={{ ...scorecardCellStyle, fontWeight: 700 }}>
+                    {sectionHoles.reduce((s, h) => { const v = getRawScore(scores, h.hole, player.id); return s + (v != null ? Number(v) : 0); }, 0) || "-"}
+                  </td>}
+                  {isBack && <td style={{ ...scorecardCellStyle, fontWeight: 700 }}>
+                    {allHoleNums.reduce((s, hn) => { const v = getRawScore(scores, hn, player.id); return s + (v != null ? Number(v) : 0); }, 0) || "-"}
+                  </td>}
                 </tr>
               ))}
             </tbody>
@@ -997,6 +1023,24 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               <td key={h} style={{ ...scorecardCellStyle, color: "#444" }}>{h}</td>
             ))}
             <td style={{ ...scorecardCellStyle, fontWeight: 700, color: "#444", borderLeft: "1px solid #ddd" }}>Tot</td>
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Par</td>
+            {sectionHoles.map(h => (
+              <td key={h} style={{ ...scorecardCellStyle, color: "#888" }}>{course?.pars?.[h - 1] ?? "-"}</td>
+            ))}
+            <td style={{ ...scorecardCellStyle, color: "#888", borderLeft: "1px solid #ddd" }}>
+              {sectionHoles.reduce((s, h) => s + (Number(course?.pars?.[h - 1]) || 0), 0)}
+            </td>
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>HCP</td>
+            {sectionHoles.map(h => (
+              <td key={h} style={{ ...scorecardCellStyle, color: "#888" }}>{course?.hcp?.[h - 1] ?? "-"}</td>
+            ))}
+            <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
 
           {[playerA, playerB].map((player) => (
