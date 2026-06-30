@@ -2064,7 +2064,7 @@ export default function AuditTrail({
 
 {/* TOTAL SCORECARD */}
 <div ref={drillPlayerId ? (el) => { if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 150); } : null}>
-  <AuditSection title="Total Scorecard" defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"}>
+  <AuditSection title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}`} defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"}>
     <TotalScorecard
       players={players}
       scores={scores}

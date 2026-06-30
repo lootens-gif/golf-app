@@ -633,18 +633,18 @@ const getTeamGameSelection = useCallback((index) => {
 
 function applyPreset(preset) {
   if (preset === "6-6-6") {
-    setTeamGames([
-      { ...createDefaultTeamGame(1), holes: 6 },
-      { ...createDefaultTeamGame(2), holes: 6 },
-      { ...createDefaultTeamGame(3), holes: 6 },
+    setTeamGames(prev => [
+      { ...createDefaultTeamGame(1), holes: 6, teams: prev[0]?.teams || {} },
+      { ...createDefaultTeamGame(2), holes: 6, teams: prev[1]?.teams || {} },
+      { ...createDefaultTeamGame(3), holes: 6, teams: prev[2]?.teams || {} },
     ]);
     return;
   }
 
   if (preset === "9-9") {
-    setTeamGames([
-      { ...createDefaultTeamGame(1), holes: 9 },
-      { ...createDefaultTeamGame(2), holes: 9 },
+    setTeamGames(prev => [
+      { ...createDefaultTeamGame(1), holes: 9, teams: prev[0]?.teams || {} },
+      { ...createDefaultTeamGame(2), holes: 9, teams: prev[1]?.teams || {} },
     ]);
   }
 }
