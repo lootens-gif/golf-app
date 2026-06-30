@@ -1149,15 +1149,35 @@ export default function SetupScreen({
           {/* Format selector */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Team Game Format</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
               {[
                 { value: "press", label: "Press" },
                 { value: "standard", label: "Net Holes" },
                 { value: "longshort", label: "Long/Short" },
                 { value: "match_fbt", label: "Match Play" },
                 { value: "stroke", label: "Stroke" },
+                { value: "wolf", label: "Wolf", disabled: true },
               ].map(opt => {
                 const active = (teamGameFormat || "press") === opt.value;
+                if (opt.disabled) {
+                  return (
+                    <button
+                      key={opt.value}
+                      disabled
+                      title="Coming soon"
+                      style={{
+                        padding: "9px 6px", fontSize: 13, fontWeight: 400,
+                        border: `1px dashed ${sc.border}`,
+                        background: "#f9fafb",
+                        color: "#bbb",
+                        borderRadius: 8, cursor: "not-allowed", fontFamily: "inherit",
+                      }}
+                    >
+                      {opt.label}
+                      <div style={{ fontSize: 9, marginTop: 1 }}>under construction</div>
+                    </button>
+                  );
+                }
                 return (
                   <button
                     key={opt.value}
@@ -1174,7 +1194,7 @@ export default function SetupScreen({
                       }
                     }}
                     style={{
-                      flex: "1 1 auto", minWidth: 70, padding: "9px 12px", fontSize: 13, fontWeight: active ? 700 : 400,
+                      padding: "9px 6px", fontSize: 13, fontWeight: active ? 700 : 400,
                       border: active ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
                       background: active ? "#f0fdf4" : "#fff",
                       color: active ? sc.green : sc.muted,
