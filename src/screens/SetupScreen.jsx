@@ -1174,7 +1174,7 @@ export default function SetupScreen({
                       }}
                     >
                       {opt.label}
-                      <div style={{ fontSize: 9, marginTop: 1 }}>under construction</div>
+                      <div style={{ fontSize: 9, marginTop: 1 }}>coming soon :)</div>
                     </button>
                   );
                 }
