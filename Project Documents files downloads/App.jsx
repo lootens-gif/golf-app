@@ -26,7 +26,7 @@ import QAScreen from "./QAScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary } from "./lib/roundSync";
+import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -76,11 +76,28 @@ function isUsableRoundSnapshot(value) {
   );
 }
 
+// Safely get net units from a team game matchup result (handles both press array and non-press object)
+function getMatchUnits(result) {
+  if (Array.isArray(result)) {
+    return result.reduce((sum, item) => {
+      const score = Number(item.score || 0);
+      if (score > 0) return sum + 1;
+      if (score < 0) return sum - 1;
+      return sum;
+    }, 0);
+  }
+  if (result && typeof result === "object") {
+    const total = Number(result.total || 0);
+    return total > 0 ? 1 : total < 0 ? -1 : 0;
+  }
+  return 0;
+}
+
 function createDefaultCourse() {
   return {
     name: "",
-    pars: Array(18).fill(4),
-    hcp: Array(18).fill(0).map((_, i) => i + 1),
+    pars: Array(18).fill(""),
+    hcp: Array(18).fill(""),
   };
 }
 
@@ -246,7 +263,7 @@ function CompletedTeamGameScorecard({
       scores,
       handicapMode,
     });
-    const runningValue = getNetActiveBetCountForHole(matchup?.result || [], hole);
+    const runningValue = getNetActiveBetCountForHole(Array.isArray(matchup?.result) ? matchup.result : [], hole);
 
     return {
       hole,
@@ -426,9 +443,14 @@ function notifyRound(event, code) {
     const leaderboard = (computedResults?.playerLedger || [])
       .map(r => ({ name: allPlayers.find(p => p.id === r.playerId)?.name || r.playerId, total: r.total }))
       .sort((a, b) => b.total - a.total);
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbXlsbHhocnVndWlmaGRvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjE2NzcsImV4cCI6MjA5NDMzNzY3N30.ihwKM57Ik8BgwHE_20yLbjzp2egARxs9H3jTrgyeb_w";
     fetch(`https://nlmyllxhruguifhdondi.supabase.co/functions/v1/notify-round`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5sbXlsbHhocnVndWlmaGRvbmRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NjE2NzcsImV4cCI6MjA5NDMzNzY3N30.ihwKM57Ik8BgwHE_20yLbjzp2egARxs9H3jTrgyeb_w" },
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": ANON_KEY,
+        "Authorization": `Bearer ${ANON_KEY}`,
+      },
       body: JSON.stringify({ event, roundCode: code || roundCode, course: course?.name, players: playerNames, leaderboard }),
     }).catch(() => {}); // silent fail — notification is non-critical
   } catch {
@@ -451,11 +473,16 @@ function notifyRound(event, code) {
   const [saveToStats, setSaveToStats] = useState(true);
   const [showBugReport, setShowBugReport] = useState(false);
   const [enableTeamGame, setEnableTeamGame] = useState(true);
-  const [teamGameFormat, setTeamGameFormat] = useState("press"); // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
+  const [teamGameFormat, setTeamGameFormat] = useState("press");
+  const [loadedTemplate, setLoadedTemplate] = useState(null); // tracks which template is active // "press"|"standard"|"longshort"|"match_fbt"|"stroke"
   const [teamMatchConfig, setTeamMatchConfig] = useState({
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
     strokeFront: false, strokeBack: false, strokeTotal: true,
+    // Team game birdie settings (moved from global birdiesEnabled/birdieBetAmount/toyRule)
+    teamBirdiesEnabled: false,
+    teamBirdieBetAmount: 5,
+    teamToyRule: false,
   });
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -513,9 +540,6 @@ function notifyRound(event, code) {
     [players]
   );
 
-  const is666 = enableTeamGame &&
-    teamGames.length === 3 &&
-    teamGames.every(g => Number(g.holes) === 6);
 
   const context = useMemo(
     () => ({
@@ -524,7 +548,7 @@ function notifyRound(event, code) {
       scores,      
       handicapMode,
       noPar3TeamGame,
-      getHandicapStrokesFn: (is666 && handicapDistribution === "spread")
+      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread")
         ? getSpreadHandicapStrokes
         : getHandicapStrokes,
     }),
@@ -534,7 +558,7 @@ function notifyRound(event, code) {
       scores,
       handicapMode,
       noPar3TeamGame,
-      is666,
+      enableTeamGame,
       handicapDistribution,
     ]
   );
@@ -560,8 +584,6 @@ function notifyRound(event, code) {
       const earlyCode = generateRoundCode();
       setRoundCode(earlyCode);
       localStorage.setItem(ROUND_CODE_KEY, earlyCode);
-      // Notify on round start (fire and forget)
-      notifyRound("started", earlyCode);
     }
 
     setAllPlayers((prev) =>
@@ -1254,12 +1276,13 @@ function addNinePointMatch() {
       end: 18,
       format: teamGameFormat,
       duplicateError: false,
-      birdieEnabled: birdiesEnabled,
+      birdieEnabled: teamMatchConfig.teamBirdiesEnabled,
       matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
     }];
   }
 
-  // Press format (existing logic)
+  // Press format (existing logic) — only when team game is enabled
+  if (!enableTeamGame) return [];
   return teamGames.map((game, index) => {
   const { start, end } = getTeamGameRange(teamGames, index);
   const selected = getTeamGameSelection(index);
@@ -1271,7 +1294,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: true,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: [],
     };
   }
@@ -1333,7 +1356,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1362,7 +1385,7 @@ function addNinePointMatch() {
       start,
       end,
       duplicateError: false,
-      birdieEnabled: enableTeamGame && birdiesEnabled,
+      birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
       matches: teamMatches,
     };
   }
@@ -1390,7 +1413,7 @@ function addNinePointMatch() {
     start,
     end,
     duplicateError: false,
-birdieEnabled: enableTeamGame && birdiesEnabled,
+birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
     matches: teamMatches,
   };
   }); // end press format map
@@ -1406,27 +1429,42 @@ const birdieResults = buildBirdieResults({
   scores,
   course,
   getTeamGameSelection,
-  birdiesEnabled: enableTeamGame ? birdiesEnabled : false,
-  birdieBetAmount,
-  toyRule,
+  birdiesEnabled: enableTeamGame ? teamMatchConfig.teamBirdiesEnabled : false,
+  birdieBetAmount: teamMatchConfig.teamBirdieBetAmount,
+  toyRule: teamMatchConfig.teamToyRule,
   players,
   handicapMode,
 });
-
-
+// Keyed by gameIndex, then playerId
+const segmentBirdieAmounts = useMemo(() => {
+  const result = {};
+  teamGameResults.forEach((game) => {
+    const gameIndex = game.index ?? 0;
+    result[gameIndex] = {};
+    players.forEach(p => { result[gameIndex][p.id] = 0; });
+    (birdieResults || []).filter(e =>
+      e.source === "team-birdie" &&
+      Number(e.holeNumber) >= game.start &&
+      Number(e.holeNumber) <= game.end
+    ).forEach(e => {
+      if (result[gameIndex][e.playerId] !== undefined) {
+        result[gameIndex][e.playerId] += Number(e.amount || 0);
+      }
+    });
+  });
+  return result;
+}, [teamGameResults, birdieResults, players]);
 
 const computedResults = scoreRound(round, {
   players,
   scores,
-  course,
-  matches,
   matchResults,
   teamGames,
   teamGameResults,
   teamGameUnitAmount,
   pressTrigger,
-  birdiesEnabled,
-  birdieBetAmount,
+  birdiesEnabled: teamMatchConfig.teamBirdiesEnabled,
+  birdieBetAmount: teamMatchConfig.teamBirdieBetAmount,
   getTeamGameSelection,
   mode,
   birdieResults,
@@ -1491,12 +1529,7 @@ const roundSummaryRows = activePlayers.map((player) => {
       const teamAPlayers = selection?.[teamAKey] || [];
       const teamBPlayers = selection?.[teamBKey] || [];
 
-      const units = (matchup.result || []).reduce((sum, item) => {
-        const score = item.score || 0;
-        if (score > 0) return sum + 1;
-        if (score < 0) return sum - 1;
-        return sum;
-      }, 0);
+      const units = getMatchUnits(matchup.result);
 
       if (teamAPlayers.includes(player.id)) total += units;
       if (teamBPlayers.includes(player.id)) total -= units;
@@ -1747,24 +1780,34 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
   setNoPar3TeamGame(!!round.noPar3TeamGame);
-  if (typeof round.teamGameUnitAmount === "number") setTeamGameUnitAmount(round.teamGameUnitAmount);
+  if (round.teamGameUnitAmount != null && !isNaN(Number(round.teamGameUnitAmount))) setTeamGameUnitAmount(Number(round.teamGameUnitAmount));
 
   setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
   setBirdiesEnabled(!!round.birdiesEnabled);
   setToyRule(!!round.toyRule);
   setBirdieBetAmount(Number(round.birdieBetAmount || 5));
 
-  setTeamGames(
-    round.teamGames.map((game, index) => ({
+  setTeamGames(prev => {
+    const restored = round.teamGames.map((game, index) => ({
       id: game.id || `team-game-${Date.now()}-${index}`,
       holes: Number(game.holes) || 6,
       pressTrigger: Number(game.pressTrigger) || 1,
       birdieEnabled: !!game.birdieEnabled,
       birdieBet: Number(game.birdieBet) || 0,
       teams: game.teams || {},
-    }))
-  );
+    }));
+    // If syncing in background (skipScreen), never overwrite teams that are already set
+    if (skipScreen) {
+      return restored.map((game, i) => {
+        const prevGame = prev[i];
+        const prevTeams = prevGame?.teams || {};
+        const hasExistingTeams = Object.values(prevTeams).some(t => Array.isArray(t) && t.some(Boolean));
+        const hasRestoredTeams = Object.values(game.teams || {}).some(t => Array.isArray(t) && t.some(Boolean));
+        return hasExistingTeams && !hasRestoredTeams ? { ...game, teams: prevTeams } : game;
+      });
+    }
+    return restored;
+  });
 
   // Only overwrite matches if snapshot has same or more (prevents stale sync wiping local additions)
   if (Array.isArray(round.matches)) {
@@ -1928,6 +1971,8 @@ function buildTemplatePayload(templateName, isPublic) {
       handicapMode,
       handicapDistribution,
       enableTeamGame,
+      teamGameFormat,
+      teamMatchConfig,
       teamGameUnitAmount,
       pressTrigger,
       birdiesEnabled,
@@ -1952,6 +1997,15 @@ function buildTemplatePayload(templateName, isPublic) {
 
 async function handleSaveTemplate(templateName, isPublic) {
   if (!templateName.trim()) return;
+
+  // Prompt to add course if not loaded
+  if (!course?.name || !course?.pars?.length) {
+    const proceed = window.confirm(
+      "No course is selected. Templates with a course load fastest — tap Cancel to add a course first, or OK to save without one."
+    );
+    if (!proceed) return;
+  }
+
   setTemplateStatus("saving");
   try {
     const payload = buildTemplatePayload(templateName, isPublic);
@@ -1995,6 +2049,7 @@ async function handleLoadTemplate(template) {
     if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
     if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
     setScores({});
+    setLoadedTemplate(template);
     setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
     incrementTemplateUse(template.id).catch(() => {});
   } catch {
@@ -2128,10 +2183,14 @@ function resetSetup() {
   setScores({});
   setMatches([]);
   setTeamGameFormat("press");
+  setLoadedTemplate(null);
   setTeamMatchConfig({
     matchPlayFront: true, matchPlayBack: true, matchPlayTotal: true,
     strokeScoring: "net", strokePayoutMode: "winloss", strokeCombined: false,
     strokeFront: false, strokeBack: false, strokeTotal: true,
+    teamBirdiesEnabled: false,
+    teamBirdieBetAmount: 5,
+    teamToyRule: false,
   });
   setTeamGames([
     createDefaultTeamGame(1),
@@ -2257,6 +2316,7 @@ useEffect(() => {
 
   if (round && isUsableRoundSnapshot(round)) {
     applyRoundSnapshot(round, "Autosaved round restored.");
+    justRestoredRef.current = true;
     setAutoRestoreComplete(true);
   } else {
     // Try saved code first
@@ -2266,6 +2326,7 @@ useEffect(() => {
         .then(result => {
           if (result?.data && isUsableRoundSnapshot(result.data)) {
             applyRoundSnapshot(result.data, "Round restored from cloud ☁️");
+            justRestoredRef.current = true;
             setRoundCode(savedCode);
           } else {
             // Code exists but stale — show recent rounds picker
@@ -2308,9 +2369,15 @@ useEffect(() => {
   }
 }, [roundCode]);
 
+const justRestoredRef = useRef(false);
+
 useEffect(() => {
   if (!autoRestoreComplete) return;
   if (!roundCode) return;
+  if (justRestoredRef.current) {
+    justRestoredRef.current = false;
+    return;
+  }
 
   const timer = setTimeout(() => {
     safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
@@ -2409,12 +2476,12 @@ useEffect(() => {
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-if (enableTeamGame && teamGames.length > 0 && totalHoles > 18) {
-      setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
+    setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     return;
   }
-if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
+if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles === 0) {
     setSetupMessage("Please set holes for at least one team game.");
     alert("Please set holes for at least one team game.");
     return;
@@ -2474,29 +2541,32 @@ if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
     })();
 
  if (enableTeamGame && !hasValidTeamGameForRequiredHole) {
-  const gameLabel =
-    requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
-
-  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
-
-  if (requiredGameIndex >= 0) {
-    setFocusGameTarget({
-      gameIndex: requiredGameIndex,
-      nonce: Date.now(),
-    });
+  // If a template is loaded and teams just aren't set yet, scroll to team assignment
+  // rather than throwing an error — teams are picked on the day
+  if (loadedTemplate) {
+    setSetupMessage("Pick your teams for today, then start.");
+    if (requiredGameIndex >= 0) {
+      setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+      setTimeout(() => {
+        setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+      }, 0);
+    }
+    // Expand the edit form so user can see Team Assignments
+    setLoadedTemplate(null);
+    return;
   }
 
+  const gameLabel = requiredGameIndex >= 0 ? `Game ${requiredGameIndex + 1}` : "a game";
+  setSetupMessage(`Set teams for ${gameLabel} before continuing.`);
+  if (requiredGameIndex >= 0) {
+    setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
+  }
   alert(`Set teams for ${gameLabel} before continuing.`);
-
   if (requiredGameIndex >= 0) {
     setTimeout(() => {
-      setFocusGameTarget({
-        gameIndex: requiredGameIndex,
-        nonce: Date.now(),
-      });
+      setFocusGameTarget({ gameIndex: requiredGameIndex, nonce: Date.now() });
     }, 0);
   }
-
   return;
 }
 
@@ -2529,7 +2599,7 @@ if (!enableTeamGame && !skinsEnabled) {
     setCurrentHole(1);
   }
 
-  // Require a course to be selected
+  // Require a course to be selected (skip if course already chosen)
   if (!course?.name || !course?.pars?.length) {
     alert("Please select a course before starting the round.");
     return;
@@ -2542,12 +2612,22 @@ if (!enableTeamGame && !skinsEnabled) {
     if (!confirmed) return;
   }
 
+  // Warn about players with no HCP set (treated as scratch)
+  const noHcpPlayers = getActivePlayers(allPlayers, mode).filter(p => p.name && !p.name.match(/^P\d+$/) && (p.hcp === "" || p.hcp == null));
+  if (noHcpPlayers.length > 0) {
+    const names = noHcpPlayers.map(p => p.name).join(", ");
+    const confirmed = window.confirm(`${names} ${noHcpPlayers.length === 1 ? "has" : "have"} no handicap set — will be treated as scratch (0). Continue anyway?`);
+    if (!confirmed) return;
+  }
+
   setPendingNextGameIndex(null);
   setScreen("live");
 
   // Generate a round code if we don't have one, then push initial state
   const code = roundCode || generateRoundCode();
   if (!roundCode) setRoundCode(code);
+  // Only notify on truly new rounds (no scores entered yet)
+  if (Object.keys(scores).length === 0) notifyRound("started", code);
 
   // Auto-generate round name if blank
   const today = new Date();
@@ -3062,6 +3142,7 @@ return (
     saveCourseToLibrary={saveCourseToLibrary}
     checkCourseExists={checkCourseExists}
     updateCourseInLibrary={updateCourseInLibrary}
+    deleteCourseFromLibrary={deleteCourseFromLibrary}
     deviceId={deviceId}
     searchCourses={searchCourses}
     applyPreset={applyPreset}
@@ -3100,6 +3181,8 @@ return (
     templateStatus={templateStatus}
     onSaveTemplate={handleSaveTemplate}
     onLoadTemplate={handleLoadTemplate}
+    loadedTemplate={loadedTemplate}
+    setLoadedTemplate={setLoadedTemplate}
     onDeleteTemplate={handleDeleteTemplate}
     onToggleTemplateVisibility={handleToggleTemplateVisibility}
     onUpdateTemplate={handleUpdateTemplate}
@@ -3256,6 +3339,7 @@ return (
     getHandicapStrokesFn={context.getHandicapStrokesFn}
     onScoreFocus={() => { isEnteringScore.current = true; }}
     onScoreBlur={() => { isEnteringScore.current = false; }}
+    noPar3TeamGame={noPar3TeamGame}
     onPrevHole={() => {
       if (currentHole > 1) setCurrentHole(currentHole - 1);
     }}
@@ -3358,12 +3442,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     const teamBKey = `team${parts[4] || ""}`.toLowerCase();
     const teamAPlayers = selection?.[teamAKey] || [];
     const teamBPlayers = selection?.[teamBKey] || [];
-    const units = (matchup.result || []).reduce((sum, item) => {
-      const score = item.score || 0;
-      if (score > 0) return sum + 1;
-      if (score < 0) return sum - 1;
-      return sum;
-    }, 0);
+    const units = getMatchUnits(matchup.result);
     teamAPlayers.forEach((id) => { summary[id] = (summary[id] || 0) + units; });
     teamBPlayers.forEach((id) => { summary[id] = (summary[id] || 0) - units; });
   });
@@ -3502,12 +3581,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
           const teamBKey = `team${parts[4] || ""}`.toLowerCase();
           const teamAPlayers = selection?.[teamAKey] || [];
           const teamBPlayers = selection?.[teamBKey] || [];
-          const units = (matchup.result || []).reduce((sum, item) => {
-            const score = item.score || 0;
-            if (score > 0) return sum + 1;
-            if (score < 0) return sum - 1;
-            return sum;
-          }, 0);
+          const units = getMatchUnits(matchup.result);
           if (teamAPlayers.includes(player.id)) netTotal += units;
           if (teamBPlayers.includes(player.id)) netTotal -= units;
         });
@@ -3543,14 +3617,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
             const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
             const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
 
-            const netUnits = (matchup.result || []).reduce((sum, bet) => {
-              const score = Number(bet.score || 0);
-              if (score > 0) return sum + 1;
-              if (score < 0) return sum - 1;
-              return sum;
-            }, 0);
+            const netUnits = getMatchUnits(matchup.result);
 
-            const betScores = (matchup.result || []).map(bet => Number(bet.score || 0));
+            const betScores = Array.isArray(matchup.result) ? matchup.result.map(bet => Number(bet.score || 0)) : [];
             const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
             const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
             const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
@@ -3658,6 +3727,9 @@ if (enableTeamGame && nextGameIndex >= 0) {
       players={enableTeamGame ? players : activePlayers}
       scores={scores}
       onSetScore={setScore}
+      course={course}
+      handicapMode={handicapMode}
+      getHandicapStrokesFn={context.getHandicapStrokesFn}
     />
   </div>
 )}
@@ -3692,6 +3764,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     skinsEnabled={skinsEnabled}
     skinsConfig={skinsConfig}
     getHandicapStrokesFn={context.getHandicapStrokesFn}
+    segmentBirdieAmounts={segmentBirdieAmounts}
     isJoiner={isJoiner}
     onRefresh={() => {
       if (roundCode) {

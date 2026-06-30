@@ -1149,9 +1149,13 @@ export default function SetupScreen({
               onChange={(e) => {
                 setTeamGameFormat(e.target.value);
                 if (e.target.value === "press") {
-                  setTeamGames([createDefaultTeamGame(1), createDefaultTeamGame(2), createDefaultTeamGame(3)]);
+                  setTeamGames(prev => [
+                    { ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} },
+                    { ...createDefaultTeamGame(2), teams: prev[1]?.teams || {} },
+                    { ...createDefaultTeamGame(3), teams: prev[2]?.teams || {} },
+                  ]);
                 } else {
-                  setTeamGames([createDefaultTeamGame(1)]);
+                  setTeamGames(prev => [{ ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} }]);
                 }
               }}
               style={{ padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", width: "100%" }}
@@ -1196,7 +1200,7 @@ export default function SetupScreen({
             <span style={{ fontSize: 12, color: sc.muted }}>Auto Press</span>
           </div>
 
-          {totalHoles > 0 && (
+          {teamGameFormat === "press" && totalHoles > 0 && (
             <div style={{
               fontSize: 13, fontWeight: 600, marginBottom: 14, padding: "8px 12px", borderRadius: 8,
               color: totalHoles > 18 ? "#b3261e" : totalHoles === 18 ? sc.green : sc.muted,

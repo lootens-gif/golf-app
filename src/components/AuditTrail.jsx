@@ -1861,7 +1861,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
                       selectedPlayer === player.id ? null : player.id
                     )}
                   >
-                    {player.name} ({player.hcp})
+                    {player.name} ({Number(player.hcp) < 0 ? `+${Math.abs(Number(player.hcp))}` : player.hcp})
                   </td>
                   {sectionHoles.map((h, i) => {
                     const isEditing = editingCell?.hole === h && editingCell?.playerId === player.id;
