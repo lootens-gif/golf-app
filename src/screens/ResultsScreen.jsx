@@ -128,7 +128,7 @@ export default function ResultsScreen({
 
       {/* LEADERBOARD */}
       <Card style={{ borderTop: `3px solid ${sc.green}` }}>
-        <SectionLabel>Leaderboard</SectionLabel>
+        <SectionLabel>Leaderboard{course?.name ? ` · ${course.name}` : ""}{roundName ? ` · ${roundName}` : ""}</SectionLabel>
         <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>Tap a name to see their scorecard</div>
         {sortedPlayers.map((player, i) => {
           const amount = Number(leaderboard[player.id] ?? 0);
@@ -450,7 +450,7 @@ export default function ResultsScreen({
 
       {/* GHIN */}
       <Card>
-        <SectionLabel>Gross / Net for GHIN</SectionLabel>
+        <SectionLabel>Gross / Net for GHIN{course?.name ? ` · ${course.name}` : ""}</SectionLabel>
         {grossNetRows.map(({ player, frontGross, backGross, totalGross, net }) => (
           <div key={player.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${sc.border}`, fontSize: 14 }}>
             <span style={{ fontWeight: 600, color: sc.ink, minWidth: 80, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{player.name}</span>

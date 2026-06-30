@@ -275,6 +275,29 @@ function TeamGameScorecard({
                 {row.hole}
               </td>
             ))}
+            <td style={{ ...scorecardCellStyle, fontWeight: 700, color: "#444", borderLeft: "2px solid #e5e7eb" }}>Tot</td>
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>Par</td>
+            {rows.map((row) => (
+              <td key={`par-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#9ca3af" }}>
+                {course?.pars?.[row.hole - 1] ?? "-"}
+              </td>
+            ))}
+            <td style={{ ...scorecardCellStyle, color: "#9ca3af", borderLeft: "2px solid #e5e7eb" }}>
+              {holes.reduce((s, h) => s + (Number(course?.pars?.[h - 1]) || 0), 0)}
+            </td>
+          </tr>
+
+          <tr>
+            <td style={scorecardLabelCellStyle}>HCP</td>
+            {rows.map((row) => (
+              <td key={`hcp-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#9ca3af" }}>
+                {course?.hcp?.[row.hole - 1] ?? "-"}
+              </td>
+            ))}
+            <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
           </tr>
 
           <tr>
@@ -289,6 +312,15 @@ function TeamGameScorecard({
                 </td>
               );
             })}
+            <td style={{ ...scorecardCellStyle, fontWeight: 700, borderLeft: "2px solid #e5e7eb" }}>
+              {(() => {
+                const bestBallTotal = teamA.filter(Boolean).reduce((best, id) => {
+                  const total = holes.reduce((s, h) => { const v = getRawScore(scores, h, id); return s + (v != null ? Number(v) : 0); }, 0);
+                  return best === null ? total : Math.min(best, total);
+                }, null);
+                return bestBallTotal || "-";
+              })()}
+            </td>
           </tr>
 
           <tr>
@@ -303,6 +335,15 @@ function TeamGameScorecard({
                 </td>
               );
             })}
+            <td style={{ ...scorecardCellStyle, fontWeight: 700, borderLeft: "2px solid #e5e7eb" }}>
+              {(() => {
+                const bestBallTotal = teamB.filter(Boolean).reduce((best, id) => {
+                  const total = holes.reduce((s, h) => { const v = getRawScore(scores, h, id); return s + (v != null ? Number(v) : 0); }, 0);
+                  return best === null ? total : Math.min(best, total);
+                }, null);
+                return bestBallTotal || "-";
+              })()}
+            </td>
           </tr>
 
           <tr>
@@ -324,6 +365,7 @@ function TeamGameScorecard({
                 {row.result}
               </td>
             ))}
+            <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
           </tr>
 
           <tr>
@@ -345,6 +387,7 @@ function TeamGameScorecard({
                 {row.running}
               </td>
             ))}
+            <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
           </tr>
 
           {showPressDetail && (
@@ -355,6 +398,7 @@ function TeamGameScorecard({
                   {row.pressDetail}
                 </td>
               ))}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
             </tr>
           )}
         </tbody>
