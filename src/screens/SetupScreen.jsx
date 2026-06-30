@@ -756,6 +756,10 @@ export default function SetupScreen({
   }, [focusGameTarget, setExpandedGame]);
 
   const betAmountRef = useRef(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [customHoles, setCustomHoles] = useState(18);
+  const [customSegments, setCustomSegments] = useState(null);
+  const [customStartHole, setCustomStartHole] = useState(1);
   useEffect(() => {
     if (enableTeamGame) {
       setTimeout(() => { betAmountRef.current?.focus(); betAmountRef.current?.select(); }, 100);
@@ -1174,7 +1178,7 @@ export default function SetupScreen({
                       }}
                     >
                       {opt.label}
-                      <div style={{ fontSize: 9, marginTop: 1 }}>coming soon :)</div>
+                      <div style={{ fontSize: 9, marginTop: 1 }}>under construction</div>
                     </button>
                   );
                 }
@@ -1218,12 +1222,111 @@ export default function SetupScreen({
             Each game covers any number of holes — just make sure they add up to 18. Most common formats below, or build your own.
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-            <OutlineButton onClick={() => applyPreset("6-6-6")}>6 / 6 / 6</OutlineButton>
-            <OutlineButton onClick={() => applyPreset("9-9")}>9 / 9</OutlineButton>
-            <OutlineButton onClick={() => setTeamGames(prev => [...prev, createDefaultTeamGame(prev.length + 1)])}>
+            <OutlineButton onClick={() => { applyPreset("6-6-6"); setShowCustomPicker(false); }}>6 / 6 / 6</OutlineButton>
+            <OutlineButton onClick={() => { applyPreset("9-9"); setShowCustomPicker(false); }}>9 / 9</OutlineButton>
+            <OutlineButton onClick={() => setShowCustomPicker(v => !v)}>
               + Custom
             </OutlineButton>
           </div>
+
+          {showCustomPicker && (() => {
+            const divisorsOf = (n) => {
+              const opts = [];
+              for (let d = 2; d <= n; d++) {
+                if (n % d === 0) opts.push(d);
+              }
+              return opts;
+            };
+            const segmentOptions = divisorsOf(customHoles).filter(d => customHoles / d >= 1);
+            const maxStart = 19 - customHoles;
+            return (
+              <div style={{ padding: 14, background: "#f9fafb", border: `1px solid ${sc.border}`, borderRadius: 8, marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: sc.ink }}>Build Custom Press</div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>How many holes to play?</div>
+                  <input
+                    type="number"
+                    min={2}
+                    max={18}
+                    value={customHoles}
+                    onChange={(e) => {
+                      const v = Math.max(2, Math.min(18, Number(e.target.value) || 18));
+                      setCustomHoles(v);
+                      setCustomSegments(null);
+                      setCustomStartHole(1);
+                    }}
+                    style={{ width: 70, fontSize: 15, padding: "6px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>How many segments?</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {segmentOptions.map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setCustomSegments(n)}
+                        style={{
+                          padding: "7px 14px", fontSize: 13, fontWeight: customSegments === n ? 700 : 400,
+                          border: customSegments === n ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
+                          background: customSegments === n ? "#f0fdf4" : "#fff",
+                          color: customSegments === n ? sc.green : sc.muted,
+                          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        {n} × {customHoles / n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Starting hole</div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxStart}
+                    value={customStartHole}
+                    onChange={(e) => setCustomStartHole(Math.max(1, Math.min(maxStart, Number(e.target.value) || 1)))}
+                    style={{ width: 70, fontSize: 15, padding: "6px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}
+                  />
+                  <span style={{ fontSize: 12, color: sc.muted, marginLeft: 8 }}>
+                    Plays holes {customStartHole}–{customStartHole + customHoles - 1}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    disabled={!customSegments}
+                    onClick={() => {
+                      const perSegment = customHoles / customSegments;
+                      const games = Array.from({ length: customSegments }, (_, i) =>
+                        i === 0
+                          ? { ...createDefaultTeamGame(i + 1), holes: perSegment, startHole: customStartHole }
+                          : { ...createDefaultTeamGame(i + 1), holes: perSegment }
+                      );
+                      setTeamGames(games);
+                      setShowCustomPicker(false);
+                    }}
+                    style={{
+                      flex: 1, padding: "9px 14px", fontSize: 13, fontWeight: 700,
+                      background: customSegments ? sc.green : "#ccc", color: "#fff", border: "none",
+                      borderRadius: 8, cursor: customSegments ? "pointer" : "not-allowed", fontFamily: "inherit",
+                    }}
+                  >
+                    Create {customSegments || "?"} Games
+                  </button>
+                  <button
+                    onClick={() => setShowCustomPicker(false)}
+                    style={{ padding: "9px 14px", fontSize: 13, background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, color: sc.ink, whiteSpace: "nowrap" }}>Press Rules</span>
