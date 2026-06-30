@@ -160,7 +160,7 @@ function AmountInput({ label, value, onChange, disabled, min = 0, step = 1, inpu
   );
 }
 
-function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId, players, sc, roundName, setRoundName, roundInProgress }) {
+function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp, saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, deviceId, players, sc, roundName, setRoundName, roundInProgress }) {
   const [allCourses, setAllCourses] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState("recent"); // "recent" | "az" | "state"
@@ -215,6 +215,11 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     setDuplicateCourse(null);
     setShowList(false);
     setSearchQuery("");
+    if (c.id && typeof incrementCourseUse === "function") {
+      incrementCourseUse(c.id).catch(() => {});
+      // Optimistically bump local list so Recent sort reflects it immediately
+      setAllCourses(prev => prev.map(course => course.id === c.id ? { ...course, use_count: (course.use_count || 0) + 1 } : course));
+    }
     if (typeof setRoundName === "function") {
       const today = new Date();
       const monthDay = today.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -716,7 +721,7 @@ export default function SetupScreen({
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
   skinBirdieDoubleCarryover, setSkinBirdieDoubleCarryover,
   potType, setPotType, potDonation, setPotDonation, potBaseUnit, setPotBaseUnit,
-  saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, deviceId,
+  saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, deviceId,
   totalHoles, getTeamGameRange, hasDuplicateSelections, getTeamGameSelection,
   renderTeamSelectors, expandedGame, setExpandedGame, modeText,
   addMatch, addNinePointMatch, autoCreateMatches, matches, matchResults,
@@ -1448,6 +1453,7 @@ export default function SetupScreen({
         checkCourseExists={checkCourseExists}
         updateCourseInLibrary={updateCourseInLibrary}
         deleteCourseFromLibrary={deleteCourseFromLibrary}
+        incrementCourseUse={incrementCourseUse}
         deviceId={deviceId}
         searchCourses={searchCourses}
         players={players}
