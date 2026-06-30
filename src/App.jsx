@@ -2476,12 +2476,12 @@ useEffect(() => {
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 function startRound() {
-if (enableTeamGame && teamGames.length > 0 && totalHoles > 18) {
-      setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
+if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
+    setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     return;
   }
-if (enableTeamGame && teamGames.length > 0 && totalHoles === 0) {
+if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles === 0) {
     setSetupMessage("Please set holes for at least one team game.");
     alert("Please set holes for at least one team game.");
     return;
@@ -2609,6 +2609,14 @@ if (!enableTeamGame && !skinsEnabled) {
   const unnamedCount = getActivePlayers(allPlayers, mode).filter(p => !p.name || p.name.match(/^P\d+$/)).length;
   if (unnamedCount > 0) {
     const confirmed = window.confirm(`${unnamedCount} player${unnamedCount > 1 ? "s have" : " has"} no name (showing as P1, P2 etc). Continue anyway?`);
+    if (!confirmed) return;
+  }
+
+  // Warn about players with no HCP set (treated as scratch)
+  const noHcpPlayers = getActivePlayers(allPlayers, mode).filter(p => p.name && !p.name.match(/^P\d+$/) && (p.hcp === "" || p.hcp == null));
+  if (noHcpPlayers.length > 0) {
+    const names = noHcpPlayers.map(p => p.name).join(", ");
+    const confirmed = window.confirm(`${names} ${noHcpPlayers.length === 1 ? "has" : "have"} no handicap set — will be treated as scratch (0). Continue anyway?`);
     if (!confirmed) return;
   }
 
