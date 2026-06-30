@@ -1078,6 +1078,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             {sectionData.map(({ hole, res }) => {
               const afterDecided = decidedInSection && hole > decidedHole;
               if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+              const aScore = getRawScore(scores, hole, playerA.id);
+              const bScore = getRawScore(scores, hole, playerB.id);
+              const holePlayed = aScore != null && bScore != null;
+              if (!holePlayed) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
               if (isStroke) {
                 if (res === null) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 const color = res > 0 ? "#137333" : res < 0 ? "#b3261e" : "#6b7280";
@@ -1101,6 +1105,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             {sectionData.map(({ hole, running, segment }) => {
               const afterDecided = decidedInSection && hole > decidedHole;
               if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+              const aScore = getRawScore(scores, hole, playerA.id);
+              const bScore = getRawScore(scores, hole, playerB.id);
+              const holePlayed = aScore != null && bScore != null;
+              if (!holePlayed) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
               const isDecidingHole = decidedInSection && decidedHole === hole;
               let color = "#666";
               if (running > 0) color = "#137333";
