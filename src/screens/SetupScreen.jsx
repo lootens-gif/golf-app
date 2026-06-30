@@ -1149,28 +1149,48 @@ export default function SetupScreen({
           {/* Format selector */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Team Game Format</div>
-            <select
-              value={teamGameFormat || "press"}
-              onChange={(e) => {
-                setTeamGameFormat(e.target.value);
-                if (e.target.value === "press") {
-                  setTeamGames(prev => [
-                    { ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} },
-                    { ...createDefaultTeamGame(2), teams: prev[1]?.teams || {} },
-                    { ...createDefaultTeamGame(3), teams: prev[2]?.teams || {} },
-                  ]);
-                } else {
-                  setTeamGames(prev => [{ ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} }]);
-                }
-              }}
-              style={{ padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 8, fontSize: 14, fontFamily: "inherit", width: "100%" }}
-            >
-              <option value="press">Press (6/6/6 · 9/9 · Custom)</option>
-              <option value="standard">Net Holes</option>
-              <option value="longshort">Long / Short</option>
-              <option value="match_fbt">Match Play (F/B/T)</option>
-              <option value="stroke">Stroke Play</option>
-            </select>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {[
+                { value: "press", label: "Press" },
+                { value: "standard", label: "Net Holes" },
+                { value: "longshort", label: "Long/Short" },
+                { value: "match_fbt", label: "Match Play" },
+                { value: "stroke", label: "Stroke" },
+              ].map(opt => {
+                const active = (teamGameFormat || "press") === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setTeamGameFormat(opt.value);
+                      if (opt.value === "press") {
+                        setTeamGames(prev => [
+                          { ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} },
+                          { ...createDefaultTeamGame(2), teams: prev[1]?.teams || {} },
+                          { ...createDefaultTeamGame(3), teams: prev[2]?.teams || {} },
+                        ]);
+                      } else {
+                        setTeamGames(prev => [{ ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} }]);
+                      }
+                    }}
+                    style={{
+                      flex: "1 1 auto", minWidth: 70, padding: "9px 12px", fontSize: 13, fontWeight: active ? 700 : 400,
+                      border: active ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
+                      background: active ? "#f0fdf4" : "#fff",
+                      color: active ? sc.green : sc.muted,
+                      borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {teamGameFormat === "press" && (
+              <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
+                6/6/6 · 9/9 · or custom holes per segment below
+              </div>
+            )}
           </div>
 
           {(teamGameFormat === "press" || !teamGameFormat) && (<>
