@@ -369,7 +369,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>Running</td>
+            <td style={scorecardLabelCellStyle}>Holes {game.start}–{game.end}</td>
             {rows.map((row) => (
               <td
                 key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
@@ -1145,7 +1145,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>Running</td>
+            <td style={scorecardLabelCellStyle}>{label}</td>
             {sectionData.map(({ hole, running, segment }) => {
               const afterDecided = decidedInSection && hole > decidedHole;
               if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
@@ -1194,30 +1194,34 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       {renderSection("Front 9", front, true)}
       {renderSection("Back 9", back, false)}
 
-      {/* Match Play F+B+T — Running 18 total row */}
+
+      {/* Match Play F+B+T — Total row */}
       {result?.type === "match_fbt" && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && result?.segments?.find(s => s.key === "total") && (() => {
         const totalSeg = result.segments.find(s => s.key === "total");
         const units = totalSeg.units || 0;
         const color = units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280";
-        const label = units === 0 ? "AS" : `${Math.abs(units)}${units > 0 ? "UP" : "DN"}`;
-        const lbl = totalSeg.resultLabel || label;
+        const lbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}${units > 0 ? "UP" : "DN"}`);
         return (
-          <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", marginBottom: 6 }}>
-            <span style={{ color: "#555" }}>Running 18 </span>
-            <span style={{ color, fontWeight: 700 }}>{lbl}</span>
+          <div style={{ fontSize: 13, fontWeight: 700, padding: "7px 4px", borderTop: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#555" }}>Total</span>
+            <span style={{ color }}>{lbl}</span>
           </div>
         );
       })()}
 
-      {/* Stroke F+B+T total running row */}
+      {/* Stroke F+B+T — Total row */}
       {isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
         const totalDiff = strokeRunningDiffs[17] ?? null;
         if (totalDiff === null) return null;
         const color = totalDiff > 0 ? "#137333" : totalDiff < 0 ? "#b3261e" : "#6b7280";
         const label = totalDiff === 0 ? "Even" : totalDiff > 0 ? `+${totalDiff}` : `${totalDiff}`;
         return (
-          <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", marginBottom: 6 }}>
-            <span style={{ color: "#555" }}>Total </span>
+          <div style={{ fontSize: 13, fontWeight: 700, padding: "7px 4px", borderTop: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#555" }}>Total</span>
+            <span style={{ color }}>{label} strokes</span>
+          </div>
+        );
+      })()}
             <span style={{ color, fontWeight: 700 }}>{label} strokes</span>
           </div>
         );
