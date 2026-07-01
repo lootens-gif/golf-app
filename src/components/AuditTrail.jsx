@@ -1108,8 +1108,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-      <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
+      <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
         <tbody>
           <tr>
             <td style={scorecardLabelCellStyle}>Hole</td>
