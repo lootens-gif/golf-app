@@ -1098,10 +1098,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       ?? result?.segments?.reduce((found, s) => found ?? s.decidedOn, null)
       ?? null;
     const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
-    // Get the result label for the deciding segment
-    const decidedMatchLabel = result?.label
-      ?? result?.segments?.find(s => s.decidedOn === decidedHole)?.resultLabel
-      ?? null;
 
     // Gross totals per player for this section (all scored holes)
     const sectionTotal = (player) => sectionHoles.reduce((sum, h) => {
