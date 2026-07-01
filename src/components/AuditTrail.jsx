@@ -1222,11 +1222,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </div>
         );
       })()}
-            <span style={{ color, fontWeight: 700 }}>{label} strokes</span>
-          </div>
-        );
-      })()}
-
       {/* Total Pts per player */}
       {(() => {
         const totals = result?.totalsByPlayerId || {};
