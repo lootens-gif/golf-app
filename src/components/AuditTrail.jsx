@@ -979,12 +979,15 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   let longRunning = 0;
   let shortRunning = 0;
 
+  // Compute cumulative 18-hole running total for Total row
+  let cumulativeRunning = 0;
   const holeData = holes.map((hole) => {
     if (isStroke) {
       const cumulative = strokeRunningDiffs[hole - 1] ?? null;
       const prev = hole > 1 ? (strokeRunningDiffs[hole - 2] ?? null) : 0;
       const holeDiff = (cumulative !== null && prev !== null) ? cumulative - prev : null;
-      return { hole, res: holeDiff, running: cumulative, segment: null };
+      if (holeDiff !== null) cumulativeRunning = cumulative;
+      return { hole, res: holeDiff, running: cumulative, totalRunning: cumulative, segment: null };
     }
 
     const res = computeHoleResult({
@@ -997,20 +1000,29 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       handicapMode,
     });
 
+    const aScore = getRawScore(scores, hole, playerA.id);
+    const bScore = getRawScore(scores, hole, playerB.id);
+    const holePlayed = aScore != null && bScore != null;
+    if (holePlayed && res != null) {
+      if (res > 0) cumulativeRunning += 1;
+      if (res < 0) cumulativeRunning -= 1;
+    }
+    const totalRunning = holePlayed ? cumulativeRunning : null;
+
     if (isLongShort) {
       if (longClosedOn === null || hole <= longClosedOn) {
         if (res > 0) longRunning += 1;
         if (res < 0) longRunning -= 1;
-        return { hole, res, running: longRunning, segment: "Long" };
+        return { hole, res, running: longRunning, totalRunning, segment: "Long" };
       } else {
         if (res > 0) shortRunning += 1;
         if (res < 0) shortRunning -= 1;
-        return { hole, res, running: shortRunning, segment: "Short" };
+        return { hole, res, running: shortRunning, totalRunning, segment: "Short" };
       }
     } else {
       if (res > 0) longRunning += 1;
       if (res < 0) longRunning -= 1;
-      return { hole, res, running: longRunning, segment: null };
+      return { hole, res, running: longRunning, totalRunning, segment: null };
     }
   });
 
@@ -1180,6 +1192,27 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             })}
             <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
+
+          {/* Total row — only on Back 9 when F/B/T all checked */}
+          {label === "Back 9" && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (
+            <tr>
+              <td style={{ ...scorecardLabelCellStyle, fontWeight: 700 }}>Total</td>
+              {sectionData.map(({ hole, totalRunning }) => {
+                const aScore = getRawScore(scores, hole, playerA.id);
+                const bScore = getRawScore(scores, hole, playerB.id);
+                if (aScore == null || bScore == null || totalRunning == null) {
+                  return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                }
+                const color = totalRunning > 0 ? "#137333" : totalRunning < 0 ? "#b3261e" : "#6b7280";
+                return (
+                  <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
+                    {totalRunning === 0 ? "Even" : totalRunning > 0 ? `${totalRunning} up` : `${Math.abs(totalRunning)} dn`}
+                  </td>
+                );
+              })}
+              <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
+            </tr>
+          )}
         </tbody>
       </table>
       </div>
@@ -1195,19 +1228,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       {renderSection("Back 9", back, false)}
 
 
-      {/* Match Play F+B+T — Total row */}
-      {result?.type === "match_fbt" && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && result?.segments?.find(s => s.key === "total") && (() => {
-        const totalSeg = result.segments.find(s => s.key === "total");
-        const units = totalSeg.units || 0;
-        const color = units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280";
-        const lbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}${units > 0 ? "UP" : "DN"}`);
-        return (
-          <div style={{ fontSize: 13, fontWeight: 700, padding: "7px 4px", borderTop: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#555" }}>Total</span>
-            <span style={{ color }}>{lbl}</span>
-          </div>
-        );
-      })()}
+      {/* Match Play F+B+T — Total row now inside table above */}
 
       {/* Stroke F+B+T — Total row */}
       {isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
