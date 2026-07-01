@@ -1194,6 +1194,21 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
       {renderSection("Front 9", front, true)}
       {renderSection("Back 9", back, false)}
 
+      {/* Match Play F+B+T — Running 18 total row */}
+      {result?.type === "match_fbt" && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && result?.segments?.find(s => s.key === "total") && (() => {
+        const totalSeg = result.segments.find(s => s.key === "total");
+        const units = totalSeg.units || 0;
+        const color = units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280";
+        const label = units === 0 ? "AS" : `${Math.abs(units)}${units > 0 ? "UP" : "DN"}`;
+        const lbl = totalSeg.resultLabel || label;
+        return (
+          <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", marginBottom: 6 }}>
+            <span style={{ color: "#555" }}>Running 18 </span>
+            <span style={{ color, fontWeight: 700 }}>{lbl}</span>
+          </div>
+        );
+      })()}
+
       {/* Stroke F+B+T total running row */}
       {isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
         const totalDiff = strokeRunningDiffs[17] ?? null;
@@ -1940,7 +1955,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
               const grossTotal = frontTotal + sectionTotal;
               const netStrokes = holes.reduce((sum, h) =>
-                sum + _strokesFn(player.id, h, players, course, handicapMode, noPar3TeamGame), 0);
+                sum + getHandicapStrokes(player.id, h, players, course, "full", noPar3TeamGame), 0);
               const netTotal = grossTotal - netStrokes;
               const hasAll = hasAllFront && hasAllBack;
 
