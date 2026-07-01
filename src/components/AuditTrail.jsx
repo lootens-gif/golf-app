@@ -976,33 +976,44 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const toyRule = !!match.toyRule;
 
   // Pre-compute hole results and running totals for all 18 holes
+  const isFBT = !!(result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back"));
+  const frontDecidedOn = result?.segments?.find(s => s.key === "front")?.decidedOn ?? null;
+  const backDecidedOn = result?.segments?.find(s => s.key === "back")?.decidedOn ?? null;
+
+  // Helper: format a match conclusion correctly
+  // X&Y if decided before last hole, X up if decided on last hole, AS if tied
+  function fmtConclusion(units, decidedOn, lastHole) {
+    if (units === 0) return { label: "AS", color: "#6b7280" };
+    const abs = Math.abs(units);
+    const remaining = lastHole - decidedOn;
+    const label = remaining === 0 ? `${abs} up` : `${abs}&${remaining}`;
+    return { label, color: units > 0 ? "#137333" : "#b3261e" };
+  }
+
   let longRunning = 0;
   let shortRunning = 0;
-
-  // Compute cumulative 18-hole running total for Total row
+  let frontRunning = 0;
+  let backRunning = 0;
   let cumulativeRunning = 0;
+
   const holeData = holes.map((hole) => {
     if (isStroke) {
       const cumulative = strokeRunningDiffs[hole - 1] ?? null;
       const prev = hole > 1 ? (strokeRunningDiffs[hole - 2] ?? null) : 0;
       const holeDiff = (cumulative !== null && prev !== null) ? cumulative - prev : null;
-      if (holeDiff !== null) cumulativeRunning = cumulative;
-      return { hole, res: holeDiff, running: cumulative, totalRunning: cumulative, segment: null };
+      return { hole, res: holeDiff, running: cumulative, totalRunning: cumulative, segment: null, frontRunning: null, backRunning: null };
     }
-
-    const res = computeHoleResult({
-      hole,
-      teamA: [playerA.id],
-      teamB: [playerB.id],
-      players: matchPlayers,
-      course,
-      scores,
-      handicapMode,
-    });
 
     const aScore = getRawScore(scores, hole, playerA.id);
     const bScore = getRawScore(scores, hole, playerB.id);
     const holePlayed = aScore != null && bScore != null;
+
+    const res = holePlayed ? computeHoleResult({
+      hole, teamA: [playerA.id], teamB: [playerB.id],
+      players: matchPlayers, course, scores, handicapMode,
+    }) : null;
+
+    // Cumulative across all 18
     if (holePlayed && res != null) {
       if (res > 0) cumulativeRunning += 1;
       if (res < 0) cumulativeRunning -= 1;
@@ -1011,19 +1022,50 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
     if (isLongShort) {
       if (longClosedOn === null || hole <= longClosedOn) {
-        if (res > 0) longRunning += 1;
-        if (res < 0) longRunning -= 1;
-        return { hole, res, running: longRunning, totalRunning, segment: "Long" };
+        if (holePlayed && res != null) {
+          if (res > 0) longRunning += 1;
+          if (res < 0) longRunning -= 1;
+        }
+        return { hole, res, running: holePlayed ? longRunning : null, totalRunning, segment: "Long", afterDecided: false };
       } else {
-        if (res > 0) shortRunning += 1;
-        if (res < 0) shortRunning -= 1;
-        return { hole, res, running: shortRunning, totalRunning, segment: "Short" };
+        if (holePlayed && res != null) {
+          if (res > 0) shortRunning += 1;
+          if (res < 0) shortRunning -= 1;
+        }
+        return { hole, res, running: holePlayed ? shortRunning : null, totalRunning, segment: "Short", afterDecided: false };
       }
-    } else {
+    }
+
+    if (isFBT) {
+      const isFrontHole = hole <= 9;
+      const afterFrontDecided = frontDecidedOn != null && hole > frontDecidedOn;
+      const afterBackDecided = !isFrontHole && backDecidedOn != null && hole > backDecidedOn;
+
+      if (isFrontHole && !afterFrontDecided && holePlayed && res != null) {
+        if (res > 0) frontRunning += 1;
+        if (res < 0) frontRunning -= 1;
+      }
+      if (!isFrontHole && !afterBackDecided && holePlayed && res != null) {
+        if (res > 0) backRunning += 1;
+        if (res < 0) backRunning -= 1;
+      }
+
+      return {
+        hole, res,
+        running: holePlayed ? (isFrontHole ? frontRunning : backRunning) : null,
+        totalRunning,
+        afterFrontDecided: isFrontHole && afterFrontDecided,
+        afterBackDecided: !isFrontHole && afterBackDecided,
+        segment: null,
+      };
+    }
+
+    // Net Holes — continuous no reset
+    if (holePlayed && res != null) {
       if (res > 0) longRunning += 1;
       if (res < 0) longRunning -= 1;
-      return { hole, res, running: longRunning, totalRunning, segment: null };
     }
+    return { hole, res, running: holePlayed ? longRunning : null, totalRunning, segment: null, afterFrontDecided: false, afterBackDecided: false };
   });
 
   // Count won birdies per player for summary
@@ -1131,22 +1173,20 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
-            {sectionData.map(({ hole, res }) => {
-              const afterDecided = decidedInSection && hole > decidedHole;
-              if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+            {sectionData.map(({ hole, res, afterFrontDecided, afterBackDecided }) => {
+              const afterDecided = (label === "Front 9" && afterFrontDecided) || (label === "Back 9" && afterBackDecided) || (!isFBT && decidedInSection && hole > decidedHole);
               const aScore = getRawScore(scores, hole, playerA.id);
               const bScore = getRawScore(scores, hole, playerB.id);
               const holePlayed = aScore != null && bScore != null;
               if (!holePlayed) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
               if (isStroke) {
                 if (res === null) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
-                const color = res > 0 ? "#137333" : res < 0 ? "#b3261e" : "#6b7280";
-                const label = res === 0 ? "0" : res > 0 ? `+${res}` : `${res}`;
-                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{label}</td>;
+                const color = afterDecided ? "#ccc" : res > 0 ? "#137333" : res < 0 ? "#b3261e" : "#6b7280";
+                const lbl = res === 0 ? "0" : res > 0 ? `+${res}` : `${res}`;
+                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
               }
-              let color = "#666";
-              if (res > 0) color = "#137333";
-              if (res < 0) color = "#b3261e";
+              // After segment decided: show result in grey (still counts for Total)
+              const color = afterDecided ? "#bbb" : res > 0 ? "#137333" : res < 0 ? "#b3261e" : "#6b7280";
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
                   {res > 0 ? playerA.name[0] : res < 0 ? playerB.name[0] : "Push"}
@@ -1158,32 +1198,47 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           <tr>
             <td style={scorecardLabelCellStyle}>{label}</td>
-            {sectionData.map(({ hole, running, segment }) => {
-              const afterDecided = decidedInSection && hole > decidedHole;
-              if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+            {sectionData.map(({ hole, running, segment, afterFrontDecided, afterBackDecided }) => {
+              const afterDecided = (label === "Front 9" && afterFrontDecided) || (label === "Back 9" && afterBackDecided) || (!isFBT && decidedInSection && hole > decidedHole);
               const aScore = getRawScore(scores, hole, playerA.id);
               const bScore = getRawScore(scores, hole, playerB.id);
               const holePlayed = aScore != null && bScore != null;
               if (!holePlayed) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
-              const isDecidingHole = decidedInSection && decidedHole === hole;
-              let color = "#666";
-              if (running > 0) color = "#137333";
-              if (running < 0) color = "#b3261e";
+
+              // After segment decided: show "-"
+              if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+
               if (isStroke) {
                 if (running === null) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
-                const label = running === 0 ? "0" : running > 0 ? `+${running}` : `${running}`;
-                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{label}</td>;
+                const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
+                const lbl = running === 0 ? "0" : running > 0 ? `+${running}` : `${running}`;
+                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
               }
+
+              // On the deciding hole: show conclusion format
+              const isFrontDeciding = label === "Front 9" && isFBT && frontDecidedOn === hole;
+              const isBackDeciding = label === "Back 9" && isFBT && backDecidedOn === hole;
+              const isDeciding = isFrontDeciding || isBackDeciding || (!isFBT && decidedInSection && decidedHole === hole);
+
+              if (isDeciding) {
+                const seg = isFrontDeciding ? result?.segments?.find(s => s.key === "front")
+                           : isBackDeciding ? result?.segments?.find(s => s.key === "back")
+                           : null;
+                const units = seg ? seg.units : running;
+                const lastHole = isFrontDeciding ? 9 : isBackDeciding ? 18 : 18;
+                const fmt = fmtConclusion(units, hole, lastHole);
+                return <td key={hole} style={{ ...scorecardCellStyle, color: fmt.color, fontWeight: 700 }}>{fmt.label}</td>;
+              }
+
+              // Non-FBT decided on this hole
+              if (!isFBT && decidedInSection && decidedHole === hole) {
+                const units = running;
+                const fmt = fmtConclusion(units, hole, 18);
+                return <td key={hole} style={{ ...scorecardCellStyle, color: fmt.color, fontWeight: 700 }}>{fmt.label}</td>;
+              }
+
+              const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
               const prefix = segment ? `${segment[0]}: ` : "";
-              if (isDecidingHole) {
-                if (decidedMatchLabel) {
-                  return (
-                    <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
-                      {decidedMatchLabel}
-                    </td>
-                  );
-                }
-              }
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
                   {prefix}{running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`}
@@ -1275,7 +1330,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           }
           if (v === 0) return { label: "AS", color: "#6b7280" };
           const abs = Math.abs(v);
-          return { label: v > 0 ? `${abs}UP` : `${abs}DN`, color: v > 0 ? "#137333" : "#b3261e" };
+          return { label: v > 0 ? `${abs} up` : `${abs} dn`, color: v > 0 ? "#137333" : "#b3261e" };
         };
 
         if (result?.type === "longshort") {
@@ -1299,10 +1354,22 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.units, "match"); items.push({ key: "f", label: "Front", value: frontSeg.resultLabel || f.label, color: f.color }); }
-          if (backSeg) { const b = fmtResult(backSeg.units, "match"); items.push({ key: "b", label: "Back", value: backSeg.resultLabel || b.label, color: b.color }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Total", value: totalSeg.resultLabel || t.label, color: t.color }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.units, "match"); items.push({ key: "t", label: "Full Match", value: totalSeg.resultLabel || t.label, color: t.color }); }
+          if (frontSeg) {
+            const fmt = fmtConclusion(frontSeg.units, frontSeg.decidedOn ?? 9, 9);
+            items.push({ key: "f", label: "Front", value: fmt.label, color: fmt.color });
+          }
+          if (backSeg) {
+            const fmt = fmtConclusion(backSeg.units, backSeg.decidedOn ?? 18, 18);
+            items.push({ key: "b", label: "Back", value: fmt.label, color: fmt.color });
+          }
+          if (totalSeg && (frontSeg || backSeg)) {
+            const fmt = fmtConclusion(totalSeg.units, totalSeg.decidedOn ?? 18, 18);
+            items.push({ key: "t", label: "Total", value: fmt.label, color: fmt.color });
+          }
+          if (totalSeg && !frontSeg && !backSeg) {
+            const fmt = fmtConclusion(totalSeg.units, totalSeg.decidedOn ?? 18, 18);
+            items.push({ key: "t", label: "Full Match", value: fmt.label, color: fmt.color });
+          }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
