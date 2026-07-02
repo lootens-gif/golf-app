@@ -49,9 +49,10 @@ export default function ResultsScreen({
   onSaveRound, roundName, savedRounds = [],
   skinsResults, skinsEnabled, skinsConfig,
   getHandicapStrokesFn, isJoiner = false, onRefresh, segmentBirdieAmounts = {},
+  roundCode,
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
-    try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) === "open"; } catch { return false; }
+    try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) !== "closed"; } catch { return true; }
   });
   const [drillPlayerId, setDrillPlayerId] = useState(null);
   const scorecardRef = useRef(null);
@@ -62,6 +63,10 @@ export default function ResultsScreen({
 
   // Check if this round is already saved
   const isAlreadySaved = savedRounds.some(r => r.data?.roundName === roundName && roundName);
+
+  useEffect(() => {
+    if (roundCode) setShowAuditTrail(true);
+  }, [roundCode]);
 
   useEffect(() => {
     // Pre-fill save name from roundName prop
@@ -439,6 +444,7 @@ export default function ResultsScreen({
           drillPlayerId={drillPlayerId}
           getHandicapStrokesFn={getHandicapStrokesFn}
           segmentBirdieAmounts={segmentBirdieAmounts}
+          sessionKey={roundCode || "default"}
         />
       )}
 

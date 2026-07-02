@@ -454,8 +454,9 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, subtitle, children, defaultOpen = false, storageId }) {
-  const storageKey = `scorecard-section:${storageId || (typeof title === "string" ? title : "")}`;
+function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey }) {
+  const baseKey = storageId || (typeof title === "string" ? title : "");
+  const storageKey = `scorecard-section:${sessionKey ? `${sessionKey}:` : ""}${baseKey}`;
 
   const [open, setOpen] = useState(() => {
     try {
@@ -485,7 +486,7 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
   };
 
   return (
-    <div style={{ border: "1px solid #d1d5db", borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
+    <div style={{ border: "1px solid #d1d5db", borderRadius: 10, marginBottom: 10 }}>
       <button
         type="button"
         onClick={toggleOpen}
@@ -517,13 +518,13 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
 
 
 
-function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, course, handicapMode }) {
+function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, course, handicapMode, sessionKey }) {
   const sideMatchEntries = (matchResults || []).filter((entry) => !isNinePointMatch(entry.match));
 
   if (!sideMatchEntries.length) return null;
 
   return (
-    <AuditSection title="1v1 Matches" defaultOpen={false} storageId="onevone-matches">
+    <AuditSection title="1v1 Matches" defaultOpen={false} storageId="onevone-matches" sessionKey={sessionKey}>
       {sideMatchEntries.map((entry, entryIndex) => {
         const match = entry.match;
         const result = entry.result || {};
@@ -644,6 +645,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   title={oneVOneTitle}
   storageId={`onevone-match-${entryIndex}`}
   defaultOpen={false}
+  sessionKey={sessionKey}
 >
   <OneVOneScorecard
     match={match}
@@ -1437,6 +1439,7 @@ function NinePointAudit({
   handicapMode,
   teamGameUnitAmount,
   birdieResults = [],
+  sessionKey,
 }) {
   const ninePointEntry = (matchResults || []).find((entry) =>
     isNinePointMatch(entry.match)
@@ -1488,7 +1491,7 @@ function NinePointAudit({
   );
 
   return (
-    <AuditSection title={title} defaultOpen>
+    <AuditSection title={title} defaultOpen={false} sessionKey={sessionKey}>
       <NinePointScorecard
         players={players}
         result={result}
@@ -1516,6 +1519,7 @@ function TeamGameAudit({
   getHandicapStrokesFn,
   birdieResults = [],
   segmentBirdieAmounts = {},
+  sessionKey,
 }) {
   if (!teamGameResults?.length) return null;
 
@@ -1608,7 +1612,7 @@ function TeamGameAudit({
   );
 
   return (
-     <AuditSection title={teamGameTitle} defaultOpen={false}>
+     <AuditSection title={teamGameTitle} defaultOpen={true} sessionKey={sessionKey}>
       {teamGameResults.map((game, gameIndex) => {
         if (game.duplicateError) {
           return (
@@ -1696,6 +1700,7 @@ function TeamGameAudit({
               defaultOpen={false}
               storageId={`game-${gameIndex}`}
               subtitle={segmentBirdieLine ? `🐦 ${segmentBirdieLine}` : null}
+              sessionKey={sessionKey}
             >
             {(game.matches || []).map((matchup, matchupIndex) => {
               const { teamAKey, teamBKey } = parseTeamKeys(matchup.label);
@@ -1795,6 +1800,7 @@ function TeamGameAudit({
                   title={matchTitle}
                   storageId={`matchup-${gameIndex}-${matchupIndex}`}
                   defaultOpen={false}
+                  sessionKey={sessionKey}
                 >
                   {isNonPress && (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
@@ -2159,6 +2165,7 @@ export default function AuditTrail({
   drillPlayerId = null,
   getHandicapStrokesFn,
   segmentBirdieAmounts = {},
+  sessionKey,
 }) {
   return (
     <div>
@@ -2180,6 +2187,7 @@ export default function AuditTrail({
   noPar3TeamGame={noPar3TeamGame}
   birdieResults={birdieResults}
   segmentBirdieAmounts={segmentBirdieAmounts}
+  sessionKey={sessionKey}
 />
 
 {/* 1v1 */}
@@ -2191,6 +2199,7 @@ export default function AuditTrail({
   scores={scores}
   course={course}
   handicapMode={handicapMode}
+  sessionKey={sessionKey}
 />
 
 {/* 9 POINT */}
@@ -2202,11 +2211,12 @@ export default function AuditTrail({
   handicapMode={handicapMode}
   teamGameUnitAmount={teamGameUnitAmount}
   birdieResults={birdieResults}
+  sessionKey={sessionKey}
 />
 
 {/* TOTAL SCORECARD */}
 <div ref={drillPlayerId ? (el) => { if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 150); } : null}>
-  <AuditSection title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}`} defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"}>
+  <AuditSection title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}`} defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"} sessionKey={sessionKey}>
     <TotalScorecard
       players={players}
       scores={scores}
