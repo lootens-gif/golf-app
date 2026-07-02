@@ -251,6 +251,7 @@ function TeamGameScorecard({
 
   return (
     <div
+      className="scorecard-scroll"
       style={{
         border: "1px solid #e5e7eb",
         borderRadius: 10,
@@ -265,7 +266,7 @@ function TeamGameScorecard({
         </div>
       </div>
 
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
       <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
         <tbody>
           <tr>
@@ -753,7 +754,7 @@ function NinePointScorecard({
     return (
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
             <tbody>
               {/* Hole header */}
@@ -1110,7 +1111,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
+      <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
       <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
         <tbody>
           <tr>
@@ -1988,7 +1989,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
     const frontPar9 = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
 
     return (
-      <div style={{ marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="scorecard-scroll" style={{ marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
         <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>{label}</div>
         <table style={{ borderCollapse: "collapse", minWidth: 520 }}>
           <tbody>

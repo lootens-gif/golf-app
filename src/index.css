@@ -126,3 +126,19 @@ td {
     margin-bottom: 8px;
   }
 }
+
+/* Force visible scrollbars on scorecard tables in desktop browsers */
+.scorecard-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.scorecard-scroll::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+.scorecard-scroll::-webkit-scrollbar-thumb {
+  background: #bbb;
+  border-radius: 3px;
+}
+.scorecard-scroll::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
