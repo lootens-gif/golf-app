@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { computeSkins, settleSkinsRound } from "../engine/scoringEngine";
+import { settleSkinsRound } from "../engine/scoringEngine";
 import {
   createTrip, fetchMyTrips, fetchTrip,
   saveTripPlayers, fetchTripPlayers,
@@ -534,7 +534,7 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
       skinCarryover: false,
       skinBirdie: false,
       skinBirdieDoubleCarryover: false,
-      potDonation: 5,
+      potDonation: Number(skinsGame?.entry_fee) || 5,
       potType: "nocarryover",
       potBaseUnit: 1,
       ...(skinsGame?.config || {}),
