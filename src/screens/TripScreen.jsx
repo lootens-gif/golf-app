@@ -185,11 +185,14 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
         }, deviceId);
         tripId = newTrip.id;
       }
-      await Promise.all([
-        saveTripPlayers(tripId, players.filter(p => p.name.trim())),
-        ...rounds.map(r => saveTripRound({ ...r, trip_id: tripId })),
-        saveTripGames(tripId, games.filter(g => g.enabled)),
-      ]);
+      await saveTripPlayers(tripId, players.filter(p => p.name.trim()));
+      await Promise.all(rounds.map(r => saveTripRound({
+        ...r,
+        trip_id: tripId,
+        slope: r.slope === "" || r.slope == null ? null : Number(r.slope),
+        rating: r.rating === "" || r.rating == null ? null : Number(r.rating),
+      })));
+      await saveTripGames(tripId, games.filter(g => g.enabled));
       setStatus("Saved!");
       setTimeout(() => setStatus(""), 2000);
       onSaved?.(tripId);

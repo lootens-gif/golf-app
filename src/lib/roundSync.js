@@ -342,7 +342,8 @@ export async function fetchTrip(tripId) {
 }
 
 export async function saveTripPlayers(tripId, players) {
-  await supabase.from('trip_players').delete().eq('trip_id', tripId);
+  const { error: delError } = await supabase.from('trip_players').delete().eq('trip_id', tripId);
+  if (delError) throw delError;
   if (!players.length) return;
   const { error } = await supabase.from('trip_players').insert(
     players.map((p, i) => ({ ...p, trip_id: tripId, sort_order: i }))
