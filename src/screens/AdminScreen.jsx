@@ -17,7 +17,7 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
   const [pinError, setPinError] = useState(false);
   const [rounds, setRounds] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [hoursAgo, setHoursAgo] = useState(4);
+  const [hoursAgo, setHoursAgo] = useState(24);
 
   function handlePin() {
     if (pin === ADMIN_PIN) {
@@ -87,11 +87,9 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
         <button onClick={onBack} style={{ background: "none", border: "none", color: sc.muted, fontSize: 14, cursor: "pointer", padding: 0 }}>← Back</button>
         <h2 style={{ color: sc.green, margin: 0, fontSize: 20 }}>🔧 Admin</h2>
         <select value={hoursAgo} onChange={e => setHoursAgo(Number(e.target.value))} style={{ fontSize: 13, padding: "4px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}>
-          <option value={1}>Last 1 hr</option>
-          <option value={4}>Last 4 hrs</option>
-          <option value={12}>Last 12 hrs</option>
           <option value={24}>Last 24 hrs</option>
           <option value={48}>Last 48 hrs</option>
+          <option value={720}>Last 30 days</option>
         </select>
       </div>
 
