@@ -312,6 +312,14 @@ export async function checkCourseExists(name) {
 
 // ── TRIPS ─────────────────────────────────────────────────────────────────────
 
+export async function deleteTrip(tripId) {
+  await supabase.from('trip_players').delete().eq('trip_id', tripId);
+  await supabase.from('trip_rounds').delete().eq('trip_id', tripId);
+  await supabase.from('trip_games').delete().eq('trip_id', tripId);
+  const { error } = await supabase.from('trips').delete().eq('id', tripId);
+  if (error) throw error;
+}
+
 export async function createTrip(trip, deviceId) {
   const { data, error } = await supabase
     .from('trips')
@@ -346,7 +354,12 @@ export async function saveTripPlayers(tripId, players) {
   if (delError) throw delError;
   if (!players.length) return;
   const { error } = await supabase.from('trip_players').insert(
-    players.map((p, i) => ({ ...p, trip_id: tripId, sort_order: i }))
+    players.map((p, i) => ({
+      ...p,
+      trip_id: tripId,
+      sort_order: i,
+      hcp_index: p.hcp_index === "" || p.hcp_index == null ? null : Number(p.hcp_index),
+    }))
   );
   if (error) throw error;
 }
