@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { computeSkins, settleSkinsRound } from "../engine/scoringEngine";
 import {
   createTrip, fetchMyTrips, fetchTrip,
   saveTripPlayers, fetchTripPlayers,
@@ -480,6 +481,87 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
     }).filter(p => p.holesPlayed > 0).sort((a, b) => a.totalNet - b.totalNet);
   })();
 
+  // Build Skins leaderboard — merge scores from all round codes
+  const skinsLeaderboard = (() => {
+    if (!players.length || !roundData.length) return { holeResults: [], playerTotals: [] };
+
+    // Use trip player index as canonical ID
+    const tripPlayers = players.map((p, i) => ({
+      id: `trip-${i}`,
+      name: p.name,
+      hcp: Number(p.hcp_index) || 0,
+    }));
+
+    // Merge scores across all rounds — for each hole, find each trip player's score
+    const mergedScores = {};
+    const mergedCourse = { pars: Array(18).fill(4), hcp: Array(18).fill(0) };
+
+    rounds.forEach(round => {
+      const rd = roundData.find(r => r.code === round.round_code);
+      if (!rd?.data) return;
+      const rdCourse = rd.data.course || {};
+      const rdScores = rd.data.scores || {};
+      const rdPlayers = rd.data.allPlayers || [];
+
+      // Use course from first round that has one
+      if (rdCourse.pars?.length) {
+        mergedCourse.pars = rdCourse.pars;
+        mergedCourse.hcp = rdCourse.hcp || mergedCourse.hcp;
+      }
+
+      // Map round player IDs to trip player IDs by name match
+      Object.entries(rdScores).forEach(([hole, holeScores]) => {
+        const h = Number(hole);
+        if (!mergedScores[h]) mergedScores[h] = {};
+        Object.entries(holeScores).forEach(([rdPlayerId, score]) => {
+          const rdPlayer = rdPlayers.find(p => p.id === rdPlayerId);
+          if (!rdPlayer) return;
+          const tripPlayer = tripPlayers.find(tp =>
+            tp.name.toLowerCase() === rdPlayer.name?.toLowerCase()
+          );
+          if (!tripPlayer) return;
+          mergedScores[h][tripPlayer.id] = score;
+        });
+      });
+    });
+
+    // Get skins config from trip games
+    const skinsGame = games.find(g => g.game_type === "skins" && g.enabled);
+    const skinsConfig = {
+      skinsType: "pot",
+      skinsGross: false,
+      skinValueAmount: 5,
+      skinCarryover: false,
+      skinBirdie: false,
+      skinBirdieDoubleCarryover: false,
+      potDonation: 5,
+      potType: "nocarryover",
+      potBaseUnit: 1,
+      ...(skinsGame?.config || {}),
+    };
+
+    try {
+      const result = settleSkinsRound({
+        players: tripPlayers,
+        scores: mergedScores,
+        course: mergedCourse,
+        handicapMode: "full",
+        skinsConfig,
+      });
+
+      const holeResults = result.holeResults || [];
+      const playerTotals = tripPlayers.map(p => ({
+        name: p.name,
+        skinsWon: result.skinsWon?.[p.id] || 0,
+        net: result.ledger?.[p.id] || 0,
+      })).sort((a, b) => b.skinsWon - a.skinsWon || b.net - a.net);
+
+      return { holeResults, playerTotals, totalPot: result.totalPot || 0, valuePerSkin: result.valuePerSkin || 0 };
+    } catch (e) {
+      return { holeResults: [], playerTotals: [], totalPot: 0, valuePerSkin: 0 };
+    }
+  })();
+
   const enabledGames = games.filter(g => g.enabled);
   const activeGame = enabledGames.find(g => g.game_type === view) || enabledGames[0];
 
@@ -595,7 +677,62 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
       )}
 
       {/* Other games - coming soon */}
-      {view !== "low_net" && (
+      {view === "skins" && (
+        <Card>
+          <SectionLabel>Skins — Net</SectionLabel>
+          {loading ? (
+            <div style={{ color: sc.muted, fontSize: 13, textAlign: "center", padding: 20 }}>Loading scores…</div>
+          ) : skinsLeaderboard.playerTotals.length === 0 ? (
+            <div style={{ color: sc.muted, fontSize: 13, textAlign: "center", padding: 20 }}>No scores yet.</div>
+          ) : (
+            <>
+              {/* Hole by hole results */}
+              <div style={{ marginBottom: 14 }}>
+                {skinsLeaderboard.holeResults.map(h => (
+                  <div key={h.hole} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${sc.border}`, fontSize: 13 }}>
+                    <span style={{ color: sc.muted }}>Hole {h.hole}</span>
+                    {h.winnerId ? (
+                      <span style={{ fontWeight: 700, color: sc.green }}>
+                        {players[parseInt(h.winnerId.replace("trip-", ""))]?.name || h.winnerId}
+                        {h.carryover > 0 ? ` (carried ${h.carryover})` : ""}
+                      </span>
+                    ) : (
+                      <span style={{ color: sc.muted }}>{h.tied ? "Tied" : "Incomplete"}{h.carryover > 0 ? ` · ${h.carryover} carried` : ""}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Pot summary */}
+              {skinsLeaderboard.totalPot > 0 && (
+                <div style={{ fontSize: 13, color: sc.muted, marginBottom: 10, padding: "8px 0", borderBottom: `1px solid ${sc.border}` }}>
+                  Total pot: <strong style={{ color: sc.ink }}>${skinsLeaderboard.totalPot.toFixed(2)}</strong>
+                  {skinsLeaderboard.valuePerSkin > 0 && (
+                    <span> · ${skinsLeaderboard.valuePerSkin.toFixed(2)} per skin</span>
+                  )}
+                </div>
+              )}
+
+              {/* Player totals */}
+              <SectionLabel>Skins Won</SectionLabel>
+              {skinsLeaderboard.playerTotals.map((p, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: i < skinsLeaderboard.playerTotals.length - 1 ? `1px solid ${sc.border}` : "none", fontSize: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: "50%", background: i === 0 ? sc.gold : "#e5e7eb", color: i === 0 ? "#fff" : sc.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{i + 1}</span>
+                    <span style={{ fontWeight: p.skinsWon > 0 ? 700 : 400 }}>{p.name}</span>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ fontWeight: 700, color: p.skinsWon > 0 ? sc.green : sc.muted }}>{p.skinsWon} skin{p.skinsWon !== 1 ? "s" : ""}</span>
+                    <span style={{ fontSize: 12, color: p.net >= 0 ? sc.green : "#b3261e", marginLeft: 8 }}>{p.net >= 0 ? `+$${p.net.toFixed(2)}` : `-$${Math.abs(p.net).toFixed(2)}`}</span>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </Card>
+      )}
+
+      {view !== "low_net" && view !== "skins" && (
         <Card>
           <SectionLabel>{GAME_TYPES.find(g => g.key === view)?.label}</SectionLabel>
           <div style={{ color: sc.muted, fontSize: 13, textAlign: "center", padding: 24 }}>
