@@ -49,7 +49,7 @@ export default function ResultsScreen({
   onSaveRound, roundName, savedRounds = [],
   skinsResults, skinsEnabled, skinsConfig,
   getHandicapStrokesFn, isJoiner = false, onRefresh, segmentBirdieAmounts = {},
-  roundCode,
+  roundCode, handicapDistribution = "standard",
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) !== "closed"; } catch { return true; }
@@ -445,6 +445,7 @@ export default function ResultsScreen({
           getHandicapStrokesFn={getHandicapStrokesFn}
           segmentBirdieAmounts={segmentBirdieAmounts}
           sessionKey={roundCode || "default"}
+          handicapDistribution={handicapDistribution}
         />
       )}
 

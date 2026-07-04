@@ -3782,6 +3782,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
     getHandicapStrokesFn={context.getHandicapStrokesFn}
     segmentBirdieAmounts={segmentBirdieAmounts}
     roundCode={roundCode}
+    handicapDistribution={handicapDistribution}
     isJoiner={isJoiner}
     onRefresh={() => {
       if (roundCode) {

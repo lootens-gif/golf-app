@@ -1837,7 +1837,6 @@ function TeamGameAudit({
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
                   />
-                  )}
                 </AuditSection>
               );
             })}
@@ -1936,7 +1935,7 @@ function ScoreCell({ gross, par, strokes }) {
   return <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>{display}{dotsEl}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn, noPar3TeamGame = false }) {
+function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn, noPar3TeamGame = false, handicapDistribution = "standard" }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(initialSelectedPlayer);
 
   // Update if initialSelectedPlayer changes (from leaderboard drill-in)
@@ -2019,7 +2018,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
             {/* HCP row */}
             <tr>
-              <td style={labelStyle}>HCP</td>
+              <td style={labelStyle}>{handicapDistribution === "spread" ? "HCP·Spr" : "HCP"}</td>
               {sectionHoles.map(h => (
                 <td key={h} style={{ ...cellStyle, color: "#888", fontSize: 10, textAlign: "right", paddingRight: 3 }}>{hcps[h - 1] || "-"}</td>
               ))}
@@ -2167,6 +2166,7 @@ export default function AuditTrail({
   getHandicapStrokesFn,
   segmentBirdieAmounts = {},
   sessionKey,
+  handicapDistribution = "standard",
 }) {
   return (
     <div>
@@ -2217,7 +2217,12 @@ export default function AuditTrail({
 
 {/* TOTAL SCORECARD */}
 <div ref={drillPlayerId ? (el) => { if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 150); } : null}>
-  <AuditSection title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}`} defaultOpen={drillPlayerId !== null} key={drillPlayerId || "total"} sessionKey={sessionKey}>
+  <AuditSection
+    title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}${handicapDistribution === "spread" ? " · Spread" : ""}`}
+    defaultOpen={drillPlayerId !== null}
+    key={drillPlayerId || "total"}
+    sessionKey={sessionKey}
+  >
     <TotalScorecard
       players={players}
       scores={scores}
@@ -2228,6 +2233,7 @@ export default function AuditTrail({
       initialSelectedPlayer={drillPlayerId}
       getHandicapStrokesFn={null}
       noPar3TeamGame={noPar3TeamGame}
+      handicapDistribution={handicapDistribution}
     />
   </AuditSection>
 </div>
