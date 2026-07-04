@@ -1636,6 +1636,7 @@ function loadLastRound() {
     if (round.course) setCourse(round.course);
     if (round.scores) setScores(round.scores);    
     if (round.handicapMode) setHandicapMode(round.handicapMode);
+  if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
     if (typeof round.teamGameUnitAmount === "number") {
   setTeamGameUnitAmount(round.teamGameUnitAmount);
 }
@@ -1786,6 +1787,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.course && (!skipScreen || !roundInProgress)) setCourse(round.course);
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
+  if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -1917,6 +1919,7 @@ function loadNamedRound() {
     if (round.course) setCourse(round.course);
     if (round.scores) setScores(round.scores);  
     if (round.handicapMode) setHandicapMode(round.handicapMode);
+  if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
     if (typeof round.teamGameUnitAmount === "number") {
   setTeamGameUnitAmount(round.teamGameUnitAmount);
 }
