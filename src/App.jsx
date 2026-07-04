@@ -1774,6 +1774,15 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
     return false;
   }
 
+  // Never let a background sync overwrite MORE holes with FEWER holes
+  if (skipScreen) {
+    const incomingHoles = Object.keys(round.scores || {}).length;
+    const currentHoles = Object.keys(scores || {}).length;
+    if (incomingHoles < currentHoles) {
+      return false;
+    }
+  }
+
   // Guard: never overwrite local state while user is actively entering a score
   if (skipScreen && isEnteringScore.current) return false;
 
@@ -3369,6 +3378,19 @@ return (
 
 setLastHoleSaved(currentHole);
 setSaveMessage(`Hole ${currentHole} saved`);
+
+      // Force immediate Supabase sync on every hole save — don't wait for debounce
+      if (roundCode) {
+        setTimeout(() => {
+          shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId)
+            .catch(() => {
+              // Retry once after 3 seconds if first sync fails
+              setTimeout(() => {
+                shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId).catch(() => {});
+              }, 3000);
+            });
+        }, 100);
+      }
 
       if (currentHole >= 18) {
   setCurrentHole(19);

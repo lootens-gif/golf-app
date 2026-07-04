@@ -596,3 +596,110 @@ test('34_spread_vs_standard_different_holes', () => {
   expect(standardHoles).toContain(9); // H9 HCP6 — in standard but NOT spread
   expect(spreadHoles).not.toContain(9); // H9 should NOT be in spread seg1 top3
 });
+
+// ── ROUND 7552 — 9-POINT REAL DATA TESTS ────────────────────────────────────
+// 3-player 9-point, Tim(0), Mike(14), Mark(10), relative mode, $1/pt
+// Westwood, 10 holes played
+
+const round7552Players = [
+  { id: "p1", hcp: 0,  name: "Tim"  },
+  { id: "p2", hcp: 14, name: "Mike" },
+  { id: "p3", hcp: 10, name: "Mark" },
+];
+
+const round7552Scores = {
+  1:  {p1:5, p2:6, p3:6},
+  2:  {p1:5, p2:6, p3:5},
+  3:  {p1:4, p2:3, p3:4},
+  4:  {p1:4, p2:5, p3:5},
+  5:  {p1:5, p2:4, p3:5},
+  6:  {p1:5, p2:7, p3:6},
+  7:  {p1:3, p2:5, p3:6},
+  8:  {p1:4, p2:6, p3:4},
+  9:  {p1:5, p2:5, p3:6},
+  10: {p1:5, p2:5, p3:4},
+};
+
+const westwood = {
+  pars: [5,4,3,4,4,5,4,3,4,4,4,5,4,4,3,4,3,5],
+  hcp:  [12,2,16,8,14,10,4,18,6,11,1,5,13,3,15,7,17,9],
+};
+
+const { getNinePointMatchSummary } = require('./engine/scoringEngine');
+
+test('35_9pt_7552_money_balances', () => {
+  // Total money won must equal total money lost
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"],
+    round7552Players,
+    westwood,
+    round7552Scores,
+    "relative",
+    false,  // blitzEnabled
+    1,      // dollarsPerPoint
+    10,     // holeCount
+    false,  // noPar3Strokes
+    false,  // birdieDoublePoints
+    false   // eagleTriplePoints
+  );
+  const balances = Object.values(result.payout.balancesByPlayerId);
+  const total = balances.reduce((s, v) => s + v, 0);
+  expect(Math.abs(total)).toBeLessThan(0.01); // balances to zero
+});
+
+test('36_9pt_7552_points_sum_per_hole', () => {
+  // Every played hole must sum to exactly 9 points
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"],
+    round7552Players,
+    westwood,
+    round7552Scores,
+    "relative",
+    false, 1, 10, false, false, false
+  );
+  result.holes.forEach(h => {
+    const pts = Object.values(h.pointsByPlayerId).reduce((s,v) => s+v, 0);
+    expect(pts).toBe(9);
+  });
+});
+
+test('37_9pt_7552_hole1_tim_wins', () => {
+  // Hole 1: Tim 5, Mike 6, Mark 6 — all par5, Tim(0 rel) vs Mike(14 rel) vs Mark(10 rel)
+  // HCP 12 — Tim gets 0 strokes, Mike gets stroke (14>12), Mark gets stroke (10<12? no, 10<12 yes)
+  // Actually relative: Tim=0, Mike=14, Mark=10. Lowest=0(Tim)
+  // Mike relative=14, Mark relative=10
+  // Hole 1 HCP=12: Mike gets stroke (14>=12), Mark gets stroke? (10<12 no)
+  // Net: Tim=5, Mike=5(6-1), Mark=6 → Tim and Mike tie → no blitz
+  // Tim and Mike tie for low at 5 → 4/4/1 split → Mark gets 1
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"],
+    round7552Players,
+    westwood,
+    round7552Scores,
+    "relative",
+    false, 1, 10, false, false, false
+  );
+  const h1 = result.holes.find(h => h.hole === 1);
+  const pts = h1.pointsByPlayerId;
+  // Tim and Mike tie for 1st → 4pts each, Mark gets 1pt
+  expect(pts["p1"]).toBe(4);
+  expect(pts["p2"]).toBe(4);
+  expect(pts["p3"]).toBe(1);
+});
+
+test('38_9pt_always_9_total_points', () => {
+  // Regardless of scores, total points per hole always = 9
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"],
+    round7552Players,
+    westwood,
+    round7552Scores,
+    "relative",
+    false, 1, 10, false, false, false
+  );
+  expect(result.holes.length).toBe(10);
+  result.holes.forEach(h => {
+    const sum = Object.values(h.pointsByPlayerId).reduce((a,b) => a+b, 0);
+    expect(sum).toBe(9);
+  });
+});
