@@ -2231,7 +2231,7 @@ export default function AuditTrail({
       goToLive={goToLive}
       onUpdateScore={onUpdateScore}
       initialSelectedPlayer={drillPlayerId}
-      getHandicapStrokesFn={null}
+      getHandicapStrokesFn={handicapDistribution === "spread" ? getHandicapStrokesFn : null}
       noPar3TeamGame={noPar3TeamGame}
       handicapDistribution={handicapDistribution}
     />
