@@ -120,7 +120,7 @@ function getPlayerDisplayName(players, playerId) {
 
 
 
-function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode) {
+function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes = false) {
   let best = null;
 
   teamIds.forEach((playerId) => {
@@ -130,7 +130,9 @@ function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode)
       players,
       course,
       scores,
-      handicapMode
+      handicapMode,
+      getHandicapStrokesFn,
+      noPar3Strokes
     );
 
     if (net === null) return;
@@ -147,7 +149,7 @@ function getBestBallPlayer(teamIds, hole, players, course, scores, handicapMode)
   return best;
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
+function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes = false) {
   const gross = getRawScore(scores, hole, playerId);
 
   if (gross === null || gross === undefined) {
@@ -155,18 +157,21 @@ function formatScoreWithStrokeDots(playerId, hole, players, course, scores, hand
   }
 
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  const strokes = strokesFn(playerId, hole, players, course, handicapMode);
+  const par = course?.pars?.[hole - 1];
+  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
-function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
+function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes = false) {
   const best = getBestBallPlayer(
     teamIds,
     hole,
     players,
     course,
     scores,
-    handicapMode
+    handicapMode,
+    getHandicapStrokesFn,
+    noPar3Strokes
   );
 
   if (!best) return "-";
@@ -178,7 +183,8 @@ function getBestBallScoreDisplay(teamIds, hole, players, course, scores, handica
     course,
     scores,
     handicapMode,
-    getHandicapStrokesFn
+    getHandicapStrokesFn,
+    noPar3Strokes
   );
 }
 
@@ -248,6 +254,7 @@ function CompletedTeamGameScorecard({
   scores,
   handicapMode,
   getHandicapStrokesFn,
+  noPar3Strokes = false,
 }) {
   const holes = Array.from(
     { length: Number(end || 0) - Number(start || 0) + 1 },
@@ -263,13 +270,15 @@ function CompletedTeamGameScorecard({
       course,
       scores,
       handicapMode,
+      getHandicapStrokesFn,
+      noPar3Strokes,
     });
     const runningValue = getNetActiveBetCountForHole(Array.isArray(matchup?.result) ? matchup.result : [], hole);
 
     return {
       hole,
-      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
-      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn),
+      teamAValue: getBestBallScoreDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
+      teamBValue: getBestBallScoreDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       resultValue: holeResult,
@@ -3533,6 +3542,7 @@ if (enableTeamGame && nextGameIndex >= 0) {
               scores={scores}
               handicapMode={handicapMode}
               getHandicapStrokesFn={context.getHandicapStrokesFn}
+              noPar3Strokes={noPar3TeamGame}
             />
           );
         })}

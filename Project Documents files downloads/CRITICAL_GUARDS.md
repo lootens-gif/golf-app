@@ -203,3 +203,13 @@ Need to confirm current schema matches: `id, name, device_id, is_public, players
 ### Per-Device Course "Recent" Sort
 Currently `use_count` is global (shared across all users). Considered per-device tracking for more personalized "Recent" sort but deferred — global is sufficient at current scale (2 main user groups, ~15 courses). Revisit if course library grows or user base diversifies significantly.
 
+
+### 32. Spread Handicap + noPar3Strokes Must Flow Through ALL Best Ball Functions
+**Guard:** Every function that computes best ball or net scores for team games MUST receive BOTH `getHandicapStrokesFn` AND `noPar3Strokes`:
+- `getBestBallPlayer` (App.jsx) — must pass both to `getTeamNetScore`
+- `getBestBallScoreDisplay` (App.jsx) — must pass both to `getBestBallPlayer` and `formatScoreWithStrokeDots`
+- `CompletedTeamGameScorecard` (App.jsx) — must receive `noPar3Strokes` as prop and pass to all child calls
+- `getBestBallWinner` (AuditTrail.jsx) — must pass `noPar3Strokes` to `getNetScore`
+- `formatScoreWithStrokeDots` (both App.jsx and AuditTrail.jsx) — must pass `noPar3Strokes` to spread fn
+**Why:** Without `noPar3Strokes`, the spread function builds wrong quota distribution (includes par 3 holes in the eligible pool). Without `getHandicapStrokesFn`, it uses standard HCP instead of spread. Both cause wrong best ball winner selection AND wrong dot display.
+**This bug has occurred 3+ times. Do not remove these parameters.**
