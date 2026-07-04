@@ -85,14 +85,14 @@ function formatScoreWithStrokeDots(playerId, hole, players, course, scores, hand
   }
 
   const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  // noPar3Strokes handled here, not in strokesFn (spread fn doesn't accept it)
+  // noPar3Strokes passed to spread fn so it builds correct quota distribution
   const par = course?.pars?.[hole - 1];
-  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode);
+  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
   return `${gross}${"•".repeat(strokes)}`;
 }
 
 function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, noPar3Strokes = false, getHandicapStrokesFn) {
-  const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn);
+  const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes);
 
   if (!best) {
     return "-";
@@ -428,14 +428,14 @@ function TeamGameScorecard({
   );
 }
 
-function getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn) {
+function getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes = false) {
   const entries = (teamIds || [])
     .filter(Boolean)
     .map((playerId) => ({
       playerId,
       name: getPlayerName(players, playerId),
       gross: getRawScore(scores, hole, playerId),
-      net: getNetScore(playerId, hole, players, course, scores, handicapMode, false, getHandicapStrokesFn),
+      net: getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
     }))
     .filter((entry) => entry.net !== null);
 
