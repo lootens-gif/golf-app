@@ -1393,7 +1393,7 @@ export default function SetupScreen({
             if (!validPlayers.length) return null;
             const minHcp = Math.min(...validPlayers.map(p => p.hcp));
 
-            const warnings = validPlayers.map(p => {
+            const warnings = noPar3TeamGame ? [] : validPlayers.map(p => {
               const totalStrokes = handicapMode === "full"
                 ? Number(p.hcp)
                 : Math.max(0, Number(p.hcp) - minHcp);
