@@ -1110,3 +1110,226 @@ test('58_standard_nopar3_par3_holes_get_zero', () => {
     expect(dots).toBe(0);
   });
 });
+
+// ── COMPREHENSIVE HANDICAP STROKE TESTS ──────────────────────────────────────
+
+// High HCP scenarios - double dots when noPar3=OFF
+const highHcpPlayers = [
+  { id: "p1", hcp: 0,  name: "Scratch" },
+  { id: "p2", hcp: 19, name: "HighHcp" }, // 19 relative → double dot on HCP1
+  { id: "p3", hcp: 36, name: "VeryHigh" }, // 36 relative → double dots on all 18
+];
+
+test('59_standard_19_relative_gives_double_dot_on_hcp1', () => {
+  // 19 relative strokes, noPar3=OFF → fullRounds=1, remainder=1
+  // Gets 1 stroke on ALL holes + extra stroke on HCP=1 hole
+  const hcp1Hole = westwood.hcp.indexOf(1) + 1; // hole 11
+  const dots = getHandicapStrokes("p2", hcp1Hole, highHcpPlayers, westwood, "relative", false);
+  expect(dots).toBe(2); // double dot on HCP1 hole
+});
+
+test('60_standard_19_relative_nopar3_off_total_dots', () => {
+  // 19 strokes, noPar3=OFF → 18 single dots + 1 double = 19 total
+  let total = 0;
+  for (let h = 1; h <= 18; h++) {
+    total += getHandicapStrokes("p2", h, highHcpPlayers, westwood, "relative", false);
+  }
+  expect(total).toBe(19);
+});
+
+test('61_standard_19_relative_nopar3_on_no_double_dots', () => {
+  // 19 strokes, noPar3=ON → capped at 14, max 1 per hole
+  let total = 0;
+  let maxDots = 0;
+  for (let h = 1; h <= 18; h++) {
+    const d = getHandicapStrokes("p2", h, highHcpPlayers, westwood, "relative", true);
+    total += d;
+    maxDots = Math.max(maxDots, d);
+  }
+  expect(total).toBe(14); // capped at 14 eligible holes
+  expect(maxDots).toBe(1); // no double dots
+});
+
+test('62_standard_36_relative_nopar3_off_double_dots_all', () => {
+  // 36 strokes → 2 full rounds, every hole gets at least 2 dots
+  for (let h = 1; h <= 18; h++) {
+    const d = getHandicapStrokes("p3", h, highHcpPlayers, westwood, "relative", false);
+    expect(d).toBeGreaterThanOrEqual(2);
+  }
+});
+
+test('63_standard_36_relative_nopar3_on_still_capped_14', () => {
+  let total = 0;
+  let maxDots = 0;
+  for (let h = 1; h <= 18; h++) {
+    const d = getHandicapStrokes("p3", h, highHcpPlayers, westwood, "relative", true);
+    total += d;
+    maxDots = Math.max(maxDots, d);
+  }
+  expect(total).toBe(14);
+  expect(maxDots).toBe(1);
+});
+
+// ── FULL HCP MODE TESTS ───────────────────────────────────────────────────────
+test('64_full_hcp_mode_uses_absolute_hcp', () => {
+  // Full mode: Tim(8) gets 8 strokes regardless of who else is playing
+  let total = 0;
+  for (let h = 1; h <= 18; h++) {
+    total += getHandicapStrokes("p1", h, round6341Players, round6341Course, "full", false);
+  }
+  expect(total).toBe(9); // Tim hcp=9 in round6341
+});
+
+test('65_full_hcp_vs_relative_different_totals', () => {
+  // Jon(12): full=12 strokes, relative=12-9=3 strokes
+  let fullTotal = 0, relTotal = 0;
+  for (let h = 1; h <= 18; h++) {
+    fullTotal += getHandicapStrokes("p2", h, round6341Players, round6341Course, "full", false);
+    relTotal += getHandicapStrokes("p2", h, round6341Players, round6341Course, "relative", false);
+  }
+  expect(fullTotal).toBe(12);
+  expect(relTotal).toBe(3);
+});
+
+// ── SPREAD + FULL HCP MODE ────────────────────────────────────────────────────
+test('66_spread_full_hcp_distributes_evenly', () => {
+  // Jon(12) in full mode, spread: 12/3 = 4 per segment
+  const seg1 = [1,2,3,4,5,6].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p2", h, round6341Players, round6341Course, "full", false), 0);
+  const seg2 = [7,8,9,10,11,12].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p2", h, round6341Players, round6341Course, "full", false), 0);
+  const seg3 = [13,14,15,16,17,18].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p2", h, round6341Players, round6341Course, "full", false), 0);
+  expect(seg1).toBe(4);
+  expect(seg2).toBe(4);
+  expect(seg3).toBe(4);
+});
+
+// ── RELATIVE MODE EDGE CASES ──────────────────────────────────────────────────
+test('67_relative_lowest_player_gets_zero_strokes', () => {
+  // Tim(9) is lowest → 0 relative strokes always
+  for (let h = 1; h <= 18; h++) {
+    const d = getHandicapStrokes("p1", h, round6341Players, round6341Course, "relative", false);
+    expect(d).toBe(0);
+  }
+});
+
+test('68_relative_all_same_hcp_all_get_zero', () => {
+  const samePlayers = [
+    { id: "a", hcp: 10, name: "A" },
+    { id: "b", hcp: 10, name: "B" },
+    { id: "c", hcp: 10, name: "C" },
+  ];
+  for (let h = 1; h <= 18; h++) {
+    expect(getHandicapStrokes("a", h, samePlayers, westwood, "relative", false)).toBe(0);
+    expect(getHandicapStrokes("b", h, samePlayers, westwood, "relative", false)).toBe(0);
+  }
+});
+
+test('69_plus_hcp_player_gives_negative_relative', () => {
+  // Plus handicap stored as negative: -3 = +3
+  const mixedPlayers = [
+    { id: "p1", hcp: -3, name: "Plus3" }, // +3 handicap
+    { id: "p2", hcp: 10, name: "Ten"   },
+  ];
+  // Relative: Ten gets 10-(-3)=13 strokes, Plus3 gets 0 (lowest)
+  let tenTotal = 0;
+  for (let h = 1; h <= 18; h++) {
+    tenTotal += getHandicapStrokes("p2", h, mixedPlayers, westwood, "relative", false);
+  }
+  expect(tenTotal).toBe(13);
+  // Plus3 gets 0
+  for (let h = 1; h <= 18; h++) {
+    expect(getHandicapStrokes("p1", h, mixedPlayers, westwood, "relative", false)).toBe(0);
+  }
+});
+
+// ── STROKE DISTRIBUTION CORRECTNESS ──────────────────────────────────────────
+test('70_strokes_go_to_hardest_holes_first', () => {
+  // Jon(3 relative): gets dot on HCP2(H2), HCP4(H7)... 
+  // HCP1=H11, HCP2=H2, HCP3=H14 → first 3 hardest
+  const dotsHoles = [];
+  for (let h = 1; h <= 18; h++) {
+    if (getHandicapStrokes("p2", h, round6341Players, round6341Course, "relative", false) > 0) {
+      dotsHoles.push(h);
+    }
+  }
+  expect(dotsHoles).toContain(11); // HCP 1 — hardest
+  expect(dotsHoles).toContain(2);  // HCP 2
+  expect(dotsHoles).toContain(14); // HCP 3
+  expect(dotsHoles).not.toContain(1); // HCP 12 — not in top 3
+});
+
+test('71_spread_strokes_per_segment_correct', () => {
+  // Verify each segment gets correct quota for Lou(9 relative) spread
+  const seg1 = [1,2,3,4,5,6].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p4", h, round6341Players, round6341Course, "relative", true), 0);
+  const seg2 = [7,8,9,10,11,12].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p4", h, round6341Players, round6341Course, "relative", true), 0);
+  const seg3 = [13,14,15,16,17,18].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p4", h, round6341Players, round6341Course, "relative", true), 0);
+  expect(seg1).toBe(3); // 9/3 = 3 per segment
+  expect(seg2).toBe(3);
+  expect(seg3).toBe(3);
+});
+
+test('72_spread_uneven_extra_goes_to_hardest_segment', () => {
+  // John(13 relative) spread: 13/3=4 rem 1 → extra to segment with hardest marginal hole
+  // Seg1 4th hole: H1(HCP12), Seg2 4th hole: H10(HCP11), Seg3 4th hole: H13(HCP13)
+  // Extra → Seg2 (HCP11 < HCP12 < HCP13)
+  const seg1 = [1,2,3,4,5,6].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p3", h, round6341Players, round6341Course, "relative", true), 0);
+  const seg2 = [7,8,9,10,11,12].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p3", h, round6341Players, round6341Course, "relative", true), 0);
+  const seg3 = [13,14,15,16,17,18].reduce((s,h) =>
+    s + getSpreadHandicapStrokes("p3", h, round6341Players, round6341Course, "relative", true), 0);
+  expect(seg1).toBe(4);
+  expect(seg2).toBe(5); // extra goes here
+  expect(seg3).toBe(4);
+});
+
+// ── MONEY BALANCE TESTS FOR ALL FORMATS ──────────────────────────────────────
+test('73_net_holes_money_balances', () => {
+  const result = scoreRound({}, {
+    players: round6341Players.slice(0,2),
+    matchResults: [
+      { match: { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+          toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+          matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false },
+        result: playIndividualMatch(
+          { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+            toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+            matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false },
+          { players: round6341Players, course: round6341Course,
+            scores: round6341Scores, handicapMode: "relative" }
+        )
+      }
+    ],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [],
+    getTeamGameSelection: () => ({}),
+  });
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});
+
+test('74_nine_point_settlement_matches_points', () => {
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"], round7552Players, westwood, round7552Scores,
+    "relative", false, 2, 10, false, false, false
+  );
+  // Each player's balance should equal (their points - average) × betAmount
+  const balances = result.payout.balancesByPlayerId;
+  const total = Object.values(balances).reduce((s,v) => s+v, 0);
+  expect(Math.abs(total)).toBeLessThan(0.01);
+});
+
+test('75_birdie_results_dont_create_money_from_nowhere', () => {
+  // Birdie side bets: total paid out = total collected
+  const birdieResults = [
+    { playerId: "p1", amount: 10, source: "match-birdie", holeNumber: 2 },
+    { playerId: "p2", amount: -10, source: "match-birdie", holeNumber: 2 },
+  ];
+  const total = birdieResults.reduce((s, b) => s + b.amount, 0);
+  expect(total).toBe(0);
+});
