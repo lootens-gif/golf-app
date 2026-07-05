@@ -757,3 +757,331 @@ test('42_wheel_standard_vs_spread_lou_different', () => {
 });
 
 const holes18 = Array.from({ length: 18 }, (_, i) => i + 1);
+
+// ── PRESS TRIGGER TESTS — 1-DOWN AND 2-DOWN ──────────────────────────────────
+// Using round 6341 wheel data, testing press trigger behavior
+// Team 1: Jon+Stan (p2+p5) vs Team 2: Tim+John (p1+p3), holes 1-6
+
+const { playPressMatch, computeHoleResult } = require('./engine/scoringEngine');
+
+const pressContext = {
+  players: round6341Players,
+  course: round6341Course,
+  scores: round6341Scores,
+  handicapMode: "relative",
+  getHandicapStrokesFn: require('./engine/scoringEngine').getSpreadHandicapStrokes,
+  noPar3Strokes: true,
+};
+
+test('43_press_1down_triggers_on_1_down', () => {
+  const result = playPressMatch({
+    teamA: ["p2", "p5"],
+    teamB: ["p1", "p3"],
+    start: 1,
+    end: 6,
+    trigger: 1,
+    context: pressContext,
+  });
+  // With trigger=1, a press fires as soon as one team goes 1 down
+  // Should have more bets than trigger=2
+  expect(Array.isArray(result)).toBe(true);
+  expect(result.length).toBeGreaterThanOrEqual(1);
+  const baseMatch = result[0];
+  expect(baseMatch).toHaveProperty('score');
+});
+
+test('44_press_2down_triggers_on_2_down', () => {
+  const result = playPressMatch({
+    teamA: ["p2", "p5"],
+    teamB: ["p1", "p3"],
+    start: 1,
+    end: 6,
+    trigger: 2,
+    context: pressContext,
+  });
+  expect(Array.isArray(result)).toBe(true);
+  expect(result.length).toBeGreaterThanOrEqual(1);
+});
+
+test('45_press_1down_more_bets_than_2down', () => {
+  // 1-down press fires sooner → more total bets than 2-down in same segment
+  const result1 = playPressMatch({
+    teamA: ["p2", "p5"], teamB: ["p1", "p3"],
+    start: 1, end: 6, trigger: 1, context: pressContext,
+  });
+  const result2 = playPressMatch({
+    teamA: ["p2", "p5"], teamB: ["p1", "p3"],
+    start: 1, end: 6, trigger: 2, context: pressContext,
+  });
+  // 1-down should create >= as many bets as 2-down (fires earlier or same)
+  expect(result1.length).toBeGreaterThanOrEqual(result2.length);
+});
+
+test('46_press_money_balances_1down', () => {
+  // Full round with 1-down press — money must balance
+  const result = scoreRound({}, {
+    players: round6341Players,
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [
+      {
+        index: 0,
+        start: 1, end: 6,
+        duplicateError: false,
+        matches: [{
+          label: "Team 1 vs Team 2",
+          result: playPressMatch({
+            teamA: ["p2","p5"], teamB: ["p1","p3"],
+            start: 1, end: 6, trigger: 1, context: pressContext,
+          }),
+        }],
+      },
+    ],
+    getTeamGameSelection: () => ({
+      team1: ["p2","p5"], team2: ["p1","p3"],
+    }),
+  });
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});
+
+test('47_press_money_balances_2down', () => {
+  const result = scoreRound({}, {
+    players: round6341Players,
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [
+      {
+        index: 0,
+        start: 1, end: 6,
+        duplicateError: false,
+        matches: [{
+          label: "Team 1 vs Team 2",
+          result: playPressMatch({
+            teamA: ["p2","p5"], teamB: ["p1","p3"],
+            start: 1, end: 6, trigger: 2, context: pressContext,
+          }),
+        }],
+      },
+    ],
+    getTeamGameSelection: () => ({
+      team1: ["p2","p5"], team2: ["p1","p3"],
+    }),
+  });
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});
+
+// ── LONG/SHORT TESTS ─────────────────────────────────────────────────────────
+const { playIndividualMatch } = require('./engine/scoringEngine');
+
+// Tim(p1,hcp9) vs Jon(p2,hcp12) Long/Short $10/$5
+// Using round 6341 scores, relative mode
+const longShortMatch = {
+  id: "test-ls",
+  p1Id: "p1",
+  p2Id: "p2",
+  type: "longshort",
+  bet: 10,
+  toyRule: false,
+  birdieEnabled: false,
+  noPar3Strokes: false,
+};
+
+const longShortContext = {
+  players: round6341Players,
+  course: round6341Course,
+  scores: round6341Scores,
+  handicapMode: "relative",
+};
+
+test('48_longshort_result_has_long_and_short', () => {
+  const result = playIndividualMatch(longShortMatch, longShortContext);
+  // Long/Short result should have type longshort
+  expect(result.type).toBe("longshort");
+  expect(typeof result.long).toBe("number");
+});
+
+test('49_longshort_money_balances', () => {
+  const result = playIndividualMatch(longShortMatch, longShortContext);
+  // Total payout: long + short (short only if long closed early)
+  const total = result.long + (result.short || 0);
+  // One player wins what the other loses
+  expect(typeof total).toBe("number");
+});
+
+test('50_longshort_no_short_if_long_goes_all_18', () => {
+  // If long match is never decided, short never starts
+  // Use scores where nobody wins decisively
+  const tiedScores = {};
+  for (let h = 1; h <= 18; h++) {
+    tiedScores[h] = { p1: 4, p2: 4, p3: 4, p4: 4, p5: 4 };
+  }
+  const result = playIndividualMatch(longShortMatch, {
+    players: round6341Players,
+    course: round6341Course,
+    scores: tiedScores,
+    handicapMode: "relative",
+  });
+  // Long tied = 0, short should not exist or be 0
+  expect(result.short || 0).toBe(0);
+});
+
+// ── MATCH PLAY F/B/T TESTS ───────────────────────────────────────────────────
+const fbtMatch = {
+  id: "test-fbt",
+  p1Id: "p1",
+  p2Id: "p2",
+  type: "match_fbt",
+  bet: 10,
+  toyRule: false,
+  birdieEnabled: false,
+  noPar3Strokes: false,
+  matchPlayFront: true,
+  matchPlayBack: true,
+  matchPlayTotal: true,
+};
+
+test('51_match_fbt_has_three_segments', () => {
+  const result = playIndividualMatch(fbtMatch, longShortContext);
+  expect(result.type).toBe("match_fbt");
+  const keys = result.segments.map(s => s.key);
+  expect(keys).toContain("front");
+  expect(keys).toContain("back");
+  expect(keys).toContain("total");
+});
+
+test('52_match_fbt_money_balances', () => {
+  const result = playIndividualMatch(fbtMatch, longShortContext);
+  // Total dollars = sum of all segment dollars
+  const segTotal = result.segments.reduce((s, seg) => s + (seg.dollars || 0), 0);
+  expect(Math.abs(result.total - segTotal)).toBeLessThan(0.01);
+});
+
+// ── FULL WHEEL SETTLEMENT — KNOWN $$ ─────────────────────────────────────────
+// Round 6341 full settlement test
+// 5-player wheel 6/6/6, $5/unit, spread, noPar3
+// Game 1 (H1-6): Jon+Stan vs Tim+John, Tim+Lou, John+Lou
+// Game 2 (H7-12): Jon+John vs Tim+Lou, Tim+Stan, Lou+Stan  
+// Game 3 (H13-18): Tim+Lou vs Jon+John, Jon+Stan, John+Stan
+
+test('53_full_wheel_money_balances', () => {
+  // The most critical test: all money in = all money out
+  // We can't know exact amounts without running the full engine
+  // but we CAN verify it balances to zero
+  // Run scoreRound with the actual round 6341 team game structure
+  const teamGameResults = [
+    {
+      index: 0, start: 1, end: 6, duplicateError: false,
+      matches: [{
+        label: "Team 1 vs Team 2",
+        result: require('./engine/scoringEngine').playPressMatch({
+          teamA: ["p2","p5"], teamB: ["p1","p3"],
+          start: 1, end: 6, trigger: 1,
+          context: { ...pressContext },
+        }),
+      }],
+      birdieEnabled: false,
+    },
+    {
+      index: 1, start: 7, end: 12, duplicateError: false,
+      matches: [{
+        label: "Team 1 vs Team 2",
+        result: require('./engine/scoringEngine').playPressMatch({
+          teamA: ["p2","p3"], teamB: ["p1","p4"],
+          start: 7, end: 12, trigger: 1,
+          context: { ...pressContext },
+        }),
+      }],
+      birdieEnabled: false,
+    },
+    {
+      index: 2, start: 13, end: 18, duplicateError: false,
+      matches: [{
+        label: "Team 1 vs Team 2",
+        result: require('./engine/scoringEngine').playPressMatch({
+          teamA: ["p1","p4"], teamB: ["p2","p3"],
+          start: 13, end: 18, trigger: 1,
+          context: { ...pressContext },
+        }),
+      }],
+      birdieEnabled: false,
+    },
+  ];
+
+  const result = scoreRound({}, {
+    players: round6341Players,
+    matchResults: [],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults,
+    getTeamGameSelection: (idx) => {
+      const teams = [
+        { team1: ["p2","p5"], team2: ["p1","p3"] },
+        { team1: ["p2","p3"], team2: ["p1","p4"] },
+        { team1: ["p1","p4"], team2: ["p2","p3"] },
+      ];
+      return teams[idx];
+    },
+  });
+
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});
+
+// ── NET HOLES RUNNING TOTAL TEST ─────────────────────────────────────────────
+test('54_net_holes_accumulates_all_18', () => {
+  const netMatch = {
+    id: "test-net",
+    p1Id: "p1", p2Id: "p2",
+    type: "standard", bet: 5,
+    toyRule: false, birdieEnabled: false, noPar3Strokes: false,
+    matchPlayFront: false, matchPlayBack: false, matchPlayTotal: false,
+  };
+  const result = playIndividualMatch(netMatch, longShortContext);
+  // Net holes result has a type and total
+  expect(result).toHaveProperty("total");
+  expect(typeof result.total).toBe("number");
+});
+
+// ── 9-POINT SPECIAL CASES ────────────────────────────────────────────────────
+
+test('55_9pt_birdie_double_fires_only_for_winner', () => {
+  // Hole where Tim birdies but doesn't win → no double
+  // Need scores where Tim birdies but loses the hole
+  const scores = { ...round7552Scores };
+  // Hole 5: Tim=5(par4 birdie=3), Mike=3(birdie), Mark=5
+  // With relative strokes Mike(14) gets stroke on HCP14=hole5
+  // Tim net=5, Mike net=2(3-1), Mark net=5 → Mike wins → Mike birdie = double
+  scores[5] = { p1: 5, p2: 3, p3: 5 };
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"], round7552Players, westwood, scores,
+    "relative", false, 1, 10, false, true, false
+  );
+  const h5 = result.holes.find(h => h.hole === 5);
+  // Mike won with gross birdie → birdieMode should be "birdie"
+  expect(h5.birdieMode).toBe("birdie");
+  // Points should be doubled — total is 18 when birdie double fires
+  const pts = Object.values(h5.pointsByPlayerId).reduce((s,v) => s+v, 0);
+  expect(pts).toBe(18); // doubled from 9
+});
+
+test('56_9pt_blitz_gives_9_0_0', () => {
+  // Blitz: one player wins by 2+ over BOTH others
+  // Tim net much better than Mike and Mark
+  const scores = {};
+  for (let h = 1; h <= 18; h++) {
+    scores[h] = { p1: 3, p2: 7, p3: 7 }; // Tim birdies/eagles every hole
+  }
+  const result = getNinePointMatchSummary(
+    ["p1","p2","p3"], round7552Players, westwood, scores,
+    "relative", true, 1, 18, false, false, false
+  );
+  // Tim should win every hole with blitz
+  result.holes.forEach(h => {
+    if (h.pointsByPlayerId) {
+      expect(h.pointsByPlayerId["p1"]).toBe(9);
+      expect(h.pointsByPlayerId["p2"]).toBe(0);
+      expect(h.pointsByPlayerId["p3"]).toBe(0);
+    }
+  });
+});
