@@ -703,3 +703,57 @@ test('38_9pt_always_9_total_points', () => {
     expect(sum).toBe(9);
   });
 });
+
+// ── TEST ROUND DATA — SYNTHETIC WHEEL ROUND ──────────────────────────────────
+// Used for pre-round checklist verification
+// 5-player 6/6/6 wheel, spread handicap, noPar3=true
+// Known correct dot assignments documented here
+
+const testWheelPlayers = [
+  { id: "p1", hcp: 9,  name: "Tim"  },  // lowest → 0 relative strokes
+  { id: "p2", hcp: 12, name: "Jon"  },  // 3 relative → 1/1/1 spread
+  { id: "p3", hcp: 22, name: "John" },  // 13 relative → 4/5/4 spread
+  { id: "p4", hcp: 18, name: "Lou"  },  // 9 relative → 3/3/3 spread
+  { id: "p5", hcp: 23, name: "Stan" },  // 14 relative → 4/5/5* spread (*limited by eligible)
+];
+
+// KNOWN CORRECT SPREAD DOTS (relative, noPar3=true, Westwood):
+// Tim:  no dots (0 strokes)
+// Jon:  H2, H11, H14  (1 per segment)
+// John: H2,H4,H6,H1 | H11,H7,H12,H9,H10 | H14,H16,H18,H13  (4/5/4)
+// Lou:  H2,H4,H6 | H11,H7,H12 | H14,H16,H18  (3/3/3)
+// Stan: H2,H4,H6,H1 | H11,H7,H12,H9,H10 | H14,H16,H18,H13  (4/5/4 — limited by eligible)
+
+test('39_wheel_tim_zero_strokes', () => {
+  const total = holes18.reduce((s, h) =>
+    s + getSpreadHandicapStrokes("p1", h, testWheelPlayers, westwood, "relative", true), 0);
+  expect(total).toBe(0);
+});
+
+test('40_wheel_jon_3_strokes_spread', () => {
+  const dotHoles = holes18.filter(h =>
+    getSpreadHandicapStrokes("p2", h, testWheelPlayers, westwood, "relative", true) > 0);
+  expect(dotHoles).toEqual([2, 11, 14]); // one per segment, lowest HCP each
+});
+
+test('41_wheel_lou_9_strokes_spread_correct_holes', () => {
+  const dotHoles = holes18.filter(h =>
+    getSpreadHandicapStrokes("p4", h, testWheelPlayers, westwood, "relative", true) > 0);
+  expect(dotHoles).toEqual([2, 4, 6, 7, 11, 12, 14, 16, 18]);
+  expect(dotHoles).toContain(6);  // the hole that failed in production
+  expect(dotHoles).not.toContain(9); // H9 is in standard but NOT spread seg1
+});
+
+test('42_wheel_standard_vs_spread_lou_different', () => {
+  const spreadDots = holes18.filter(h =>
+    getSpreadHandicapStrokes("p4", h, testWheelPlayers, westwood, "relative", true) > 0);
+  const standardDots = holes18.filter(h =>
+    getHandicapStrokes("p4", h, testWheelPlayers, westwood, "relative", true) > 0);
+  // Standard: top 9 globally = H11(1),H2(2),H14(3),H7(4),H12(5),H9(6),H16(7),H4(8),H18(9)
+  expect(standardDots).toContain(9);   // H9 in standard
+  expect(spreadDots).not.toContain(9); // H9 NOT in spread (seg1 only gets 3, H9 is 4th)
+  expect(spreadDots).toContain(6);     // H6 in spread
+  expect(standardDots).not.toContain(6); // H6 NOT in standard (HCP10 = 10th hardest)
+});
+
+const holes18 = Array.from({ length: 18 }, (_, i) => i + 1);

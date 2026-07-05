@@ -23,6 +23,7 @@ import HoleResultCard from "./components/live/HoleResultCard";
 import JoinRound from "./JoinRound";
 import BugReportModal from "./BugReportModal";
 import QAScreen from "./QAScreen";
+import RoundPreview from "./components/RoundPreview";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
@@ -2644,7 +2645,13 @@ if (!enableTeamGame && !skinsEnabled) {
   }
 
   setPendingNextGameIndex(null);
-  setScreen("live");
+
+  // If continuing existing round (scores exist), skip preview and go straight to live
+  if (lastHoleSaved != null && lastHoleSaved > 0) {
+    setScreen("live");
+  } else {
+    setScreen("preview");
+  }
 
   // Generate a round code if we don't have one, then push initial state
   const code = roundCode || generateRoundCode();
@@ -3083,6 +3090,29 @@ return (
     </button>
   </div>
 </div>
+
+    {screen === "preview" && (
+      <div style={{ padding: "0 4px" }}>
+        <RoundPreview
+          players={players}
+          course={course}
+          matches={matches}
+          teamGames={teamGames}
+          teamGameFormat={teamGameFormat}
+          teamGameUnitAmount={teamGameUnitAmount}
+          handicapMode={handicapMode}
+          handicapDistribution={handicapDistribution}
+          enableTeamGame={enableTeamGame}
+          noPar3TeamGame={noPar3TeamGame}
+          birdiesEnabled={birdiesEnabled}
+          birdieBetAmount={birdieBetAmount}
+          skinsEnabled={skinsEnabled}
+          roundCode={roundCode}
+          onBack={() => setScreen("setup")}
+          onConfirm={() => setScreen("live")}
+        />
+      </div>
+    )}
 
     {screen === "setup" && (
       <>
