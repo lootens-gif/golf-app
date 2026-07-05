@@ -1,4 +1,4 @@
-import { getSpreadHandicapStrokes, getHandicapStrokes, getHandicapBase } from "../engine/scoringEngine";
+import { getSpreadHandicapStrokes, getHandicapStrokes } from "../engine/scoringEngine";
 
 const sc = {
   green: "#2d6a4f",
