@@ -49,10 +49,16 @@ export function getHandicapStrokes(
   // Skip strokes on par 3 holes if toggle is on
   if (noPar3Strokes && course?.pars?.[hole - 1] === 3) return 0;
 
-  const handicapValue = Number(
+  let handicapValue = Number(
     getHandicapBase(player, players, handicapMode) || 0
   );
   if (handicapValue <= 0) return 0;
+
+  // When noPar3=true, cap at number of non-par3 holes (Interpretation B)
+  if (noPar3Strokes && course?.pars) {
+    const eligibleHoles = course.pars.filter(p => p !== 3).length;
+    handicapValue = Math.min(handicapValue, eligibleHoles);
+  }
 
   const fullRounds = Math.floor(handicapValue / 18);
   const remainder = handicapValue % 18;

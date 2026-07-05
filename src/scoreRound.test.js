@@ -1085,3 +1085,28 @@ test('56_9pt_blitz_gives_9_0_0', () => {
     }
   });
 });
+
+// ── NOPAR3 CAP IN STANDARD MODE ──────────────────────────────────────────────
+test('57_standard_nopar3_caps_at_eligible_holes', () => {
+  // Stan (23 hcp, Tim 8 lowest) = 15 relative strokes
+  // Westwood has 14 non-par3 holes
+  // With noPar3=true, should get max 14 dots, no double dots
+  let totalDots = 0;
+  let maxDotsOnAnyHole = 0;
+  for (let h = 1; h <= 18; h++) {
+    const dots = getHandicapStrokes("p5", h, round6341Players, round6341Course, "relative", true);
+    totalDots += dots;
+    if (dots > maxDotsOnAnyHole) maxDotsOnAnyHole = dots;
+  }
+  expect(totalDots).toBeLessThanOrEqual(14); // capped at eligible holes
+  expect(maxDotsOnAnyHole).toBe(1); // no double dots when noPar3=true
+});
+
+test('58_standard_nopar3_par3_holes_get_zero', () => {
+  // Par 3 holes at Westwood: H3(HCP16), H8(HCP18), H15(HCP15), H17(HCP17)
+  const par3Holes = [3, 8, 15, 17];
+  par3Holes.forEach(h => {
+    const dots = getHandicapStrokes("p5", h, round6341Players, round6341Course, "relative", true);
+    expect(dots).toBe(0);
+  });
+});

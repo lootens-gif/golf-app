@@ -956,10 +956,8 @@ export default function SetupScreen({
                   inputRef={betAmountRef}
                   onChange={(e) => {
                     setTeamGameUnitAmount(e.target.value);
-                    // Auto-sync birdie bet to match unit bet
-                    if (!teamMatchConfig.teamBirdiesEnabled) {
-                      setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value) || 5 }));
-                    }
+                    // Always sync birdie bet to match unit bet
+                    setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value) || 5 }));
                   }}
                 />
 
