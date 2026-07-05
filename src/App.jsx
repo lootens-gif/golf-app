@@ -3091,7 +3091,10 @@ return (
   </div>
 </div>
 
-    {screen === "preview" && (
+    {screen === "preview" && (() => {
+      // Determine where to go back: if round is in progress go to live, else setup
+      const returnTo = lastHoleSaved != null || Object.keys(scores).length > 0 ? "live" : "setup";
+      return (
       <div style={{ padding: "0 4px" }}>
         <RoundPreview
           players={players}
@@ -3108,11 +3111,13 @@ return (
           birdieBetAmount={birdieBetAmount}
           skinsEnabled={skinsEnabled}
           roundCode={roundCode}
-          onBack={() => setScreen("setup")}
+          inProgress={returnTo === "live"}
+          onBack={() => setScreen(returnTo)}
           onConfirm={() => setScreen("live")}
         />
       </div>
-    )}
+      );
+    })()}
 
     {screen === "setup" && (
       <>
@@ -3380,7 +3385,43 @@ return (
         borderRadius: 8, padding: "6px 14px", marginBottom: 10, fontSize: 12,
       }}>
         <span style={{ color: "#137333", fontWeight: 600 }}>🟢 Code: {roundCode}</span>
-        <span style={{ color: "#888" }}>{isSyncing ? "Syncing…" : syncMessage}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: "#888" }}>{isSyncing ? "Syncing…" : syncMessage}</span>
+          <button
+            onClick={async () => {
+              if (!roundCode) return;
+              setIsSyncing(true);
+              try {
+                await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+                setSyncMessage("✓ Synced " + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+              } catch {
+                setSyncMessage("⚠️ Sync failed — retry");
+              } finally {
+                setIsSyncing(false);
+              }
+            }}
+            disabled={isSyncing}
+            style={{
+              fontSize: 11, padding: "3px 8px", fontWeight: 600,
+              background: isSyncing ? "#ccc" : "#137333", color: "#fff",
+              border: "none", borderRadius: 4, cursor: isSyncing ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {isSyncing ? "…" : "⟳ Sync"}
+          </button>
+          <button
+            onClick={() => setScreen("preview")}
+            style={{
+              fontSize: 11, padding: "3px 8px", fontWeight: 600,
+              background: "#fff", color: "#137333",
+              border: "1px solid #137333", borderRadius: 4, cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Dots
+          </button>
+        </div>
       </div>
     )}
 

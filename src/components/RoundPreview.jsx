@@ -25,7 +25,7 @@ export default function RoundPreview({
   players, course, matches, teamGames, teamGameFormat,
   teamGameUnitAmount, handicapMode, handicapDistribution,
   enableTeamGame, noPar3TeamGame, birdiesEnabled, birdieBetAmount,
-  skinsEnabled, onConfirm, onBack, roundCode,
+  skinsEnabled, onConfirm, onBack, roundCode, inProgress = false,
 }) {
   const strokesFn = getDotsFn(handicapDistribution, enableTeamGame);
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -196,12 +196,12 @@ export default function RoundPreview({
           flex: 1, padding: "14px 0", fontSize: 15, fontWeight: 600,
           background: "#fff", color: sc.muted, border: `1px solid ${sc.border}`,
           borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-        }}>← Edit Setup</button>
+        }}>{inProgress ? "← Back to Scoring" : "← Edit Setup"}</button>
         <button onClick={onConfirm} style={{
           flex: 2, padding: "14px 0", fontSize: 16, fontWeight: 700,
           background: sc.green, color: "#fff", border: "none",
           borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-        }}>⛳ Start Round ›</button>
+        }}>{inProgress ? "⛳ Back to Round ›" : "⛳ Start Round ›"}</button>
       </div>
     </div>
   );

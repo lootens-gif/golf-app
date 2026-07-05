@@ -136,3 +136,41 @@ Key test coverage:
 - 9-point always sums to 9 (test 38)
 - 9-point birdie double fires only for winner (test 55)
 - 9-point blitz gives 9/0/0 (test 56)
+
+---
+
+## ON-COURSE DECISION TREE
+
+### When something looks wrong mid-round:
+
+**Step 1 — Tap "Dots" on Live screen**
+- Preview dots correct → engine is right → trust $$ results
+- "Hey guys — preview dots are correct, any other dot differences are cosmetic. Let's verify the team results like we always do."
+- Preview dots wrong → go to Step 2
+
+**Step 2 — Try to fix in Setup**
+- Check: Spread on/off? noPar3 on/off? Correct HCPs?
+- Fix and re-check Preview
+- Dots now correct → back to round
+- Dots still wrong → Step 3
+
+**Step 3 — Paper is source of truth**
+- Note which player/holes are affected
+- Keep playing, track affected holes on paper
+- After round: use Admin screen to compare
+- Report bug with round code
+
+---
+
+## REAL SANITY CHECKS (what actually catches problems)
+
+**"Money in = money lost ✓"** — always true, useless as a check. Ignore it.
+
+**What actually matters:**
+1. **Preview dots correct** — most important, catches stroke bugs
+2. **"Does this feel right?"** — human check: "there's no way Stan beat Tim on that hole, Tim had a 4 and Stan had a 6"
+3. **Specific player amounts make sense** — "Biro lost $40, does that feel right given how he played?"
+4. **One-hole spot check** — for one hole you can verify: Tim net 4, Jon net 5 → Tim wins → check app shows Tim winning that hole
+
+**The app's job is to get #1 right. #2-4 are your group's gut check.**
+
