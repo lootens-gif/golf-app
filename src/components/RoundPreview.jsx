@@ -16,7 +16,12 @@ function getDotsFn(handicapDistribution, enableTeamGame) {
     : getHandicapStrokes;
 }
 
-export default function RoundPreview({ 
+function fmtHcp(hcp) {
+  const n = Number(hcp);
+  return n < 0 ? `+${Math.abs(n)}` : String(n);
+}
+
+export default function RoundPreview({
   players, course, matches, teamGames, teamGameFormat,
   teamGameUnitAmount, handicapMode, handicapDistribution,
   enableTeamGame, noPar3TeamGame, birdiesEnabled, birdieBetAmount,
@@ -25,8 +30,69 @@ export default function RoundPreview({
   const strokesFn = getDotsFn(handicapDistribution, enableTeamGame);
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const isSpread = enableTeamGame && handicapDistribution === "spread";
-
   const activePlayers = players.filter(p => p.name && !p.name.match(/^P\d+$/));
+
+  // Split into two 9s for better mobile display
+  const front = holes.slice(0, 9);
+  const back = holes.slice(9, 18);
+
+  function renderDotSection(label, sectionHoles) {
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: sc.muted, marginBottom: 6, letterSpacing: 0.5 }}>{label}</div>
+        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 280 }}>
+            <thead>
+              <tr>
+                <td style={{ fontSize: 12, color: sc.muted, padding: "2px 4px", minWidth: 55 }}>Hole</td>
+                {sectionHoles.map(h => (
+                  <td key={h} style={{ textAlign: "center", fontSize: 13, color: sc.muted, padding: "2px 4px", minWidth: 28 }}>{h}</td>
+                ))}
+              </tr>
+              <tr>
+                <td style={{ fontSize: 11, color: sc.muted, padding: "2px 4px" }}>Par</td>
+                {sectionHoles.map(h => (
+                  <td key={h} style={{ textAlign: "center", fontSize: 12, color: sc.muted, padding: "2px 4px" }}>{course?.pars?.[h-1] ?? "-"}</td>
+                ))}
+              </tr>
+              <tr style={{ borderBottom: `2px solid ${sc.border}` }}>
+                <td style={{ fontSize: 11, color: sc.muted, padding: "2px 4px" }}>HCP</td>
+                {sectionHoles.map(h => (
+                  <td key={h} style={{ textAlign: "center", fontSize: 11, color: sc.muted, padding: "2px 4px" }}>{course?.hcp?.[h-1] ?? "-"}</td>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activePlayers.map(p => (
+                <tr key={p.id} style={{ borderBottom: `1px solid ${sc.border}` }}>
+                  <td style={{ padding: "6px 4px", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>
+                    {p.name} <span style={{ fontWeight: 400, color: sc.muted }}>({fmtHcp(p.hcp)})</span>
+                  </td>
+                  {sectionHoles.map(h => {
+                    const strokes = strokesFn(p.id, h, activePlayers, course, handicapMode, noPar3TeamGame);
+                    const isPar3 = course?.pars?.[h-1] === 3;
+                    const suppressed = isPar3 && noPar3TeamGame;
+                    return (
+                      <td key={h} style={{
+                        textAlign: "center", padding: "6px 4px",
+                        background: strokes > 0 ? sc.greenLight : suppressed ? "#fef9c3" : "transparent",
+                      }}>
+                        {strokes > 0 ? (
+                          <span style={{ color: sc.green, fontWeight: 900, fontSize: 18, lineHeight: 1 }}>{"•".repeat(strokes)}</span>
+                        ) : (
+                          <span style={{ color: "#e5e7eb", fontSize: 12 }}>·</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'Georgia', serif", padding: "0 0 40px" }}>
@@ -41,100 +107,54 @@ export default function RoundPreview({
 
       {/* Players & Handicaps */}
       <Section title="Players & Handicaps">
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${sc.border}` }}>
               <th style={{ textAlign: "left", padding: "4px 0", color: sc.muted, fontWeight: 400 }}>Player</th>
               <th style={{ textAlign: "center", padding: "4px 0", color: sc.muted, fontWeight: 400 }}>HCP</th>
-              <th style={{ textAlign: "center", padding: "4px 0", color: sc.muted, fontWeight: 400 }}>Relative</th>
               <th style={{ textAlign: "center", padding: "4px 0", color: sc.muted, fontWeight: 400 }}>Strokes</th>
             </tr>
           </thead>
           <tbody>
             {activePlayers.map(p => {
-              const rel = getHandicapBase(p, activePlayers, handicapMode);
-              const totalStrokes = holes.reduce((sum, h) => sum + strokesFn(p.id, h, activePlayers, course, handicapMode, noPar3TeamGame), 0);
+              const totalStrokes = holes.reduce((sum, h) =>
+                sum + strokesFn(p.id, h, activePlayers, course, handicapMode, noPar3TeamGame), 0);
               return (
                 <tr key={p.id} style={{ borderBottom: `1px solid ${sc.border}` }}>
-                  <td style={{ padding: "6px 0", fontWeight: 600 }}>{p.name}</td>
-                  <td style={{ textAlign: "center", color: sc.muted }}>
-                    {Number(p.hcp) < 0 ? `+${Math.abs(Number(p.hcp))}` : p.hcp}
+                  <td style={{ padding: "8px 0", fontWeight: 600 }}>{p.name}</td>
+                  <td style={{ textAlign: "center", color: sc.muted }}>{fmtHcp(p.hcp)}</td>
+                  <td style={{ textAlign: "center", fontWeight: 700, fontSize: 16,
+                    color: totalStrokes > 0 ? sc.green : sc.muted }}>
+                    {totalStrokes}
                   </td>
-                  <td style={{ textAlign: "center", color: sc.muted }}>{rel}</td>
-                  <td style={{ textAlign: "center", fontWeight: 700, color: totalStrokes > 0 ? sc.green : sc.muted }}>{totalStrokes}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {noPar3TeamGame && <div style={{ fontSize: 12, color: sc.muted, marginTop: 6 }}>* No strokes on par 3s</div>}
+        {noPar3TeamGame && <div style={{ fontSize: 12, color: sc.muted, marginTop: 6 }}>* No strokes on par 3s (yellow)</div>}
+        {isSpread && <div style={{ fontSize: 12, color: sc.green, marginTop: 4, fontWeight: 600 }}>⚡ Spread: strokes divided evenly across each 6-hole segment</div>}
       </Section>
 
-      {/* Dot Grid */}
-      <Section title={`Handicap Strokes by Hole${isSpread ? " · Spread" : " · Standard"}`}>
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-          <table style={{ borderCollapse: "collapse", minWidth: 500, fontSize: 12 }}>
-            <thead>
-              <tr>
-                <td style={{ padding: "3px 6px", color: sc.muted, fontSize: 11, minWidth: 60 }}>Hole</td>
-                {holes.map(h => (
-                  <td key={h} style={{ padding: "3px 4px", textAlign: "center", color: sc.muted, minWidth: 22 }}>{h}</td>
-                ))}
-              </tr>
-              <tr>
-                <td style={{ padding: "3px 6px", color: sc.muted, fontSize: 11 }}>Par</td>
-                {holes.map(h => (
-                  <td key={h} style={{ padding: "3px 4px", textAlign: "center", color: sc.muted }}>{course?.pars?.[h-1] ?? "-"}</td>
-                ))}
-              </tr>
-              <tr style={{ borderBottom: `1px solid ${sc.border}` }}>
-                <td style={{ padding: "3px 6px", color: sc.muted, fontSize: 11 }}>HCP</td>
-                {holes.map(h => (
-                  <td key={h} style={{ padding: "3px 4px", textAlign: "center", color: sc.muted, fontSize: 10 }}>{course?.hcp?.[h-1] ?? "-"}</td>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activePlayers.map(p => (
-                <tr key={p.id} style={{ borderBottom: `1px solid ${sc.border}` }}>
-                  <td style={{ padding: "5px 6px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    {p.name} ({Number(p.hcp) < 0 ? `+${Math.abs(Number(p.hcp))}` : p.hcp})
-                  </td>
-                  {holes.map(h => {
-                    const strokes = strokesFn(p.id, h, activePlayers, course, handicapMode, noPar3TeamGame);
-                    const isPar3 = course?.pars?.[h-1] === 3;
-                    return (
-                      <td key={h} style={{ 
-                        padding: "5px 4px", textAlign: "center",
-                        background: strokes > 0 ? sc.greenLight : isPar3 && noPar3TeamGame ? "#fef9c3" : "transparent"
-                      }}>
-                        {strokes > 0 ? (
-                          <span style={{ color: sc.green, fontWeight: 700, fontSize: 14 }}>{"•".repeat(strokes)}</span>
-                        ) : (
-                          <span style={{ color: "#ddd" }}>·</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {isSpread && (
-          <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
-            Strokes divided evenly across 6-hole segments (1-6, 7-12, 13-18)
-          </div>
-        )}
+      {/* Dot Grid — split Front/Back */}
+      <Section title={`Handicap Strokes${isSpread ? " · Spread" : " · Standard"}`}>
+        {renderDotSection("Front 9", front)}
+        {renderDotSection("Back 9", back)}
       </Section>
 
       {/* Games Summary */}
       <Section title="Games">
         {enableTeamGame && (
-          <GameRow label={`Team Game · ${teamGameFormat === "press" ? "6/6/6 Press" : teamGameFormat === "longshort" ? "Long/Short" : teamGameFormat === "match_fbt" ? "Match Play" : teamGameFormat === "stroke" ? "Stroke" : teamGameFormat}`}>
+          <GameRow label={`Team Game · ${
+            teamGameFormat === "press" ? "6/6/6 Press" :
+            teamGameFormat === "longshort" ? "Long/Short" :
+            teamGameFormat === "match_fbt" ? "Match Play" :
+            teamGameFormat === "stroke" ? "Stroke" :
+            teamGameFormat === "standard" ? "Net Holes" : teamGameFormat
+          }`}>
             <span style={{ color: sc.green, fontWeight: 700 }}>${teamGameUnitAmount}/unit</span>
             {isSpread && <Badge>Spread</Badge>}
-            {noPar3TeamGame && <Badge>No Par 3 Strokes</Badge>}
+            {noPar3TeamGame && <Badge>No Par 3</Badge>}
           </GameRow>
         )}
         {matches.map((m, i) => {
@@ -142,21 +162,20 @@ export default function RoundPreview({
           const p2 = players.find(p => p.id === m.p2Id);
           const p3 = players.find(p => p.id === m.p3Id);
           const names = [p1, p2, p3].filter(Boolean).map(p => p.name).join(" · ");
-          const type = m.gameType === "ninePoint" ? "9-Point" : m.type === "longshort" ? "Long/Short" : m.type === "standard" ? "Net Holes" : m.type === "match_fbt" ? "Match Play" : m.type;
+          const type = m.gameType === "ninePoint" ? "9-Point" :
+            m.type === "longshort" ? "Long/Short" :
+            m.type === "standard" ? "Net Holes" :
+            m.type === "match_fbt" ? "Match Play" : m.type;
           return (
             <GameRow key={m.id} label={`${names} · ${type}`}>
               <span style={{ color: sc.green, fontWeight: 700 }}>${m.bet}</span>
-              {m.birdieEnabled && <Badge>Birdies ${m.birdieBet}</Badge>}
+              {m.birdieEnabled && <Badge>🐦 ${m.birdieBet}</Badge>}
               {m.noPar3Strokes && <Badge>No Par 3</Badge>}
-              {m.toyRule && <Badge>Toy Rule</Badge>}
+              {m.toyRule && <Badge>Toy</Badge>}
             </GameRow>
           );
         })}
-        {skinsEnabled && (
-          <GameRow label="Skins">
-            <Badge>On</Badge>
-          </GameRow>
-        )}
+        {skinsEnabled && <GameRow label="Skins"><Badge>On</Badge></GameRow>}
         {!enableTeamGame && matches.length === 0 && !skinsEnabled && (
           <div style={{ color: sc.muted, fontSize: 13 }}>No games configured</div>
         )}
@@ -164,23 +183,22 @@ export default function RoundPreview({
 
       {/* Round Code */}
       {roundCode && (
-        <Section title="Round Code">
-          <div style={{ fontSize: 32, fontWeight: 700, color: sc.green, letterSpacing: 4, textAlign: "center", padding: "8px 0" }}>
+        <Section title="Round Code — Share to Join">
+          <div style={{ fontSize: 40, fontWeight: 700, color: sc.green, letterSpacing: 6, textAlign: "center", padding: "10px 0" }}>
             {roundCode}
           </div>
-          <div style={{ fontSize: 12, color: sc.muted, textAlign: "center" }}>Share this code so others can join and view scores</div>
         </Section>
       )}
 
-      {/* Action buttons */}
+      {/* Buttons */}
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
         <button onClick={onBack} style={{
-          flex: 1, padding: "12px 0", fontSize: 15, fontWeight: 600,
+          flex: 1, padding: "14px 0", fontSize: 15, fontWeight: 600,
           background: "#fff", color: sc.muted, border: `1px solid ${sc.border}`,
           borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
         }}>← Edit Setup</button>
         <button onClick={onConfirm} style={{
-          flex: 2, padding: "12px 0", fontSize: 15, fontWeight: 700,
+          flex: 2, padding: "14px 0", fontSize: 16, fontWeight: 700,
           background: sc.green, color: "#fff", border: "none",
           borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
         }}>⛳ Start Round ›</button>
@@ -202,7 +220,7 @@ function Section({ title, children }) {
 
 function GameRow({ label, children }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${sc.border}`, fontSize: 13 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${sc.border}`, fontSize: 13 }}>
       <span style={{ color: sc.ink }}>{label}</span>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>{children}</div>
     </div>
@@ -211,7 +229,7 @@ function GameRow({ label, children }) {
 
 function Badge({ children }) {
   return (
-    <span style={{ fontSize: 11, padding: "2px 6px", background: "#f0fdf4", color: sc.green, border: `1px solid ${sc.green}`, borderRadius: 4 }}>
+    <span style={{ fontSize: 11, padding: "2px 6px", background: sc.greenLight, color: sc.green, border: `1px solid ${sc.green}`, borderRadius: 4 }}>
       {children}
     </span>
   );
