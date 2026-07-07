@@ -594,6 +594,17 @@ export default function MatchList({
               No Par 3 Strokes
             </label>
 
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="checkbox"
+                checked={!!match.playEven}
+                onChange={(e) =>
+                  onUpdateMatch(match.id, { playEven: e.target.checked })
+                }
+              />
+              Play Even (no strokes)
+            </label>
+
            <button
   type="button"
   onClick={() => onRemoveMatch(match.id)}

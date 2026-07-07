@@ -632,6 +632,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
           <span>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
             {formatDetail && <span style={{ marginLeft: 10, fontSize: 13 }}>{formatDetail}</span>}
+            {match.playEven && <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", background: "#f0fdf4", color: "#2d6a4f", border: "1px solid #2d6a4f", borderRadius: 4 }}>Play Even</span>}
             {matchBirdieNet !== 0 && (
               <span style={{ color: birdieColor, marginLeft: 10, fontSize: 13 }}>
                 Birdies {fmtMoney(matchBirdieNet)}
@@ -968,6 +969,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const longClosedOn = result?.longDecidedOn || null;
   const isStroke = match.type === "stroke";
   const isGrossStroke = isStroke && (match.strokeScoring === "gross");
+  const isPlayEven = !!match.playEven;
 
   // For stroke play, use pre-computed running diffs from result
   // result.holes[i] = cumulative running diff at hole i+1 (positive = P1 ahead)
@@ -1147,7 +1149,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const afterDecided = decidedInSection && hole > decidedHole;
                 if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 const gross = getRawScore(scores, hole, player.id);
-                const strokes = isGrossStroke ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
+                const strokes = (isGrossStroke || isPlayEven) ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
                 const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
                 return (

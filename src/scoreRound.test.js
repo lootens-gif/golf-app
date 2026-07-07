@@ -1333,3 +1333,59 @@ test('75_birdie_results_dont_create_money_from_nowhere', () => {
   const total = birdieResults.reduce((s, b) => s + b.amount, 0);
   expect(total).toBe(0);
 });
+
+// ── PLAY EVEN TESTS ───────────────────────────────────────────────────────────
+test('76_play_even_no_strokes_applied', () => {
+  // Tim(0) vs Jon(12) play even — Jon gets 0 strokes, raw scores decide
+  const result = playIndividualMatch(
+    { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+      toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+      matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false,
+      playEven: true },
+    { players: round6341Players, course: round6341Course,
+      scores: round6341Scores, handicapMode: "relative" }
+  );
+  expect(result).toHaveProperty("total");
+  expect(typeof result.total).toBe("number");
+});
+
+test('77_play_even_vs_standard_different_result', () => {
+  // Same scores but play even vs standard should give different results
+  // because Jon gets strokes in standard but not in play even
+  const matchBase = { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+    toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+    matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false };
+  const ctx = { players: round6341Players, course: round6341Course,
+    scores: round6341Scores, handicapMode: "relative" };
+
+  const standardResult = playIndividualMatch({ ...matchBase, playEven: false }, ctx);
+  const evenResult = playIndividualMatch({ ...matchBase, playEven: true }, ctx);
+
+  // Results should differ since Jon has 3 relative strokes in standard
+  expect(standardResult.total).not.toBe(evenResult.total);
+});
+
+test('78_play_even_money_balances', () => {
+  const result = scoreRound({}, {
+    players: round6341Players.slice(0,2),
+    matchResults: [{
+      match: { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+        toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+        matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false,
+        playEven: true },
+      result: playIndividualMatch(
+        { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+          toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+          matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false,
+          playEven: true },
+        { players: round6341Players, course: round6341Course,
+          scores: round6341Scores, handicapMode: "relative" }
+      )
+    }],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [],
+    getTeamGameSelection: () => ({}),
+  });
+  expect(sumTotals(result.playerLedger)).toBe(0);
+});

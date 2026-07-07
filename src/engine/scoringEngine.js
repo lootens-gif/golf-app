@@ -685,6 +685,9 @@ export function playIndividualMatch(match, context) {
     handicapMode,
   } = context;
 
+  // Play Even — override handicap function to return 0 strokes for all holes
+  const playEvenFn = match.playEven ? () => 0 : null;
+
 // -----------------------------
 // 9 POINT MODE (3-player)
 // -----------------------------
@@ -727,6 +730,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
       course,
       scores,
       handicapMode,
+      getHandicapStrokesFn: playEvenFn,
     });
 
     holes.push(result);
