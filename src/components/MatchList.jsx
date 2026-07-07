@@ -321,7 +321,7 @@ export default function MatchList({
       return (
         <div style={{ marginTop: 8 }}>
           <div>
-            Stroke Mode: {result.strokeScoring} / {result.strokePayoutMode}
+            Stroke Mode: {result.strokePayoutMode}
           </div>
           {result.segments.map((seg) => (
             <div key={seg.key}>
@@ -695,20 +695,6 @@ export default function MatchList({
                 flexWrap: "wrap",
               }}
             >
-              <label>
-                Gross / Net:
-                <select
-                  value={match.strokeScoring || "net"}
-                  onChange={(e) =>
-                    onUpdateMatch(match.id, { strokeScoring: e.target.value })
-                  }
-                  style={{ marginLeft: 6 }}
-                >
-                  <option value="gross">Gross</option>
-                  <option value="net">Net</option>
-                </select>
-              </label>
-
               <label>
                 Payout:
                 <select
