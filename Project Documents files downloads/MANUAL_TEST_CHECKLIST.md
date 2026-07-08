@@ -174,3 +174,79 @@ Key test coverage:
 
 **The app's job is to get #1 right. #2-4 are your group's gut check.**
 
+
+---
+
+## AUTOMATED TEST COVERAGE (178 tests)
+
+Run: `npm test -- --watchAll=false` — must show **178 passing, 0 failing**
+
+### What Tests Cover
+
+**Spread Dots (11 tests: 28-34, 39-42)**
+- All 5 players in round 6341 get correct holes
+- Lou H6 specifically (the July 4 production bug)
+- Standard vs spread give different holes confirmed
+- Spread by segment counts correct (3/3/3, 4/5/4 uneven split)
+
+**noPar3 Cap (2 tests: 57-58)**
+- Standard mode caps at 14 eligible holes when noPar3=true
+- Par 3 holes always return 0
+
+**High HCP / Edge Cases (7 tests: 59-65)**
+- 19 relative strokes → double dot on HCP1 when noPar3=OFF
+- 19 strokes + noPar3=ON → capped at 14, no double dots ever
+- 36 relative strokes both ways
+- Full HCP vs relative give different totals
+- Spread in full HCP mode distributes evenly
+
+**Relative Mode (3 tests: 67-69)**
+- Lowest player always gets 0 strokes
+- All same HCP → everyone gets 0
+- Plus handicap (stored as negative number) works correctly
+
+**Stroke Distribution (3 tests: 70-72)**
+- Strokes go to hardest holes first (HCP rank order)
+- Spread per-segment counts exact
+- Uneven spread extra dot goes to correct segment
+
+**Press Trigger (5 tests: 43-47)**
+- 1-down fires earlier than 2-down
+- Both trigger modes balance to zero $$
+
+**Format Settlement (12 tests: 48-56, 73-75)**
+- Long/Short: structure correct, no Short when Long tied all 18
+- Match Play F/B/T: 3 segments, $$ balances
+- Full wheel settlement (round 6341 data) balances
+- Net Holes $$ balances
+- 9-point always sums to 9 points per hole
+- 9-point birdie double fires only for winner, gives 18 points
+- 9-point blitz gives 9/0/0
+- Birdie results don't create money from nowhere
+
+**Play Even (3 tests: 76-78)**
+- No strokes applied when Play Even checked
+- Different result from standard (strokes) match
+- Money balances to zero
+
+**Non-Press Team Game (4 tests: 24-27)**
+- All non-press formats (Long/Short, Match Play, Stroke) don't crash
+- Result object (not array) handled correctly everywhere
+
+**9-Point Real Data Round 7552 (4 tests: 35-38)**
+- Money balances with real scores
+- Points sum to 9 every hole
+- Hole 1 correct winner verified
+
+**Original Foundation (23 tests: 1-23)**
+- Basic scoring, handicap calculation, settlement
+
+### What Tests Do NOT Cover
+- Rendering / component prop wiring (the July 4 dot bug source)
+- Supabase sync behavior and score loss
+- UI interactions and screen navigation
+- Cross-screen $$ matching (leaderboard vs settle up)
+- iOS Safari specific behavior
+
+**These gaps are covered by the Manual Checklist above.**
+

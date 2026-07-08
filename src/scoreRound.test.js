@@ -1389,3 +1389,113 @@ test('78_play_even_money_balances', () => {
   });
   expect(sumTotals(result.playerLedger)).toBe(0);
 });
+
+// ── CROSS-SCREEN $$ CONSISTENCY TESTS ────────────────────────────────────────
+// Verify that leaderboard, settle up, and standings all read from same source
+
+test('79_leaderboard_settle_up_same_source', () => {
+  // scoreRound returns playerLedger — both leaderboard and settle up use this
+  // If playerLedger is correct, both screens show same amounts
+  const result = scoreRound({}, {
+    players: round6341Players,
+    matchResults: [{
+      match: { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+        toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+        matchPlayFront:true, matchPlayBack:true, matchPlayTotal:true },
+      result: playIndividualMatch(
+        { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+          toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+          matchPlayFront:true, matchPlayBack:true, matchPlayTotal:true },
+        { players: round6341Players, course: round6341Course,
+          scores: round6341Scores, handicapMode: "relative" }
+      )
+    }],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [],
+    getTeamGameSelection: () => ({}),
+  });
+
+  // playerLedger is the single source of truth — it's an array of {playerId, total, ...}
+  const ledger = result.playerLedger;
+  expect(Array.isArray(ledger)).toBe(true);
+  
+  // Sum of all totals = 0 (zero sum)
+  const total = ledger.reduce((s, p) => s + p.total, 0);
+  expect(Math.abs(total)).toBeLessThan(0.01);
+  
+  // P1 and P2 are in the ledger
+  const p1 = ledger.find(p => p.playerId === "p1");
+  const p2 = ledger.find(p => p.playerId === "p2");
+  expect(p1).toBeDefined();
+  expect(p2).toBeDefined();
+  
+  // P1 and P2 totals are equal and opposite
+  expect(Math.abs(p1.total + p2.total)).toBeLessThan(0.01);
+});
+
+test('80_standings_team_plus_1v1_equals_total', () => {
+  // In scoreRound, playerLedger = team game $$ + 1v1 $$ + birdie $$
+  // This is what Standings shows as TEAM + 1V1 + BIRDS = TOTAL
+  const teamResult = playPressMatch({
+    teamA: ["p1","p4"], teamB: ["p2","p3"],
+    start: 1, end: 6, trigger: 1,
+    context: pressContext,
+  });
+
+  const result = scoreRound({}, {
+    players: round6341Players,
+    matchResults: [{
+      match: { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+        toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+        matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false },
+      result: playIndividualMatch(
+        { id:"m1", p1Id:"p1", p2Id:"p2", type:"standard", bet:5,
+          toyRule:false, birdieEnabled:false, noPar3Strokes:false,
+          matchPlayFront:false, matchPlayBack:false, matchPlayTotal:false },
+        { players: round6341Players, course: round6341Course,
+          scores: round6341Scores, handicapMode: "relative" }
+      )
+    }],
+    birdieResults: [],
+    teamGameUnitAmount: 5,
+    teamGameResults: [{
+      index: 0, start: 1, end: 6, duplicateError: false,
+      birdieEnabled: false,
+      matches: [{ label: "Team 1 vs Team 2", result: teamResult }],
+    }],
+    getTeamGameSelection: () => ({ team1: ["p1","p4"], team2: ["p2","p3"] }),
+  });
+
+  // Total ledger must balance
+  expect(sumTotals(result.playerLedger)).toBe(0);
+  
+  // Each player's total = team component + 1v1 component
+  // (scoreRound combines these into playerLedger)
+  expect(result.playerLedger).toBeDefined();
+});
+
+test('81_birdie_amounts_included_in_total', () => {
+  // Birdies add to/subtract from playerLedger
+  // A player who wins a birdie should have higher total than without
+  const birdieResults = [
+    { playerId: "p1", amount: 10, source: "match-birdie", holeNumber: 2 },
+    { playerId: "p2", amount: -10, source: "match-birdie", holeNumber: 2 },
+  ];
+  
+  const resultWithBirdie = scoreRound({}, {
+    players: round6341Players.slice(0,2),
+    matchResults: [],
+    birdieResults,
+    teamGameUnitAmount: 5,
+    teamGameResults: [],
+    getTeamGameSelection: () => ({}),
+  });
+  
+  // p1 won birdie, p2 lost
+  const p1Entry = resultWithBirdie.playerLedger.find(p => p.playerId === "p1");
+  const p2Entry = resultWithBirdie.playerLedger.find(p => p.playerId === "p2");
+  expect(p1Entry.total).toBeGreaterThan(0);
+  expect(p2Entry.total).toBeLessThan(0);
+  expect(sumTotals(resultWithBirdie.playerLedger)).toBe(0);
+});

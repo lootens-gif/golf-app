@@ -1834,3 +1834,37 @@ const { skinsType } = skinsConfig;
   const totalPot = Object.values(ledger).filter(v => v > 0).reduce((s, v) => s + v, 0);
   return { holeResults, ledger, totalPot, skinsWon };
 }
+
+// ── SHARED BEST BALL DISPLAY FUNCTIONS ───────────────────────────────────────
+// Single source of truth — imported by App.jsx and AuditTrail.jsx
+// Parameter order: (..., getHandicapStrokesFn, noPar3Strokes)
+
+export function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn = null, noPar3Strokes = false) {
+  const gross = getRawScore(scores, hole, playerId);
+  if (gross === null || gross === undefined) return "-";
+  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+  const par = course?.pars?.[hole - 1];
+  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
+  return `${gross}${"•".repeat(strokes)}`;
+}
+
+export function getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn = null, noPar3Strokes = false) {
+  const entries = (teamIds || [])
+    .filter(Boolean)
+    .map((playerId) => ({
+      playerId,
+      name: getPlayerById(players, playerId)?.name || playerId,
+      gross: getRawScore(scores, hole, playerId),
+      net: getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
+    }))
+    .filter((e) => e.net !== null);
+
+  if (!entries.length) return null;
+  return entries.reduce((best, e) => (!best || e.net < best.net ? e : best), null);
+}
+
+export function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn = null, noPar3Strokes = false) {
+  const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes);
+  if (!best) return "-";
+  return `${best.name} ${formatScoreWithStrokeDots(best.playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`;
+}

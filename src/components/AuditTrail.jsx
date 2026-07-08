@@ -6,6 +6,9 @@ import {
   getRawScore,
   isGrossBirdie,
   isNetBirdie,
+  formatScoreWithStrokeDots,
+  getBestBallWinner,
+  getBestBallDisplay,
 } from "../engine/scoringEngine";
 
 // Safely get net units from a team game matchup result (handles both press array and non-press object)
@@ -77,39 +80,6 @@ function getTeamName(players, ids = []) {
   return names.length ? names.join(" / ") : "-";
 }
 
-function formatScoreWithStrokeDots(playerId, hole, players, course, scores, handicapMode, noPar3Strokes = false, getHandicapStrokesFn) {
-  const gross = getRawScore(scores, hole, playerId);
-
-  if (gross === null || gross === undefined) {
-    return "-";
-  }
-
-  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
-  // noPar3Strokes passed to spread fn so it builds correct quota distribution
-  const par = course?.pars?.[hole - 1];
-  const strokes = (noPar3Strokes && par === 3) ? 0 : strokesFn(playerId, hole, players, course, handicapMode, noPar3Strokes);
-  return `${gross}${"•".repeat(strokes)}`;
-}
-
-function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, noPar3Strokes = false, getHandicapStrokesFn) {
-  const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes);
-
-  if (!best) {
-    return "-";
-  }
-
-  return `${best.name} ${formatScoreWithStrokeDots(
-    best.playerId,
-    hole,
-    players,
-    course,
-    scores,
-    handicapMode,
-    noPar3Strokes,
-    getHandicapStrokesFn
-
-  )}`;
-}
 
 function getTeamAbbrev(teamName = "") {
   return String(teamName)
@@ -220,8 +190,8 @@ function TeamGameScorecard({
 
     return {
       hole,
-      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
-      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
+      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
+      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue),
       pressDetail: formatPressDetail(statuses),
@@ -427,26 +397,6 @@ function TeamGameScorecard({
     </div>
   );
 }
-
-function getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes = false) {
-  const entries = (teamIds || [])
-    .filter(Boolean)
-    .map((playerId) => ({
-      playerId,
-      name: getPlayerName(players, playerId),
-      gross: getRawScore(scores, hole, playerId),
-      net: getNetScore(playerId, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn),
-    }))
-    .filter((entry) => entry.net !== null);
-
-  if (!entries.length) return null;
-
-  return entries.reduce((best, entry) => {
-    if (!best) return entry;
-    return entry.net < best.net ? entry : best;
-  }, null);
-}
-
 function parseTeamKeys(label = "") {
   const parts = String(label).split(" ");
   return {
