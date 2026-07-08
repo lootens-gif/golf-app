@@ -4,7 +4,6 @@ import {
   getActivePlayers,
   getHandicapStrokes,
   getSpreadHandicapStrokes,
-  getRawScore,
   computeHoleResult,
   playIndividualMatch,
   playTeamMatch,
