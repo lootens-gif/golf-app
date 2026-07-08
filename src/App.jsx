@@ -5,7 +5,6 @@ import {
   getHandicapStrokes,
   getSpreadHandicapStrokes,
   getRawScore,
-  getTeamNetScore,
   computeHoleResult,
   playIndividualMatch,
   playTeamMatch,
@@ -14,8 +13,6 @@ import {
   scoreRound,
   buildBirdieResults,
   settleSkinsRound,
-  formatScoreWithStrokeDots,
-  getBestBallWinner,
   getBestBallDisplay,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
@@ -118,9 +115,6 @@ function getTeamGameRange(teamGames, index) {
   return { start, end };
 }
 
-function getPlayerDisplayName(players, playerId) {
-  return players.find((player) => player.id === playerId)?.name || playerId;
-}
 
 
 

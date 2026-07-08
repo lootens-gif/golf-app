@@ -2,12 +2,9 @@ import React, { useState } from "react";
 import {
   computeHoleResult,
   getHandicapStrokes,
-  getNetScore,
   getRawScore,
   isGrossBirdie,
   isNetBirdie,
-  formatScoreWithStrokeDots,
-  getBestBallWinner,
   getBestBallDisplay,
 } from "../engine/scoringEngine";
 
