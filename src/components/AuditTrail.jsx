@@ -223,7 +223,7 @@ function TeamGameScorecard({
         border: "1px solid #e5e7eb",
         borderRadius: 10,
         marginBottom: 10,
-        overflowX: "auto",
+        overflowX: "scroll",
       }}
     >
       <div style={{ padding: "10px 12px", fontSize: 13, background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
@@ -233,7 +233,7 @@ function TeamGameScorecard({
         </div>
       </div>
 
-      <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="scorecard-scroll" style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
       <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
         <tbody>
           <tr>
@@ -702,7 +702,7 @@ function NinePointScorecard({
     return (
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
-        <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div className="scorecard-scroll" style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
             <tbody>
               {/* Hole header */}
@@ -1060,7 +1060,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div className="scorecard-scroll" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
+      <div className="scorecard-scroll" style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
       <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
         <tbody>
           <tr>
@@ -1301,21 +1301,34 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const frontSeg = segs.find(s => s.key === "front");
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
+
+          // Only show segment if holes in that segment have been scored
+          const frontHasScores = front.some(h => getRawScore(scores, h, playerA.id) != null && getRawScore(scores, h, playerB.id) != null);
+          const backHasScores = back.some(h => getRawScore(scores, h, playerA.id) != null && getRawScore(scores, h, playerB.id) != null);
+
           const items = [];
-          if (frontSeg) {
-            const fmt = fmtConclusion(frontSeg.units, frontSeg.decidedOn ?? 9, 9);
+          if (frontSeg && frontHasScores) {
+            const fmt = frontSeg.decidedOn != null
+              ? fmtConclusion(frontSeg.units, frontSeg.decidedOn, 9)
+              : fmtResult(frontSeg.units, "match");
             items.push({ key: "f", label: "Front", value: fmt.label, color: fmt.color });
           }
-          if (backSeg) {
-            const fmt = fmtConclusion(backSeg.units, backSeg.decidedOn ?? 18, 18);
+          if (backSeg && backHasScores) {
+            const fmt = backSeg.decidedOn != null
+              ? fmtConclusion(backSeg.units, backSeg.decidedOn, 18)
+              : fmtResult(backSeg.units, "match");
             items.push({ key: "b", label: "Back", value: fmt.label, color: fmt.color });
           }
-          if (totalSeg && (frontSeg || backSeg)) {
-            const fmt = fmtConclusion(totalSeg.units, totalSeg.decidedOn ?? 18, 18);
+          if (totalSeg && (frontSeg || backSeg) && frontHasScores) {
+            const fmt = totalSeg.decidedOn != null
+              ? fmtConclusion(totalSeg.units, totalSeg.decidedOn, 18)
+              : fmtResult(totalSeg.units, "match");
             items.push({ key: "t", label: "Total", value: fmt.label, color: fmt.color });
           }
           if (totalSeg && !frontSeg && !backSeg) {
-            const fmt = fmtConclusion(totalSeg.units, totalSeg.decidedOn ?? 18, 18);
+            const fmt = totalSeg.decidedOn != null
+              ? fmtConclusion(totalSeg.units, totalSeg.decidedOn, 18)
+              : fmtResult(totalSeg.units, "match");
             items.push({ key: "t", label: "Full Match", value: fmt.label, color: fmt.color });
           }
           if (!items.length) return null;
@@ -1937,7 +1950,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
     const frontPar9 = front.reduce((sum, h) => sum + (pars[h - 1] || 0), 0);
 
     return (
-      <div className="scorecard-scroll" style={{ marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="scorecard-scroll" style={{ marginBottom: 16, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
         <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 13 }}>{label}</div>
         <table style={{ borderCollapse: "collapse", minWidth: 520 }}>
           <tbody>

@@ -40,7 +40,7 @@ export default function RoundPreview({
     return (
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: sc.muted, marginBottom: 6, letterSpacing: 0.5 }}>{label}</div>
-        <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 280 }}>
             <thead>
               <tr>
