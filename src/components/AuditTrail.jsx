@@ -27,9 +27,9 @@ function getMatchUnits(result) {
 
 const scorecardCellStyle = {
   border: "1px solid #e5e7eb",
-  padding: "5px 3px",
+  padding: "5px 2px",
   textAlign: "center",
-  minWidth: 36,
+  minWidth: 28,
   fontSize: 11,
   whiteSpace: "nowrap",
   color: "#1a1a1a",
@@ -39,7 +39,7 @@ const scorecardLabelCellStyle = {
   ...scorecardCellStyle,
   background: "#fff",
   textAlign: "left",
-  minWidth: 80,
+  minWidth: 60,
   fontWeight: 700,
   borderRight: "2px solid #e5e7eb",
 };
@@ -1061,7 +1061,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div className="scorecard-scroll" style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin", scrollbarColor: "#d1d5db transparent" }}>
-      <table style={{ borderCollapse: "collapse", minWidth: 600 }}>
+      <table style={{ borderCollapse: "collapse", minWidth: 320 }}>
         <tbody>
           <tr>
             <td style={scorecardLabelCellStyle}>Hole</td>
@@ -1093,8 +1093,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             <tr key={player.id}>
               <td style={scorecardLabelCellStyle}>{player.name}</td>
               {sectionHoles.map((hole) => {
-                const afterDecided = decidedInSection && hole > decidedHole;
-                if (afterDecided) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = (isGrossStroke || isPlayEven) ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
