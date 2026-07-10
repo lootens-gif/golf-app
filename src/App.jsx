@@ -13,10 +13,11 @@ import {
   buildBirdieResults,
   settleSkinsRound,
   getBestBallDisplay,
+  computeWolfRoundResult,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
-import WolfHoleCard from "./components/live/WolfHoleCard";
+import WolfHoleCard, { getWolfFormat } from "./components/live/WolfHoleCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
@@ -1402,6 +1403,25 @@ const segmentBirdieAmounts = useMemo(() => {
   return result;
 }, [teamGameResults, birdieResults, players]);
 
+// WOLF: compute this round's Wolf balances (holes 1-15 only — Super Wolf
+// 16-18 still blocked) using the tested, extracted engine function.
+let wolfResult = null;
+if (teamGameFormat === "wolf") {
+  wolfResult = computeWolfRoundResult({
+    activePlayers,
+    wolfHoles,
+    getFormat: getWolfFormat,
+    course,
+    scores,
+    handicapMode,
+    noPar3Strokes: noPar3TeamGame,
+    betAmount: teamGameUnitAmount,
+    wolfStyle: teamMatchConfig.wolfStyle || "harrison",
+    settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
+    birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
+  });
+}
+
 const computedResults = scoreRound(round, {
   players,
   scores,
@@ -1416,6 +1436,7 @@ const computedResults = scoreRound(round, {
   mode,
   birdieResults,
   noPar3TeamGame,
+  wolfResult,
 });
 
 const leaderboard = useMemo(() => {
@@ -2500,7 +2521,7 @@ if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && tota
       return false;
     })();
 
- if (enableTeamGame && !hasValidTeamGameForRequiredHole) {
+ if (enableTeamGame && teamGameFormat !== "wolf" && !hasValidTeamGameForRequiredHole) {
   // If a template is loaded and teams just aren't set yet, scroll to team assignment
   // rather than throwing an error — teams are picked on the day
   if (loadedTemplate) {
@@ -2663,6 +2684,9 @@ async function shareCurrentRound() {
 
 function hasValidTeamSetup() {
   if (!enableTeamGame) return true;
+  // Wolf has no fixed teams to pre-select — Wolf/partner is picked live,
+  // hole by hole, in WolfHoleCard. Nothing here to validate against.
+  if (teamGameFormat === "wolf") return true;
   if (teamGames.length === 0) return true;
 
   // Only validate the first game — future games get selected as you go
@@ -3431,7 +3455,7 @@ setSaveMessage(`Hole ${currentHole} saved`);
         return nextHole >= range.start && nextHole <= range.end;
       });
 
-if (enableTeamGame && nextGameIndex >= 0) {
+if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           const selection = getTeamGameSelection(nextGameIndex);
 
         const hasValidTeams =

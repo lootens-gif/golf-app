@@ -2021,6 +2021,117 @@ export function computeWolfRoundBalances(holeResults, playerIds = []) {
   return { balancesByPlayerId: balances };
 }
 
+/**
+ * Determines gross-score-vs-par birdie multiplier for whichever side wins
+ * a Wolf hole — same pattern as 9-Point's winnerMadeGrossBirdie, applied
+ * to the best gross score among the winning side's players.
+ * 1 = none, 2 = birdie, 3 = eagle, 4 = albatross or better.
+ */
+export function getWolfBirdieMultiplier(winningSide, hole, course, scores) {
+  const par = course?.pars?.[hole - 1];
+  if (par == null) return 1;
+  let bestGross = null;
+  (winningSide || []).forEach((id) => {
+    const raw = scores?.[hole]?.[id];
+    if (raw == null) return;
+    const gross = Number(raw);
+    if (bestGross == null || gross < bestGross) bestGross = gross;
+  });
+  if (bestGross == null) return 1;
+  const under = par - bestGross;
+  if (under >= 3) return 4;
+  if (under === 2) return 3;
+  if (under === 1) return 2;
+  return 1;
+}
+
+/**
+ * Orchestrates a full Wolf round's worth of hole resolution (holes 1-15
+ * only — Super Wolf 16-18 stays blocked separately) into the final
+ * balancesByPlayerId shape scoreRound() consumes. Extracted out of
+ * App.jsx's render body specifically so this can be unit tested directly
+ * instead of only verified by "the app didn't crash."
+ *
+ * @param {Object[]} activePlayers - in rotation order, exactly 5.
+ * @param {Object} wolfHoles - { [hole]: rawConfig } as captured by WolfHoleCard.
+ * @param {Function} getFormat - WolfHoleCard's getWolfFormat(config) => format string.
+ *   Passed in rather than imported directly to keep this engine file free
+ *   of any dependency on a UI component.
+ * @param {Object} course, scores, handicapMode, noPar3Strokes - same as everywhere else.
+ * @param {number} betAmount - teamGameUnitAmount.
+ * @param {string} wolfStyle, settlementStyle - the two Setup toggles.
+ * @param {boolean} birdieEnabled - the Birdie/Eagle/Albatross Multiplier Setup toggle.
+ * @returns {{balancesByPlayerId: Object}}
+ */
+export function computeWolfRoundResult({
+  activePlayers,
+  wolfHoles,
+  getFormat,
+  course,
+  scores,
+  handicapMode,
+  noPar3Strokes = false,
+  betAmount,
+  wolfStyle = WOLF_STYLES.HARRISON,
+  settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
+  birdieEnabled = false,
+}) {
+  if (!activePlayers || activePlayers.length !== 5) {
+    return { balancesByPlayerId: {} };
+  }
+
+  const holeResults = [];
+  for (let hole = 1; hole <= 15; hole++) {
+    const wolfIndex = (hole - 1) % activePlayers.length;
+    const wolfId = activePlayers[wolfIndex]?.id;
+    const otherIds = activePlayers.filter((_, i) => i !== wolfIndex).map((p) => p.id);
+    const config = { ...(wolfHoles?.[hole] || {}) };
+    const format = getFormat(config);
+
+    let smallSide, bigSide;
+    if (format === "pack") {
+      smallSide = [wolfId, config.partnerId];
+      bigSide = otherIds.filter((id) => id !== config.partnerId);
+    } else if (format === "shuck") {
+      smallSide = [config.partnerId];
+      bigSide = [wolfId, ...otherIds.filter((id) => id !== config.partnerId)];
+    } else {
+      smallSide = [wolfId];
+      bigSide = otherIds;
+    }
+
+    const hammerMultiplier = Number(config.hammerMultiplier) || 1;
+    const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
+
+    const provisional = resolveWolfHole({
+      format, smallSide, bigSide, hole,
+      players: activePlayers, course, scores, handicapMode,
+      noPar3Strokes, betAmount, wolfStyle, settlementStyle,
+      hammerMultiplier, concededBy,
+    });
+    if (!provisional) { holeResults.push(null); continue; }
+
+    let birdieMultiplier = 1;
+    if (birdieEnabled && provisional.winner !== "push") {
+      const winningSide = provisional.winner === "small" ? smallSide : bigSide;
+      birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
+    }
+
+    const final = birdieMultiplier > 1
+      ? resolveWolfHole({
+          format, smallSide, bigSide, hole,
+          players: activePlayers, course, scores, handicapMode,
+          noPar3Strokes, betAmount, wolfStyle, settlementStyle,
+          hammerMultiplier, concededBy, birdieMultiplier,
+        })
+      : provisional;
+
+    holeResults.push(final);
+  }
+
+  return computeWolfRoundBalances(holeResults, activePlayers.map((p) => p.id));
+}
+
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
 
 
