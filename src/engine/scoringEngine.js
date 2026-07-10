@@ -1677,42 +1677,84 @@ function buildTabsFromLedger(playerLedger = []) {
 }
 
 // ─── WOLF ENGINE ─────────────────────────────────────────────────────────────
-// Per "Wolf Golf Game — Program Requirements (Final)", July 2026.
-// Scope of this first pass: hole-level resolution only (formats, hammer,
-// birdie/eagle/albatross multiplier, tie-is-always-a-push). Super Wolf
-// assignment, the 3-way carryover mode, and full-round settlement wiring
-// into scoreRound() are deferred to the next iteration — see notes below.
+// Per Harrison Biro's direct, confirmed answers (July 2026) — NOT the
+// original AI-drafted document, which turned out to be wrong on multiple
+// counts (hitting order, the tie rule, "half press" terminology) and is
+// now preserved only as an optional "Classic Wolf" variant for groups who
+// actually play that way. Harrison Wolf is the default.
+//
+// Scope of this pass: hole-level resolution, both settlement styles
+// (Pairwise and Pooled), both rule styles (Harrison and Classic).
 
 /**
- * Points earned PER PLAYER by whichever side wins, by format.
- * "small" = the Wolf's side (1 player for lone/blind/shuck, 2 for pack).
- * "big"   = the opponents (3 for pack, 4 for lone/blind/shuck).
- * Pack Wolf is symmetric; the others are not (confirmed in the spec doc).
+ * Two independent, orthogonal settings:
+ *  - wolfStyle: which multiplier table applies to each tier
+ *  - settlementStyle: how a multi-person winning/losing side actually gets paid
  */
-export const WOLF_POINT_VALUES = {
-  pack:  { small: 2,  big: 2 },
-  lone:  { small: 4,  big: 1 },
-  blind: { small: 12, big: 3 },
-  shuck: { small: 8,  big: 2 },
+export const WOLF_STYLES = {
+  HARRISON: "harrison",
+  CLASSIC: "classic",
+};
+
+export const WOLF_SETTLEMENT_STYLES = {
+  PAIRWISE: "pairwise", // every loser pays every winner individually (always clean $, no split)
+  POOLED: "pooled",     // losers each contribute the same amount into a pool; winners split it evenly
 };
 
 /**
- * Resolve a single Wolf hole and return the pairwise dollar delta for every
- * player involved. Every losing player pays every winning player individually
- * — this is never a team pot-split, per the confirmed spec (Section 7).
+ * Multipliers applied DIRECTLY to the bet amount — confirmed against
+ * Harrison's real worked numbers ($25 hole: Wolf=$25/opponent, Lone Wolf=
+ * $50/opponent, Blind Wolf=$75/opponent — a clean 1x/2x/3x of the bet).
+ * "small" = Wolf's side (1 player solo/blind/loneWolf/shuck, 2 for pack).
+ * "big"   = the opponents.
  *
- * @param {"pack"|"lone"|"blind"|"shuck"} format
- * @param {string[]} smallSide   - Wolf's side. 1 id (lone/blind/shuck) or 2 ids (pack).
- * @param {string[]} bigSide     - Opponents. 3 ids (pack) or 4 ids (lone/blind/shuck).
- * @param {number} betAmount     - $ per point for this hole (Super Wolf's elevated
- *                                 rate, if applicable, is just passed in here already).
+ * Harrison Wolf has THREE solo tiers, not two — confirmed directly:
+ *  - solo: no partner picked, no early declaration (watched all 4 hit) — 1x
+ *  - loneWolf: declared alone right after your OWN tee shot, before
+ *    watching anyone else — 2x
+ *  - blindWolf: declared alone before even your own tee shot — 3x
+ * A partnered Pack Wolf hole is always 1x under Harrison's rules — the
+ * tier multiplier only applies when going solo.
+ *
+ * Classic Wolf (the original document's numbers) never distinguished a
+ * separate "declared right after your own shot" tier — solo and loneWolf
+ * collapse to the same value there.
+ */
+export const WOLF_MULTIPLIER_TABLES = {
+  [WOLF_STYLES.HARRISON]: {
+    pack:      { small: 1, big: 1 },
+    solo:      { small: 1, big: 1 },
+    loneWolf:  { small: 2, big: 2 },
+    blindWolf: { small: 3, big: 3 },
+    shuck:     { small: 2, big: 2 },
+  },
+  [WOLF_STYLES.CLASSIC]: {
+    pack:      { small: 2,  big: 2 },
+    solo:      { small: 4,  big: 1 },
+    loneWolf:  { small: 4,  big: 1 }, // same as solo — Classic doesn't have this tier
+    blindWolf: { small: 12, big: 3 },
+    shuck:     { small: 8,  big: 2 },
+  },
+};
+
+/**
+ * Resolve a single Wolf hole and return the dollar delta for every player
+ * involved, under whichever wolfStyle + settlementStyle the round is using.
+ *
+ * @param {"pack"|"solo"|"loneWolf"|"blindWolf"|"shuck"} format
+ * @param {string[]} smallSide   - Wolf's side. 1 id (solo/loneWolf/blindWolf/shuck) or 2 ids (pack).
+ * @param {string[]} bigSide     - Opponents. 3 ids (pack) or 4 ids (solo/loneWolf/blindWolf/shuck).
+ * @param {number} betAmount     - $ for this hole (Super Wolf's elevated
+ *                                 amount, if applicable, is just passed in already).
+ * @param {string} wolfStyle     - WOLF_STYLES.HARRISON (default) or .CLASSIC.
+ * @param {string} settlementStyle - WOLF_SETTLEMENT_STYLES.PAIRWISE (default) or .POOLED.
+ *                                 These only produce identical results when the
+ *                                 single player's side is the WINNER (trivial
+ *                                 1-way split either way). If the single player's
+ *                                 side loses to a multi-person side, Pairwise and
+ *                                 Pooled genuinely diverge — see tests.
  * @param {number} hammerMultiplier - 1 if no hammer; 2/4/8/16/32 if thrown & accepted.
- * @param {number} birdieMultiplier - 1 (none) / 2 (birdie) / 3 (eagle) / 4 (albatross),
- *                                 applied to whichever side actually wins the hole.
- *                                 NOTE: the spec doc doesn't explicitly say the birdie
- *                                 has to belong to the winning side — that's an
- *                                 assumption carried over from how 9-Point already
- *                                 works (winnerMadeGrossBirdie). Flag for confirmation.
+ * @param {number} birdieMultiplier - 1 (none) / 2 (birdie) / 3 (eagle) / 4 (albatross).
  * @param {"small"|"big"|null} concededBy - set when a Hammer was rejected; the
  *                                 conceding side loses outright, no score comparison.
  */
@@ -1727,12 +1769,15 @@ export function resolveWolfHole({
   handicapMode,
   noPar3Strokes = false,
   betAmount,
+  wolfStyle = WOLF_STYLES.HARRISON,
+  settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
   hammerMultiplier = 1,
   birdieMultiplier = 1,
   concededBy = null,
 }) {
-  const values = WOLF_POINT_VALUES[format];
-  if (!values) throw new Error(`Unknown Wolf format: ${format}`);
+  const table = WOLF_MULTIPLIER_TABLES[wolfStyle] || WOLF_MULTIPLIER_TABLES[WOLF_STYLES.HARRISON];
+  const tierValues = table[format];
+  if (!tierValues) throw new Error(`Unknown Wolf format: ${format}`);
 
   let winner; // "small" | "big" | "push"
 
@@ -1752,15 +1797,30 @@ export function resolveWolfHole({
   [...smallSide, ...bigSide].forEach((id) => { deltas[id] = 0; });
 
   if (winner === "push") {
-    return { winner, deltas, pointsPerPlayer: 0, dollarsPerPairing: 0 };
+    return { winner, deltas, multiplier: 0, dollarsPerPairing: 0 };
   }
 
   const winningSide = winner === "small" ? smallSide : bigSide;
   const losingSide = winner === "small" ? bigSide : smallSide;
-  const pointsPerPlayer = values[winner];
-  const dollarsPerPairing = pointsPerPlayer * (Number(betAmount) || 0) * hammerMultiplier * birdieMultiplier;
+  const multiplier = tierValues[winner];
+  const dollarsPerPairing = multiplier * (Number(betAmount) || 0) * hammerMultiplier * birdieMultiplier;
 
-  // Pairwise: every losing player pays every winning player the full per-pairing amount.
+  if (settlementStyle === WOLF_SETTLEMENT_STYLES.POOLED) {
+    // Each losing player contributes the same per-pairing rate into a
+    // shared pool; the pool splits evenly across the winning side. For a
+    // 1-winner or 1-loser side this produces identical numbers to Pairwise
+    // — the two styles only actually diverge on a Pack Wolf hole (2v3).
+    const pool = dollarsPerPairing * losingSide.length;
+    const perWinner = pool / winningSide.length;
+    const perLoser = pool / losingSide.length; // == dollarsPerPairing, kept explicit for clarity
+
+    winningSide.forEach((winId) => { deltas[winId] = (deltas[winId] || 0) + perWinner; });
+    losingSide.forEach((loseId) => { deltas[loseId] = (deltas[loseId] || 0) - perLoser; });
+
+    return { winner, deltas, multiplier, dollarsPerPairing, pool, perWinner };
+  }
+
+  // Pairwise (default): every losing player pays every winning player the full per-pairing amount.
   winningSide.forEach((winId) => {
     losingSide.forEach((loseId) => {
       deltas[winId] = (deltas[winId] || 0) + dollarsPerPairing;
@@ -1768,7 +1828,7 @@ export function resolveWolfHole({
     });
   });
 
-  return { winner, deltas, pointsPerPlayer, dollarsPerPairing };
+  return { winner, deltas, multiplier, dollarsPerPairing };
 }
 
 /**

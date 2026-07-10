@@ -2,8 +2,10 @@
  * WolfHoleCard.test.js
  * Run with: npm test -- --testPathPattern=WolfHoleCard
  *
- * Actually renders and clicks through the component — unlike the engine
- * tests, this catches real runtime/rendering issues, not just math.
+ * REWRITTEN for the 3-tier solo system confirmed by Harrison: Wolf
+ * (default, no declaration) / Lone Wolf (declared after own shot) /
+ * Blind Wolf (declared before own shot) — replacing the old 2-tier
+ * lone/blind system. Actually renders and clicks through the component.
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -61,23 +63,23 @@ describe('WolfHoleCard — basic rendering', () => {
   });
 });
 
-describe('WolfHoleCard — partner selection', () => {
+describe('WolfHoleCard — partner selection (default "Wolf" tier)', () => {
   test('tapping a partner selects them and shows the Pack Wolf summary', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2'));
     expect(screen.getByText(/Pack Wolf · Wolf \+ P2 vs\. the other 3/)).toBeInTheDocument();
   });
 
-  test('tapping the same partner again deselects — back to Lone Wolf', () => {
+  test('tapping the same partner again deselects — back to default Wolf summary', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2'));
     fireEvent.click(screen.getByText('P2'));
-    expect(screen.getByText(/Lone Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.getByText(/Wolf — Wolf · 1v4/)).toBeInTheDocument();
   });
 
-  test('no partner selected defaults to Lone Wolf summary', () => {
+  test('no partner selected defaults to the base Wolf summary (no early declaration)', () => {
     render(<Harness />);
-    expect(screen.getByText(/Lone Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.getByText(/Wolf — Wolf · 1v4/)).toBeInTheDocument();
   });
 });
 
@@ -93,23 +95,49 @@ describe('WolfHoleCard — shuck', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2'));
     fireEvent.click(screen.getByText('P2 shucked'));
-    expect(screen.getByText(/P2 shucked · playing alone vs\. everyone else · 2x/)).toBeInTheDocument();
+    expect(screen.getByText(/P2 shucked · playing alone vs\. everyone else/)).toBeInTheDocument();
   });
 });
 
-describe('WolfHoleCard — Blind Lone Wolf', () => {
-  test('declaring Blind Lone Wolf clears any partner selection and hides partner picker', () => {
+describe('WolfHoleCard — Lone Wolf (declared after own shot, 2x tier)', () => {
+  test('declaring Lone Wolf clears any partner selection and hides the partner picker', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2')); // pick a partner first
-    fireEvent.click(screen.getByText(/Declare Blind Lone Wolf/));
-    expect(screen.getByText(/Blind Lone Wolf · 1v4 · 3x/)).toBeInTheDocument();
-    expect(screen.queryByText('P2')).not.toBeInTheDocument(); // partner picker hidden
+    fireEvent.click(screen.getByText('Lone Wolf'));
+    expect(screen.getByText(/Wolf — Lone Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.queryByText('P2')).not.toBeInTheDocument();
   });
 
-  test('undoing the Blind Lone Wolf declaration brings back the partner picker', () => {
+  test('undoing the Lone Wolf declaration brings back the partner picker', () => {
     render(<Harness />);
-    fireEvent.click(screen.getByText(/Declare Blind Lone Wolf/));
-    fireEvent.click(screen.getByText(/tap to undo/));
+    fireEvent.click(screen.getByText('Lone Wolf'));
+    fireEvent.click(screen.getByText('✓ Lone Wolf'));
+    expect(screen.getByText('P2')).toBeInTheDocument();
+  });
+
+  test('Lone Wolf and Blind Wolf are mutually exclusive — picking one clears the other', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText('Lone Wolf'));
+    expect(screen.getByText(/Lone Wolf · 1v4/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    expect(screen.getByText(/Wolf — Blind Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.queryByText(/Wolf — Lone Wolf/)).not.toBeInTheDocument();
+  });
+});
+
+describe('WolfHoleCard — Blind Wolf (declared before own shot, 3x tier)', () => {
+  test('declaring Blind Wolf clears any partner selection and hides the partner picker', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText('P2'));
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    expect(screen.getByText(/Wolf — Blind Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.queryByText('P2')).not.toBeInTheDocument();
+  });
+
+  test('undoing the Blind Wolf declaration brings back the partner picker', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    fireEvent.click(screen.getByText('✓ Blind Wolf'));
     expect(screen.getByText('P2')).toBeInTheDocument();
   });
 });
@@ -146,10 +174,11 @@ describe('WolfHoleCard — Hammer entry', () => {
 });
 
 describe('getWolfFormat', () => {
-  test('priority order: blind > shuck > pack > lone', () => {
-    expect(getWolfFormat({ blindDeclared: true, shucked: true, partnerId: 'x' })).toBe('blind');
-    expect(getWolfFormat({ blindDeclared: false, shucked: true, partnerId: 'x' })).toBe('shuck');
-    expect(getWolfFormat({ blindDeclared: false, shucked: false, partnerId: 'x' })).toBe('pack');
-    expect(getWolfFormat({ blindDeclared: false, shucked: false, partnerId: null })).toBe('lone');
+  test('priority order: blindWolf > loneWolf > shuck > pack > solo', () => {
+    expect(getWolfFormat({ blindWolfDeclared: true, loneWolfDeclared: true, shucked: true, partnerId: 'x' })).toBe('blindWolf');
+    expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: true, shucked: true, partnerId: 'x' })).toBe('loneWolf');
+    expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: true, partnerId: 'x' })).toBe('shuck');
+    expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: false, partnerId: 'x' })).toBe('pack');
+    expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: false, partnerId: null })).toBe('solo');
   });
 });

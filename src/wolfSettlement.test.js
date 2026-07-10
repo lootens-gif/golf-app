@@ -36,20 +36,21 @@ describe('computeWolfRoundBalances', () => {
       handicapMode: 'full', betAmount: 5,
     });
     const hole2 = resolveWolfHole({
-      format: 'lone', smallSide: ['Wolf'], bigSide: ['P2', 'P3', 'P4', 'P5'], hole: 2,
+      format: 'solo', smallSide: ['Wolf'], bigSide: ['P2', 'P3', 'P4', 'P5'], hole: 2,
       players: PLAYERS, course: COURSE, scores: { 2: { Wolf: 2, P2: 4, P3: 5, P4: 6, P5: 5 } },
       handicapMode: 'full', betAmount: 5,
     });
 
     const result = computeWolfRoundBalances([hole1, hole2], PLAYERS.map((p) => p.id));
 
-    // Hole 1 (Pack Wolf, small wins): Wolf +30, P2 +30, P3/P4/P5 -20 each
-    // Hole 2 (Lone Wolf, Wolf wins):  Wolf +80, P2/P3/P4/P5 -20 each
-    expect(result.balancesByPlayerId.Wolf).toBe(30 + 80);
-    expect(result.balancesByPlayerId.P2).toBe(30 - 20);
-    expect(result.balancesByPlayerId.P3).toBe(-20 - 20);
-    expect(result.balancesByPlayerId.P4).toBe(-20 - 20);
-    expect(result.balancesByPlayerId.P5).toBe(-20 - 20);
+    // Harrison Wolf, $5 base:
+    // Hole 1 (Pack, 1x, small wins): each winner collects $5×3=$15, each loser pays $5×2=$10
+    // Hole 2 (Wolf/solo, 1x, Wolf wins): Wolf collects $5×4=$20, each opponent pays $5
+    expect(result.balancesByPlayerId.Wolf).toBe(15 + 20);
+    expect(result.balancesByPlayerId.P2).toBe(15 - 5);
+    expect(result.balancesByPlayerId.P3).toBe(-10 - 5);
+    expect(result.balancesByPlayerId.P4).toBe(-10 - 5);
+    expect(result.balancesByPlayerId.P5).toBe(-10 - 5);
   });
 
   test('skips null entries (holes not yet scored) without crashing', () => {
@@ -59,7 +60,7 @@ describe('computeWolfRoundBalances', () => {
       handicapMode: 'full', betAmount: 5,
     });
     const result = computeWolfRoundBalances([hole1, null, null], PLAYERS.map((p) => p.id));
-    expect(result.balancesByPlayerId.Wolf).toBe(30);
+    expect(result.balancesByPlayerId.Wolf).toBe(15);
   });
 
   test('every player appears even with a $0 balance', () => {

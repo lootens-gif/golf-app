@@ -18,7 +18,8 @@ const HAMMER_MORE = [8, 16, 32];
 
 const DEFAULT_WOLF_HOLE_CONFIG = {
   partnerId: null,
-  blindDeclared: false,
+  loneWolfDeclared: false,   // declared solo right after own tee shot, before watching others
+  blindWolfDeclared: false,  // declared solo before even own tee shot
   shucked: false,
   hammerMultiplier: 1,
   hammerResolution: "played_out", // "played_out" | "rejected"
@@ -32,13 +33,15 @@ export function getWolfHoleConfig(wolfHoles, hole) {
 
 /**
  * Derives the Wolf format for a hole from its raw config.
- * Mirrors the priority order in the spec: Blind Lone Wolf > Shuck > Pack Wolf > Lone Wolf.
+ * Format keys match the engine exactly: "pack" | "solo" | "loneWolf" | "blindWolf" | "shuck".
+ * Priority: Blind Wolf > Lone Wolf > Shuck > Pack > Solo (default).
  */
 export function getWolfFormat(config) {
-  if (config.blindDeclared) return "blind";
+  if (config.blindWolfDeclared) return "blindWolf";
+  if (config.loneWolfDeclared) return "loneWolf";
   if (config.shucked) return "shuck";
   if (config.partnerId) return "pack";
-  return "lone";
+  return "solo";
 }
 
 export default function WolfHoleCard({
@@ -57,6 +60,7 @@ export default function WolfHoleCard({
   const others = players.filter((_, i) => i !== wolfIndex);
   const config = getWolfHoleConfig(wolfHoles, currentHole);
   const format = getWolfFormat(config);
+  const declaredSolo = config.loneWolfDeclared || config.blindWolfDeclared;
 
   if (!wolf || players.length !== 5) {
     return (
@@ -67,8 +71,36 @@ export default function WolfHoleCard({
   }
 
   const update = (updates) => onUpdateWolfHole(currentHole, updates);
-
   const partner = config.partnerId ? players.find((p) => p.id === config.partnerId) : null;
+
+  const declareButton = (key, label, sublabel) => {
+    const active = config[key];
+    return (
+      <button
+        onClick={() => update(
+          active
+            ? { [key]: false }
+            : {
+                loneWolfDeclared: false,
+                blindWolfDeclared: false,
+                [key]: true,
+                partnerId: null,
+                shucked: false,
+              }
+        )}
+        style={{
+          padding: "8px 6px", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+          borderRadius: 8, textAlign: "center",
+          border: active ? `1px solid ${sc.accent}` : `1px dashed ${sc.border}`,
+          background: active ? sc.accentLight : "#fafafa",
+          color: active ? sc.accent : sc.muted,
+        }}
+      >
+        {active ? `✓ ${label}` : label}
+        {sublabel && <div style={{ fontSize: 9, fontWeight: 400, marginTop: 1 }}>{sublabel}</div>}
+      </button>
+    );
+  };
 
   return (
     <div style={{ background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
@@ -77,26 +109,13 @@ export default function WolfHoleCard({
         <div style={{ fontSize: 14, fontWeight: 600, color: sc.green }}>{wolf.name}</div>
       </div>
 
-      {/* Blind Lone Wolf declare */}
-      <button
-        onClick={() => update(
-          config.blindDeclared
-            ? { blindDeclared: false }
-            : { blindDeclared: true, partnerId: null, shucked: false }
-        )}
-        style={{
-          width: "100%", padding: "8px 10px", marginBottom: 12,
-          fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
-          borderRadius: 8,
-          border: config.blindDeclared ? `1px solid ${sc.accent}` : `1px dashed ${sc.border}`,
-          background: config.blindDeclared ? sc.accentLight : "#fafafa",
-          color: config.blindDeclared ? sc.accent : sc.muted,
-        }}
-      >
-        {config.blindDeclared ? "✓ Blind Lone Wolf declared — tap to undo" : "Declare Blind Lone Wolf (before anyone hits)"}
-      </button>
+      {/* Declare solo — two distinct tiers, based on WHEN it's declared */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
+        {declareButton("loneWolfDeclared", "Lone Wolf", "after own shot")}
+        {declareButton("blindWolfDeclared", "Blind Wolf", "before own shot")}
+      </div>
 
-      {!config.blindDeclared && (
+      {!declaredSolo && (
         <>
           <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Partner</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 10 }}>
@@ -148,12 +167,15 @@ export default function WolfHoleCard({
         </>
       )}
 
-      {/* Format summary */}
+      {/* Format summary — tier name only, no multiplier shown here since
+          the actual $ multiplier depends on Wolf Style (Harrison vs.
+          Classic), which is a Setup-level choice, not per-hole. */}
       <div style={{ fontSize: 11, color: sc.muted, marginBottom: hammerEnabled ? 12 : 0, paddingTop: 8, borderTop: `1px solid ${sc.border}` }}>
-        {format === "blind" && "Blind Lone Wolf · 1v4 · 3x"}
-        {format === "shuck" && `${partner?.name || "Partner"} shucked · playing alone vs. everyone else · 2x`}
+        {format === "blindWolf" && `${wolf.name} — Blind Wolf · 1v4`}
+        {format === "loneWolf" && `${wolf.name} — Lone Wolf · 1v4`}
+        {format === "shuck" && `${partner?.name || "Partner"} shucked · playing alone vs. everyone else`}
         {format === "pack" && partner && `Pack Wolf · ${wolf.name} + ${partner.name} vs. the other 3`}
-        {format === "lone" && "Lone Wolf · 1v4"}
+        {format === "solo" && `${wolf.name} — Wolf · 1v4`}
       </div>
 
       {/* Hammer entry */}
