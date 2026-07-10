@@ -16,6 +16,7 @@ import {
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
+import WolfHoleCard from "./components/live/WolfHoleCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
@@ -406,6 +407,12 @@ function notifyRound(event, code) {
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
   const [isJoiner, setIsJoiner] = useState(false);
+  // Wolf: per-hole config (partner, shuck, hammer). Keyed by hole number.
+  // Freely editable anytime per Section 14 — no locking, just plain state.
+  const [wolfHoles, setWolfHoles] = useState({});
+  const updateWolfHole = (hole, updates) => {
+    setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+  };
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
@@ -3355,6 +3362,20 @@ return (
     )}
 
   
+  {teamGameFormat === "wolf" && currentHole >= 1 && currentHole <= 15 && (
+    <WolfHoleCard
+      currentHole={currentHole}
+      players={activePlayers}
+      wolfHoles={wolfHoles}
+      onUpdateWolfHole={updateWolfHole}
+      hammerEnabled={!!teamMatchConfig.wolfHammerEnabled}
+    />
+  )}
+  {teamGameFormat === "wolf" && currentHole >= 16 && currentHole <= 18 && (
+    <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#92400e" }}>
+      Super Wolf holes (16–18) aren't wired up yet — coming in a later update.
+    </div>
+  )}
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
     currentHole={currentHole}
