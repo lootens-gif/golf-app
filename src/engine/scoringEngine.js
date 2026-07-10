@@ -1810,6 +1810,55 @@ export function applyWolfCarryover(state, hole, config) {
   };
 }
 
+/**
+ * Super Wolf hole split — Section 9D of the confirmed spec.
+ * Computes how many holes are "regular rotation" vs. "Super Wolf" so every
+ * player gets an equal number of standard Wolf turns, with Super Wolf
+ * absorbing whatever's left over. v1 case (5 players/18 holes) = 15 + 3.
+ * Deliberately parameterized (not hardcoded to 15+3) per the spec, even
+ * though only the 5-player/18-hole case is needed at launch.
+ */
+export function getWolfHoleSplit(totalHoles, playerCount) {
+  const turnsPerPlayer = Math.floor((Number(totalHoles) || 0) / (Number(playerCount) || 1));
+  const regularHoles = turnsPerPlayer * playerCount;
+  const superWolfHoles = totalHoles - regularHoles;
+  return { regularHoles, superWolfHoles, turnsPerPlayer };
+}
+
+/**
+ * Super Wolf assignment — Section 9A of the confirmed spec.
+ * The player down the most Wolf money (Wolf money ONLY — never combined
+ * with 1v1 or other side bets) becomes Super Wolf. Ties are broken by
+ * earlier position in the standard rotation order.
+ *
+ * @param {Object} wolfStandings - { playerId: dollarAmount, ... }
+ * @param {string[]} rotationOrder - full rotation sequence, tiebreak only.
+ * @returns {{ranked: Array<{playerId, standing}>, superWolf: string|null}}
+ *   ranked is sorted worst (most negative) to best — matches the rank
+ *   display shown at the Super Wolf tee box.
+ */
+export function getSuperWolfAssignment(wolfStandings, rotationOrder = []) {
+  const entries = Object.entries(wolfStandings || {}).map(([playerId, standing]) => ({
+    playerId,
+    standing: Number(standing) || 0,
+  }));
+
+  entries.sort((a, b) => {
+    if (a.standing !== b.standing) return a.standing - b.standing; // most negative (worst) first
+    const aIdx = rotationOrder.indexOf(a.playerId);
+    const bIdx = rotationOrder.indexOf(b.playerId);
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx; // earlier in rotation wins the tie
+  });
+
+  return {
+    ranked: entries,
+    superWolf: entries.length ? entries[0].playerId : null,
+  };
+}
+
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
 
 
