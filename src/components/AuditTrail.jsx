@@ -7,6 +7,9 @@ import {
   isNetBirdie,
   getBestBallDisplay,
   getWolfHoleNarrative,
+  computeWolfRoundResult,
+  getWolfHoleSides,
+  formatScoreWithStrokeDots,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -1478,6 +1481,7 @@ function WolfAudit({
   handicapMode,
   teamGameUnitAmount,
   noPar3TeamGame,
+  getHandicapStrokesFn,
   sessionKey,
 }) {
   if (!players || players.length !== 5) return null;
@@ -1486,40 +1490,141 @@ function WolfAudit({
   const settlementStyle = teamMatchConfig.wolfSettlementStyle || "pairwise";
   const birdieEnabled = !!teamMatchConfig.wolfBirdieMultiplierEnabled;
 
-  const holeNarratives = [];
-  for (let hole = 1; hole <= 15; hole++) {
-    const { lines } = getWolfHoleNarrative({
-      hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
-      course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
-      betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
-    });
-    if (lines.length) holeNarratives.push({ hole, lines });
+  // LEVEL 0: overall totals — same shape as TeamGameAudit's header, reused
+  // directly. computeWolfRoundResult only sums holes that have scores, so
+  // this is naturally correct whether the round is mid-play or complete.
+  const roundResult = computeWolfRoundResult({
+    activePlayers: players, wolfHoles, getFormat: getWolfFormat,
+    course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
+    betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
+  });
+  const balances = roundResult.balancesByPlayerId || {};
+
+  let lastScoredHole = 0;
+  for (let h = 1; h <= 15; h++) {
+    if (players.every((p) => scores?.[h]?.[p.id] != null)) lastScoredHole = h;
   }
+  const isFinal = lastScoredHole >= 15;
+
+  const sortedPlayers = [...players].sort((a, b) => (balances[b.id] || 0) - (balances[a.id] || 0));
+
+  const level0Title = (
+    <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
+      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
+        Wolf {isFinal ? "— Final" : lastScoredHole > 0 ? `— through hole ${lastScoredHole}` : ""}
+      </span>
+      {sortedPlayers.map((p) => {
+        const net = balances[p.id] || 0;
+        const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+        return (
+          <span key={p.id}>
+            <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+            <span style={{ color, marginLeft: 2 }}>{formatMoney(net)}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
 
   return (
-    <AuditSection
-      title="Wolf — Match Detail"
-      subtitle="Holes 1-15. Super Wolf (16-18) not shown yet."
-      defaultOpen
-      sessionKey={sessionKey}
-      storageId="wolf-match-detail"
-    >
-      {holeNarratives.length === 0 ? (
-        <div style={{ fontSize: 13, color: "#6b7280" }}>No completed Wolf holes yet.</div>
-      ) : (
-        holeNarratives.map(({ hole, lines }) => (
-          <div key={hole} style={{ borderBottom: "1px solid #e5e7eb", padding: "8px 0" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>
-              Hole {hole}
+    <AuditSection title={level0Title} defaultOpen sessionKey={sessionKey} storageId="wolf-overall">
+      {Array.from({ length: 15 }, (_, i) => i + 1).map((hole) => {
+        const { lines, resolved, format } = getWolfHoleNarrative({
+          hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
+          course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
+          betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
+        });
+        if (!lines.length) return null; // hole not fully scored yet — skip
+
+        const config = { ...(wolfHoles?.[hole] || {}) };
+        const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, players, config, format);
+        const nameOf = (id) => players.find((p) => p.id === id)?.name || id;
+        const firstNameOf = (id) => (nameOf(id).split(" ")[0]);
+        const wolfName = firstNameOf(wolfId);
+        const partnerName = config.partnerId ? firstNameOf(config.partnerId) : null;
+
+        let formatLabel;
+        if (format === "pack") formatLabel = `Pack Wolf`;
+        else if (format === "shuck") formatLabel = "Shuck";
+        else if (format === "blindWolf") formatLabel = "Blind Wolf";
+        else if (format === "loneWolf") formatLabel = "Lone Wolf";
+        else formatLabel = "Wolf";
+
+        const isPush = resolved?.winner === "push";
+        const winningSideIds = !isPush && resolved ? (resolved.winner === "small" ? smallSide : bigSide) : [];
+        const holeDollarPerWinner = winningSideIds.length
+          ? Math.max(...winningSideIds.map((id) => resolved.deltas[id] || 0))
+          : 0;
+        const winnerNamesStr = winningSideIds.map(firstNameOf).join("+");
+
+        // LEVEL 1: condensed one-liner, same density as TeamGameAudit's matchup title
+        const level1Title = (
+          <span style={{ fontSize: 13 }}>
+            <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Hole {hole}</span>
+            <span style={{ color: "#6b7280" }}>
+              {" "}· {formatLabel}{partnerName && format === "pack" ? ` (${wolfName}+${partnerName})` : ""}
+            </span>
+            {isPush ? (
+              <span style={{ color: "#92400e" }}> · Push</span>
+            ) : (
+              <span style={{ color: "#137333" }}> · {winnerNamesStr} +${holeDollarPerWinner.toFixed(2)}ea</span>
+            )}
+            {config.hammerMultiplier > 1 && <span style={{ color: "#92400e" }}> · 🔨{config.hammerMultiplier}x</span>}
+          </span>
+        );
+
+        // LEVEL 2: full hole detail — every score, dots, birdie highlight,
+        // per-player $ swing, hammer/shuck tags. This is where the actual
+        // trust-earning happens — every number here is directly checkable
+        // against what the group shot.
+        return (
+          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+              Par {course?.pars?.[hole - 1] ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
             </div>
-            {lines.map((line, i) => (
-              <div key={i} style={{ fontSize: 13, color: "#1a1a1a", marginBottom: 2 }}>
-                {line}
+            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+              <tbody>
+                {[...smallSide, ...bigSide].map((id) => {
+                  const isSmallSide = smallSide.includes(id);
+                  const scoreDisplay = formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
+                  const hasBirdie = isGrossBirdie(scores, course, hole, id);
+                  const delta = resolved?.deltas?.[id] || 0;
+                  const deltaColor = delta > 0 ? "#137333" : delta < 0 ? "#b3261e" : "#6b7280";
+                  const isWolf = id === wolfId;
+                  return (
+                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                      <td style={{ padding: "5px 4px 5px 0" }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: "50%",
+                          background: isSmallSide ? "#1a5c35" : "#9ca3af",
+                          display: "inline-block", marginRight: 6,
+                        }} />
+                        {nameOf(id)}{isWolf ? " 🐺" : ""}
+                      </td>
+                      <td style={{ padding: "5px 4px", textAlign: "center", color: hasBirdie ? "#137333" : "#1a1a1a", fontWeight: hasBirdie ? 700 : 400 }}>
+                        {scoreDisplay}
+                      </td>
+                      <td style={{ padding: "5px 0", textAlign: "right", color: deltaColor, fontWeight: 600 }}>
+                        {delta > 0 ? `+$${delta.toFixed(2)}` : delta < 0 ? `-$${Math.abs(delta).toFixed(2)}` : "$0.00"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {config.hammerMultiplier > 1 && (
+              <div style={{ fontSize: 11, color: "#92400e", marginTop: 8 }}>
+                🔨 Hammer {config.hammerMultiplier}x{config.hammerResolution === "rejected" ? " — conceded, no scores needed" : ""}
               </div>
-            ))}
-          </div>
-        ))
-      )}
+            )}
+            {isPush && teamMatchConfig.wolfCarryoverMode && teamMatchConfig.wolfCarryoverMode !== "off" && (
+              <div style={{ fontSize: 11, color: "#92400e", marginTop: 8 }}>
+                ⚠️ Push — Carryover is on but not yet applied to the money shown here.
+              </div>
+            )}
+          </AuditSection>
+        );
+      })}
     </AuditSection>
   );
 }
@@ -2206,6 +2311,7 @@ export default function AuditTrail({
         handicapMode={handicapMode}
         teamGameUnitAmount={teamGameUnitAmount}
         noPar3TeamGame={noPar3TeamGame}
+        getHandicapStrokesFn={getHandicapStrokesFn}
         sessionKey={sessionKey}
       />
     ) : (
