@@ -6,7 +6,9 @@ import {
   isGrossBirdie,
   isNetBirdie,
   getBestBallDisplay,
+  getWolfHoleNarrative,
 } from "../engine/scoringEngine";
+import { getWolfFormat } from "./live/WolfHoleCard";
 
 // Safely get net units from a team game matchup result (handles both press array and non-press object)
 function getMatchUnits(result) {
@@ -1467,6 +1469,61 @@ function NinePointAudit({
   );
 }
 
+function WolfAudit({
+  players,
+  wolfHoles,
+  teamMatchConfig,
+  scores,
+  course,
+  handicapMode,
+  teamGameUnitAmount,
+  noPar3TeamGame,
+  sessionKey,
+}) {
+  if (!players || players.length !== 5) return null;
+
+  const wolfStyle = teamMatchConfig.wolfStyle || "harrison";
+  const settlementStyle = teamMatchConfig.wolfSettlementStyle || "pairwise";
+  const birdieEnabled = !!teamMatchConfig.wolfBirdieMultiplierEnabled;
+
+  const holeNarratives = [];
+  for (let hole = 1; hole <= 15; hole++) {
+    const { lines } = getWolfHoleNarrative({
+      hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
+      course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
+      betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
+    });
+    if (lines.length) holeNarratives.push({ hole, lines });
+  }
+
+  return (
+    <AuditSection
+      title="Wolf — Match Detail"
+      subtitle="Holes 1-15. Super Wolf (16-18) not shown yet."
+      defaultOpen
+      sessionKey={sessionKey}
+      storageId="wolf-match-detail"
+    >
+      {holeNarratives.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#6b7280" }}>No completed Wolf holes yet.</div>
+      ) : (
+        holeNarratives.map(({ hole, lines }) => (
+          <div key={hole} style={{ borderBottom: "1px solid #e5e7eb", padding: "8px 0" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>
+              Hole {hole}
+            </div>
+            {lines.map((line, i) => (
+              <div key={i} style={{ fontSize: 13, color: "#1a1a1a", marginBottom: 2 }}>
+                {line}
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </AuditSection>
+  );
+}
+
 function TeamGameAudit({
   players,
   teamGames,
@@ -2127,6 +2184,9 @@ export default function AuditTrail({
   segmentBirdieAmounts = {},
   sessionKey,
   handicapDistribution = "standard",
+  teamGameFormat,
+  wolfHoles = {},
+  teamMatchConfig = {},
 }) {
   return (
     <div>
@@ -2134,7 +2194,21 @@ export default function AuditTrail({
         Tap any section to expand
       </div>
 
-    {/* TEAM GAME FIRST */}
+    {/* TEAM GAME FIRST — Wolf gets its own dedicated view, since it doesn't
+        have the fixed matchup shape TeamGameAudit expects */}
+    {teamGameFormat === "wolf" ? (
+      <WolfAudit
+        players={players}
+        wolfHoles={wolfHoles}
+        teamMatchConfig={teamMatchConfig}
+        scores={scores}
+        course={course}
+        handicapMode={handicapMode}
+        teamGameUnitAmount={teamGameUnitAmount}
+        noPar3TeamGame={noPar3TeamGame}
+        sessionKey={sessionKey}
+      />
+    ) : (
 <TeamGameAudit
   players={players}
   teamGames={teamGames}
@@ -2150,6 +2224,7 @@ export default function AuditTrail({
   segmentBirdieAmounts={segmentBirdieAmounts}
   sessionKey={sessionKey}
 />
+    )}
 
 {/* 1v1 */}
 <OneVOneAudit

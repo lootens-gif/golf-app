@@ -2063,6 +2063,86 @@ export function getWolfBirdieMultiplier(winningSide, hole, course, scores) {
  * @param {boolean} birdieEnabled - the Birdie/Eagle/Albatross Multiplier Setup toggle.
  * @returns {{balancesByPlayerId: Object}}
  */
+/**
+ * Figures out who's on which side for a single Wolf hole, from rotation +
+ * the raw config WolfHoleCard captured. Structural only — no scores needed.
+ * Extracted so both the settlement math and the display narrative share
+ * exactly one source of truth for "who's playing whom."
+ */
+export function getWolfHoleSides(hole, activePlayers, config, format) {
+  const wolfIndex = (hole - 1) % activePlayers.length;
+  const wolfId = activePlayers[wolfIndex]?.id;
+  const otherIds = activePlayers.filter((_, i) => i !== wolfIndex).map((p) => p.id);
+
+  let smallSide, bigSide;
+  if (format === "pack") {
+    smallSide = [wolfId, config.partnerId];
+    bigSide = otherIds.filter((id) => id !== config.partnerId);
+  } else if (format === "shuck") {
+    smallSide = [config.partnerId];
+    bigSide = [wolfId, ...otherIds.filter((id) => id !== config.partnerId)];
+  } else {
+    smallSide = [wolfId];
+    bigSide = otherIds;
+  }
+
+  return { wolfId, otherIds, smallSide, bigSide };
+}
+
+/**
+ * Fully resolves ONE Wolf hole — sides, the engine call, and the two-pass
+ * birdie multiplier — returning both the money result AND the descriptive
+ * pieces (wolfId, partnerId, format, sides) needed to build a human-readable
+ * narrative. This is the single shared source both computeWolfRoundResult
+ * (money only) and buildWolfHoleSummary (display text) are built on top of.
+ */
+export function resolveWolfHoleFromConfig({
+  hole,
+  activePlayers,
+  wolfHoles,
+  getFormat,
+  course,
+  scores,
+  handicapMode,
+  noPar3Strokes = false,
+  betAmount,
+  wolfStyle = WOLF_STYLES.HARRISON,
+  settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
+  birdieEnabled = false,
+}) {
+  const config = { ...(wolfHoles?.[hole] || {}) };
+  const format = getFormat(config);
+  const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format);
+
+  const hammerMultiplier = Number(config.hammerMultiplier) || 1;
+  const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
+
+  const provisional = resolveWolfHole({
+    format, smallSide, bigSide, hole,
+    players: activePlayers, course, scores, handicapMode,
+    noPar3Strokes, betAmount, wolfStyle, settlementStyle,
+    hammerMultiplier, concededBy,
+  });
+  if (!provisional) return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, resolved: null };
+
+  let birdieMultiplier = 1;
+  if (birdieEnabled && provisional.winner !== "push") {
+    const winningSide = provisional.winner === "small" ? smallSide : bigSide;
+    birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
+  }
+
+  const resolved = birdieMultiplier > 1
+    ? resolveWolfHole({
+        format, smallSide, bigSide, hole,
+        players: activePlayers, course, scores, handicapMode,
+        noPar3Strokes, betAmount, wolfStyle, settlementStyle,
+        hammerMultiplier, concededBy, birdieMultiplier,
+      })
+    : provisional;
+
+  return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, birdieMultiplier, resolved };
+}
+
 export function computeWolfRoundResult({
   activePlayers,
   wolfHoles,
@@ -2082,54 +2162,79 @@ export function computeWolfRoundResult({
 
   const holeResults = [];
   for (let hole = 1; hole <= 15; hole++) {
-    const wolfIndex = (hole - 1) % activePlayers.length;
-    const wolfId = activePlayers[wolfIndex]?.id;
-    const otherIds = activePlayers.filter((_, i) => i !== wolfIndex).map((p) => p.id);
-    const config = { ...(wolfHoles?.[hole] || {}) };
-    const format = getFormat(config);
-
-    let smallSide, bigSide;
-    if (format === "pack") {
-      smallSide = [wolfId, config.partnerId];
-      bigSide = otherIds.filter((id) => id !== config.partnerId);
-    } else if (format === "shuck") {
-      smallSide = [config.partnerId];
-      bigSide = [wolfId, ...otherIds.filter((id) => id !== config.partnerId)];
-    } else {
-      smallSide = [wolfId];
-      bigSide = otherIds;
-    }
-
-    const hammerMultiplier = Number(config.hammerMultiplier) || 1;
-    const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
-
-    const provisional = resolveWolfHole({
-      format, smallSide, bigSide, hole,
-      players: activePlayers, course, scores, handicapMode,
-      noPar3Strokes, betAmount, wolfStyle, settlementStyle,
-      hammerMultiplier, concededBy,
+    const { resolved } = resolveWolfHoleFromConfig({
+      hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+      noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
     });
-    if (!provisional) { holeResults.push(null); continue; }
-
-    let birdieMultiplier = 1;
-    if (birdieEnabled && provisional.winner !== "push") {
-      const winningSide = provisional.winner === "small" ? smallSide : bigSide;
-      birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
-    }
-
-    const final = birdieMultiplier > 1
-      ? resolveWolfHole({
-          format, smallSide, bigSide, hole,
-          players: activePlayers, course, scores, handicapMode,
-          noPar3Strokes, betAmount, wolfStyle, settlementStyle,
-          hammerMultiplier, concededBy, birdieMultiplier,
-        })
-      : provisional;
-
-    holeResults.push(final);
+    holeResults.push(resolved);
   }
 
   return computeWolfRoundBalances(holeResults, activePlayers.map((p) => p.id));
+}
+
+/**
+ * Builds a human-readable summary of a single Wolf hole — used by BOTH the
+ * Live screen's Hole Result card and the Results screen's Match Detail
+ * view, so there's exactly one place that turns Wolf's raw config into
+ * words, not two independent (and inevitably diverging) implementations.
+ *
+ * @returns {{lines: string[], resolved: object|null, format: string}}
+ *   lines is empty if the hole hasn't been scored yet.
+ */
+export function getWolfHoleNarrative({
+  hole,
+  activePlayers,
+  wolfHoles,
+  getFormat,
+  course,
+  scores,
+  handicapMode,
+  noPar3Strokes = false,
+  betAmount,
+  wolfStyle = WOLF_STYLES.HARRISON,
+  settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
+  birdieEnabled = false,
+}) {
+  const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
+
+  const { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, resolved } =
+    resolveWolfHoleFromConfig({
+      hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+      noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
+    });
+
+  if (!resolved) return { lines: [], resolved: null, format };
+
+  const wolfName = nameOf(wolfId);
+  const partnerName = config.partnerId ? nameOf(config.partnerId) : null;
+
+  let formatLabel;
+  if (format === "pack") formatLabel = `${wolfName} + ${partnerName} vs. the other 3`;
+  else if (format === "shuck") formatLabel = `${partnerName} shucked — alone vs. everyone else`;
+  else if (format === "blindWolf") formatLabel = `${wolfName} — Blind Wolf`;
+  else if (format === "loneWolf") formatLabel = `${wolfName} — Lone Wolf`;
+  else formatLabel = `${wolfName} — Wolf`;
+
+  const tags = [];
+  if (hammerMultiplier > 1) tags.push(concededBy ? `Hammer ${hammerMultiplier}x, conceded` : `Hammer ${hammerMultiplier}x`);
+
+  const lines = [`${formatLabel}${tags.length ? ` (${tags.join(", ")})` : ""}`];
+
+  if (resolved.winner === "push") {
+    lines.push("Push — no money changes hands this hole.");
+  } else {
+    const winningSide = resolved.winner === "small" ? smallSide : bigSide;
+    const losingSide = resolved.winner === "small" ? bigSide : smallSide;
+    const winnerNames = winningSide.map(nameOf).join(", ");
+    lines.push(`${winnerNames} won the hole.`);
+    [...winningSide, ...losingSide].forEach((id) => {
+      const amount = resolved.deltas[id] || 0;
+      const str = amount > 0 ? `+$${amount.toFixed(2)}` : amount < 0 ? `-$${Math.abs(amount).toFixed(2)}` : "$0.00";
+      lines.push(`${nameOf(id)}: ${str}`);
+    });
+  }
+
+  return { lines, resolved, format };
 }
 
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────

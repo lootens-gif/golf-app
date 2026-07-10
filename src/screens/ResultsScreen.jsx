@@ -50,6 +50,7 @@ export default function ResultsScreen({
   skinsResults, skinsEnabled, skinsConfig,
   getHandicapStrokesFn, isJoiner = false, onRefresh, segmentBirdieAmounts = {},
   roundCode, handicapDistribution = "standard",
+  teamGameFormat, wolfHoles = {}, teamMatchConfig = {},
 }) {
   const [showAuditTrail, setShowAuditTrail] = useState(() => {
     try { return window.localStorage.getItem(SCORECARD_OPEN_KEY) !== "closed"; } catch { return true; }
@@ -446,6 +447,9 @@ export default function ResultsScreen({
           segmentBirdieAmounts={segmentBirdieAmounts}
           sessionKey={roundCode || "default"}
           handicapDistribution={handicapDistribution}
+          teamGameFormat={teamGameFormat}
+          wolfHoles={wolfHoles}
+          teamMatchConfig={teamMatchConfig}
         />
       )}
 
