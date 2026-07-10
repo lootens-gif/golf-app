@@ -140,6 +140,12 @@ describe('WolfHoleCard — Blind Wolf (declared before own shot, 3x tier)', () =
     fireEvent.click(screen.getByText('✓ Blind Wolf'));
     expect(screen.getByText('P2')).toBeInTheDocument();
   });
+
+  test('shows a clear "tap to undo" hint once active, so an accidental tap is easy to reverse', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    expect(screen.getAllByText('tap to undo').length).toBeGreaterThan(0);
+  });
 });
 
 describe('WolfHoleCard — Hammer entry', () => {

@@ -9,7 +9,6 @@ import {
   getWolfHoleNarrative,
   computeWolfRoundResult,
   getWolfHoleSides,
-  formatScoreWithStrokeDots,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -1489,6 +1488,8 @@ function WolfAudit({
   const wolfStyle = teamMatchConfig.wolfStyle || "harrison";
   const settlementStyle = teamMatchConfig.wolfSettlementStyle || "pairwise";
   const birdieEnabled = !!teamMatchConfig.wolfBirdieMultiplierEnabled;
+  const addAHammerEnabled = !!teamMatchConfig.wolfAddAHammer;
+  const addAHammerHammerHolesOnly = !!teamMatchConfig.wolfAddAHammerHammerHolesOnly;
 
   // LEVEL 0: overall totals — same shape as TeamGameAudit's header, reused
   // directly. computeWolfRoundResult only sums holes that have scores, so
@@ -1497,6 +1498,7 @@ function WolfAudit({
     activePlayers: players, wolfHoles, getFormat: getWolfFormat,
     course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
     betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
+    addAHammerEnabled, addAHammerHammerHolesOnly,
   });
   const balances = roundResult.balancesByPlayerId || {};
 
@@ -1533,6 +1535,7 @@ function WolfAudit({
           hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
+          addAHammerEnabled, addAHammerHammerHolesOnly,
         });
         if (!lines.length) return null; // hole not fully scored yet — skip
 
@@ -1577,17 +1580,26 @@ function WolfAudit({
         // per-player $ swing, hammer/shuck tags. This is where the actual
         // trust-earning happens — every number here is directly checkable
         // against what the group shot.
+        const par = course?.pars?.[hole - 1];
         return (
           <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
-            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
-              Par {course?.pars?.[hole - 1] ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>
+                Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
+              </div>
+              {config.hammerMultiplier > 1 && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
+                  🔨 Hammer {config.hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
+                </span>
+              )}
             </div>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <tbody>
                 {[...smallSide, ...bigSide].map((id) => {
                   const isSmallSide = smallSide.includes(id);
-                  const scoreDisplay = formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
-                  const hasBirdie = isGrossBirdie(scores, course, hole, id);
+                  const gross = getRawScore(scores, hole, id);
+                  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+                  const strokes = (noPar3TeamGame && par === 3) ? 0 : strokesFn(id, hole, players, course, handicapMode, noPar3TeamGame);
                   const delta = resolved?.deltas?.[id] || 0;
                   const deltaColor = delta > 0 ? "#137333" : delta < 0 ? "#b3261e" : "#6b7280";
                   const isWolf = id === wolfId;
@@ -1601,8 +1613,8 @@ function WolfAudit({
                         }} />
                         {nameOf(id)}{isWolf ? " 🐺" : ""}
                       </td>
-                      <td style={{ padding: "5px 4px", textAlign: "center", color: hasBirdie ? "#137333" : "#1a1a1a", fontWeight: hasBirdie ? 700 : 400 }}>
-                        {scoreDisplay}
+                      <td style={{ padding: "5px 4px", textAlign: "center" }}>
+                        <ScoreCell gross={gross} par={par} strokes={strokes} />
                       </td>
                       <td style={{ padding: "5px 0", textAlign: "right", color: deltaColor, fontWeight: 600 }}>
                         {delta > 0 ? `+$${delta.toFixed(2)}` : delta < 0 ? `-$${Math.abs(delta).toFixed(2)}` : "$0.00"}
@@ -1612,11 +1624,6 @@ function WolfAudit({
                 })}
               </tbody>
             </table>
-            {config.hammerMultiplier > 1 && (
-              <div style={{ fontSize: 11, color: "#92400e", marginTop: 8 }}>
-                🔨 Hammer {config.hammerMultiplier}x{config.hammerResolution === "rejected" ? " — conceded, no scores needed" : ""}
-              </div>
-            )}
             {isPush && teamMatchConfig.wolfCarryoverMode && teamMatchConfig.wolfCarryoverMode !== "off" && (
               <div style={{ fontSize: 11, color: "#92400e", marginTop: 8 }}>
                 ⚠️ Push — Carryover is on but not yet applied to the money shown here.

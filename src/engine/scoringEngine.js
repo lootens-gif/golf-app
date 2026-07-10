@@ -1773,6 +1773,7 @@ export function resolveWolfHole({
   settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
   hammerMultiplier = 1,
   birdieMultiplier = 1,
+  addAHammerMultiplier = 1,
   concededBy = null,
 }) {
   const table = WOLF_MULTIPLIER_TABLES[wolfStyle] || WOLF_MULTIPLIER_TABLES[WOLF_STYLES.HARRISON];
@@ -1803,7 +1804,7 @@ export function resolveWolfHole({
   const winningSide = winner === "small" ? smallSide : bigSide;
   const losingSide = winner === "small" ? bigSide : smallSide;
   const multiplier = tierValues[winner];
-  const dollarsPerPairing = multiplier * (Number(betAmount) || 0) * hammerMultiplier * birdieMultiplier;
+  const dollarsPerPairing = multiplier * (Number(betAmount) || 0) * hammerMultiplier * birdieMultiplier * addAHammerMultiplier;
 
   if (settlementStyle === WOLF_SETTLEMENT_STYLES.POOLED) {
     // Each losing player contributes the same per-pairing rate into a
@@ -2046,6 +2047,27 @@ export function getWolfBirdieMultiplier(winningSide, hole, course, scores) {
 }
 
 /**
+ * Add-A-Hammer clean sweep check (Section 8B) — automatic ×2 bonus when
+ * EVERY member of the winning side individually beat EVERY member of the
+ * losing side on net score, not just the best-ball comparison that
+ * determined the winner. Best-ball only needs one player to be better, so
+ * this is a genuinely separate, non-trivial check.
+ *
+ * Confirmed rule: only evaluates when the winning side has MORE than one
+ * player (Pack Wolf either direction, or 4 opponents beating a lone
+ * player) — with a single-player winning side, "did everyone on the
+ * winning side beat everyone" is automatically true by definition of
+ * best-ball, so there's nothing meaningful to check.
+ */
+export function checkWolfCleanSweep(winningSide, losingSide, hole, players, course, scores, handicapMode, noPar3Strokes) {
+  if (!winningSide || winningSide.length <= 1) return false;
+  const winnerNets = winningSide.map((id) => getNetScore(id, hole, players, course, scores, handicapMode, noPar3Strokes));
+  const loserNets = losingSide.map((id) => getNetScore(id, hole, players, course, scores, handicapMode, noPar3Strokes));
+  if (winnerNets.some((n) => n == null) || loserNets.some((n) => n == null)) return false;
+  return winnerNets.every((wn) => loserNets.every((ln) => wn < ln));
+}
+
+/**
  * Orchestrates a full Wolf round's worth of hole resolution (holes 1-15
  * only — Super Wolf 16-18 stays blocked separately) into the final
  * balancesByPlayerId shape scoreRound() consumes. Extracted out of
@@ -2091,10 +2113,11 @@ export function getWolfHoleSides(hole, activePlayers, config, format) {
 
 /**
  * Fully resolves ONE Wolf hole — sides, the engine call, and the two-pass
- * birdie multiplier — returning both the money result AND the descriptive
- * pieces (wolfId, partnerId, format, sides) needed to build a human-readable
- * narrative. This is the single shared source both computeWolfRoundResult
- * (money only) and buildWolfHoleSummary (display text) are built on top of.
+ * birdie + Add-A-Hammer multipliers — returning both the money result AND
+ * the descriptive pieces (wolfId, partnerId, format, sides) needed to build
+ * a human-readable narrative. This is the single shared source both
+ * computeWolfRoundResult (money only) and getWolfHoleNarrative (display
+ * text) are built on top of.
  */
 export function resolveWolfHoleFromConfig({
   hole,
@@ -2109,6 +2132,8 @@ export function resolveWolfHoleFromConfig({
   wolfStyle = WOLF_STYLES.HARRISON,
   settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
   birdieEnabled = false,
+  addAHammerEnabled = false,
+  addAHammerHammerHolesOnly = false,
 }) {
   const config = { ...(wolfHoles?.[hole] || {}) };
   const format = getFormat(config);
@@ -2126,21 +2151,38 @@ export function resolveWolfHoleFromConfig({
   if (!provisional) return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, resolved: null };
 
   let birdieMultiplier = 1;
-  if (birdieEnabled && provisional.winner !== "push") {
+  let addAHammerMultiplier = 1;
+  let addAHammerTriggered = false;
+
+  if (provisional.winner !== "push") {
     const winningSide = provisional.winner === "small" ? smallSide : bigSide;
-    birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
+    const losingSide = provisional.winner === "small" ? bigSide : smallSide;
+
+    if (birdieEnabled) {
+      birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
+    }
+
+    // Never applies on a hole that ended by Hammer rejection — no scores
+    // were played to compare, so there's no sweep to detect.
+    if (addAHammerEnabled && !concededBy) {
+      const hammerHoleOk = !addAHammerHammerHolesOnly || hammerMultiplier > 1;
+      if (hammerHoleOk && checkWolfCleanSweep(winningSide, losingSide, hole, activePlayers, course, scores, handicapMode, noPar3Strokes)) {
+        addAHammerMultiplier = 2;
+        addAHammerTriggered = true;
+      }
+    }
   }
 
-  const resolved = birdieMultiplier > 1
+  const resolved = (birdieMultiplier > 1 || addAHammerMultiplier > 1)
     ? resolveWolfHole({
         format, smallSide, bigSide, hole,
         players: activePlayers, course, scores, handicapMode,
         noPar3Strokes, betAmount, wolfStyle, settlementStyle,
-        hammerMultiplier, concededBy, birdieMultiplier,
+        hammerMultiplier, concededBy, birdieMultiplier, addAHammerMultiplier,
       })
     : provisional;
 
-  return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, birdieMultiplier, resolved };
+  return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, birdieMultiplier, addAHammerMultiplier, addAHammerTriggered, resolved };
 }
 
 export function computeWolfRoundResult({
@@ -2155,6 +2197,8 @@ export function computeWolfRoundResult({
   wolfStyle = WOLF_STYLES.HARRISON,
   settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
   birdieEnabled = false,
+  addAHammerEnabled = false,
+  addAHammerHammerHolesOnly = false,
 }) {
   if (!activePlayers || activePlayers.length !== 5) {
     return { balancesByPlayerId: {} };
@@ -2165,6 +2209,7 @@ export function computeWolfRoundResult({
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
+      addAHammerEnabled, addAHammerHammerHolesOnly,
     });
     holeResults.push(resolved);
   }
@@ -2194,13 +2239,16 @@ export function getWolfHoleNarrative({
   wolfStyle = WOLF_STYLES.HARRISON,
   settlementStyle = WOLF_SETTLEMENT_STYLES.PAIRWISE,
   birdieEnabled = false,
+  addAHammerEnabled = false,
+  addAHammerHammerHolesOnly = false,
 }) {
   const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
 
-  const { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, resolved } =
+  const { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, addAHammerTriggered, resolved } =
     resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
+      addAHammerEnabled, addAHammerHammerHolesOnly,
     });
 
   if (!resolved) return { lines: [], resolved: null, format };
@@ -2217,6 +2265,7 @@ export function getWolfHoleNarrative({
 
   const tags = [];
   if (hammerMultiplier > 1) tags.push(concededBy ? `Hammer ${hammerMultiplier}x, conceded` : `Hammer ${hammerMultiplier}x`);
+  if (addAHammerTriggered) tags.push("Add-A-Hammer 2x — clean sweep");
 
   const lines = [`${formatLabel}${tags.length ? ` (${tags.join(", ")})` : ""}`];
 

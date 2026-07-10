@@ -97,7 +97,9 @@ export default function WolfHoleCard({
         }}
       >
         {active ? `✓ ${label}` : label}
-        {sublabel && <div style={{ fontSize: 9, fontWeight: 400, marginTop: 1 }}>{sublabel}</div>}
+        <div style={{ fontSize: 9, fontWeight: active ? 700 : 400, marginTop: 1 }}>
+          {active ? "tap to undo" : sublabel}
+        </div>
       </button>
     );
   };

@@ -1437,6 +1437,8 @@ if (teamGameFormat === "wolf") {
     wolfStyle: teamMatchConfig.wolfStyle || "harrison",
     settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
+    addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
+    addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
   });
 }
 
@@ -2770,6 +2772,8 @@ if (teamGameFormat === "wolf") {
     wolfStyle: teamMatchConfig.wolfStyle || "harrison",
     settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
+    addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
+    addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
   });
   return {
     holeLines: lines.length ? lines : ["Hole not fully scored yet."],
