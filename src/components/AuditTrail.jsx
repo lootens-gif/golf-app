@@ -278,9 +278,22 @@ function TeamGameScorecard({
               const teamAHasBirdie = teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
+              const teamAHasEagle = teamA.filter(Boolean).some((id) => {
+                const gross = getRawScore(scores, row.hole, id);
+                const par = course?.pars?.[row.hole - 1];
+                return gross != null && par != null && (Number(gross) - Number(par)) <= -2;
+              });
               return (
-                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamAHasBirdie ? "#dcfce7" : "transparent", color: teamAHasBirdie ? "#137333" : "#1a1a1a", fontWeight: teamAHasBirdie ? 700 : 400 }}>
-                  {row.teamAValue}
+                <td key={`team-a-${gameIndex}-${matchupIndex}-${row.hole}`} style={scorecardCellStyle}>
+                  {teamAHasEagle ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", outline: "2px solid #137333", outlineOffset: "2px", color: "#137333", fontWeight: 700, fontSize: 11, margin: "0 3px" }}>
+                      {row.teamAValue}
+                    </span>
+                  ) : teamAHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamAValue}
+                    </span>
+                  ) : row.teamAValue}
                 </td>
               );
             })}
@@ -301,9 +314,22 @@ function TeamGameScorecard({
               const teamBHasBirdie = teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
+              const teamBHasEagle = teamB.filter(Boolean).some((id) => {
+                const gross = getRawScore(scores, row.hole, id);
+                const par = course?.pars?.[row.hole - 1];
+                return gross != null && par != null && (Number(gross) - Number(par)) <= -2;
+              });
               return (
-                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, background: teamBHasBirdie ? "#dcfce7" : "transparent", color: teamBHasBirdie ? "#137333" : "#1a1a1a", fontWeight: teamBHasBirdie ? 700 : 400 }}>
-                  {row.teamBValue}
+                <td key={`team-b-${gameIndex}-${matchupIndex}-${row.hole}`} style={scorecardCellStyle}>
+                  {teamBHasEagle ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", outline: "2px solid #137333", outlineOffset: "2px", color: "#137333", fontWeight: 700, fontSize: 11, margin: "0 3px" }}>
+                      {row.teamBValue}
+                    </span>
+                  ) : teamBHasBirdie ? (
+                    <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
+                      {row.teamBValue}
+                    </span>
+                  ) : row.teamBValue}
                 </td>
               );
             })}
@@ -1100,10 +1126,16 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = (isGrossStroke || isPlayEven) ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
+                const par = course?.pars?.[hole - 1];
+                const isEagleOrBetter = grossBirdie && par != null && gross != null && (Number(gross) - Number(par)) <= -2;
                 const netBirdie = match.birdieEnabled && toyRule && !grossBirdie && isNetBirdie(player.id, hole, matchPlayers, course, scores, handicapMode, !!match.noPar3Strokes);
                 return (
                   <td key={hole} style={{ ...scorecardCellStyle, color: "#444" }}>
-                    {grossBirdie ? (
+                    {isEagleOrBetter ? (
+                      <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", outline: "2px solid #137333", outlineOffset: "2px", color: "#137333", fontWeight: 700, fontSize: 11, margin: "0 3px" }}>
+                        {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
+                      </span>
+                    ) : grossBirdie ? (
                       <span style={{ display: "inline-block", width: 22, height: 22, lineHeight: "22px", borderRadius: "50%", border: "2px solid #137333", color: "#137333", fontWeight: 700, fontSize: 11 }}>
                         {gross != null ? `${gross}${"•".repeat(strokes)}` : "-"}
                       </span>
@@ -1977,11 +2009,12 @@ function TeamGameAudit({
   );
 }
 
-function getScoreSymbol(gross, par) {
+export function getScoreSymbol(gross, par) {
   if (gross === null || gross === undefined) return null;
   const diff = gross - par;
 
-  if (diff <= -2) return { type: "eagle", color: "#137333" };
+  if (diff <= -3) return { type: "albatross", color: "#137333" };
+  if (diff === -2) return { type: "eagle", color: "#137333" };
   if (diff === -1) return { type: "birdie", color: "#137333" };
   if (diff === 1) return { type: "bogey", color: "#b3261e" };
   if (diff >= 2) return { type: "double", color: "#b3261e" };
@@ -2028,6 +2061,26 @@ function ScoreCell({ gross, par, strokes }) {
         borderRadius: "50%", border: `2px solid ${symbol.color}`,
         outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
         color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px"
+      }}>
+        {display}{dotsEl}
+      </span>
+    );
+  }
+
+  if (symbol.type === "albatross") {
+    // Same ring language as eagle, one more ring further out — an
+    // albatross is one tier rarer, so it gets one more ring, not a
+    // different symbol. box-shadow adds the third ring cheaply since
+    // border+outline are already used for rings one and two.
+    return (
+      <span style={{
+        display: "inline-flex", flexDirection: "column", alignItems: "center",
+        minWidth: 26, height: 30, justifyContent: "center",
+        borderRadius: "50%", border: `2px solid ${symbol.color}`,
+        outline: `2px solid ${symbol.color}`, outlineOffset: "2px",
+        boxShadow: `0 0 0 6px ${symbol.color}`,
+        color: symbol.color, fontWeight: 700, fontSize: 11, padding: "0 2px",
+        margin: "0 4px",
       }}>
         {display}{dotsEl}
       </span>
