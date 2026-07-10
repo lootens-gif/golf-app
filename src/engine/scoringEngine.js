@@ -1436,6 +1436,7 @@ export function scoreRound(round, context = {}) {
   teamGameResults = [],
   teamGameUnitAmount = 1,
   birdieResults = [],
+  wolfResult = null,
 } = context;
 
   const ledgerMap = {};
@@ -1588,6 +1589,27 @@ const dollars = totalScore * teamGameUnitAmount;
       });
     });
   }
+}
+
+// WOLF SETTLEMENT
+// Same pattern as 9-Point above: wolfResult.balancesByPlayerId is a final
+// per-player $ total (already summed across every hole via
+// computeWolfRoundBalances), merged straight into mainGame — since Wolf
+// reuses the same pairwise settlement approach 9-Point already uses, not a
+// separate zero-out calculation.
+if (wolfResult && wolfResult.balancesByPlayerId) {
+  Object.entries(wolfResult.balancesByPlayerId).forEach(([playerId, amount]) => {
+    if (!ledgerMap[playerId] || typeof amount !== "number") return;
+    ledgerMap[playerId].mainGame += amount;
+    ledgerMap[playerId].total += amount;
+    eventLedger.push({
+      holeNumber: null,
+      playerId,
+      amount,
+      gameType: "main",
+      label: "Wolf",
+    });
+  });
 }
 
   const playerLedger = Object.values(ledgerMap);
@@ -1910,6 +1932,33 @@ export function getSuperWolfHittingOrder(mode, otherFour, opts = {}) {
 
   // STANDARD
   return [...otherFour].sort(byRotation);
+}
+
+/**
+ * Sums a full round's worth of per-hole Wolf results into final per-player
+ * dollar totals, in the same shape 9-Point's payout.balancesByPlayerId uses
+ * — so it can be merged into scoreRound()'s ledger the exact same way
+ * (see the WOLF SETTLEMENT block in scoreRound above).
+ *
+ * @param {Array<{deltas: Object}|null>} holeResults - one entry per hole
+ *   played so far; each is the direct output of resolveWolfHole(), or null
+ *   for a hole not yet scored (skipped safely).
+ * @param {string[]} playerIds - every player who might appear, so everyone
+ *   shows up in the output even at a $0 balance.
+ * @returns {{balancesByPlayerId: Object}}
+ */
+export function computeWolfRoundBalances(holeResults, playerIds = []) {
+  const balances = {};
+  playerIds.forEach((id) => { balances[id] = 0; });
+
+  (holeResults || []).forEach((hole) => {
+    if (!hole || !hole.deltas) return;
+    Object.entries(hole.deltas).forEach(([playerId, amount]) => {
+      balances[playerId] = (balances[playerId] || 0) + (Number(amount) || 0);
+    });
+  });
+
+  return { balancesByPlayerId: balances };
 }
 
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
