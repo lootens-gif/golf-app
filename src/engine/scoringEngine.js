@@ -1654,7 +1654,164 @@ function buildTabsFromLedger(playerLedger = []) {
   return tabs;
 }
 
+// ─── WOLF ENGINE ─────────────────────────────────────────────────────────────
+// Per "Wolf Golf Game — Program Requirements (Final)", July 2026.
+// Scope of this first pass: hole-level resolution only (formats, hammer,
+// birdie/eagle/albatross multiplier, tie-is-always-a-push). Super Wolf
+// assignment, the 3-way carryover mode, and full-round settlement wiring
+// into scoreRound() are deferred to the next iteration — see notes below.
+
+/**
+ * Points earned PER PLAYER by whichever side wins, by format.
+ * "small" = the Wolf's side (1 player for lone/blind/shuck, 2 for pack).
+ * "big"   = the opponents (3 for pack, 4 for lone/blind/shuck).
+ * Pack Wolf is symmetric; the others are not (confirmed in the spec doc).
+ */
+export const WOLF_POINT_VALUES = {
+  pack:  { small: 2,  big: 2 },
+  lone:  { small: 4,  big: 1 },
+  blind: { small: 12, big: 3 },
+  shuck: { small: 8,  big: 2 },
+};
+
+/**
+ * Resolve a single Wolf hole and return the pairwise dollar delta for every
+ * player involved. Every losing player pays every winning player individually
+ * — this is never a team pot-split, per the confirmed spec (Section 7).
+ *
+ * @param {"pack"|"lone"|"blind"|"shuck"} format
+ * @param {string[]} smallSide   - Wolf's side. 1 id (lone/blind/shuck) or 2 ids (pack).
+ * @param {string[]} bigSide     - Opponents. 3 ids (pack) or 4 ids (lone/blind/shuck).
+ * @param {number} betAmount     - $ per point for this hole (Super Wolf's elevated
+ *                                 rate, if applicable, is just passed in here already).
+ * @param {number} hammerMultiplier - 1 if no hammer; 2/4/8/16/32 if thrown & accepted.
+ * @param {number} birdieMultiplier - 1 (none) / 2 (birdie) / 3 (eagle) / 4 (albatross),
+ *                                 applied to whichever side actually wins the hole.
+ *                                 NOTE: the spec doc doesn't explicitly say the birdie
+ *                                 has to belong to the winning side — that's an
+ *                                 assumption carried over from how 9-Point already
+ *                                 works (winnerMadeGrossBirdie). Flag for confirmation.
+ * @param {"small"|"big"|null} concededBy - set when a Hammer was rejected; the
+ *                                 conceding side loses outright, no score comparison.
+ */
+export function resolveWolfHole({
+  format,
+  smallSide,
+  bigSide,
+  hole,
+  players,
+  course,
+  scores,
+  handicapMode,
+  noPar3Strokes = false,
+  betAmount,
+  hammerMultiplier = 1,
+  birdieMultiplier = 1,
+  concededBy = null,
+}) {
+  const values = WOLF_POINT_VALUES[format];
+  if (!values) throw new Error(`Unknown Wolf format: ${format}`);
+
+  let winner; // "small" | "big" | "push"
+
+  if (concededBy) {
+    winner = concededBy === "small" ? "big" : "small";
+  } else {
+    const smallBest = getBestBallWinner(smallSide, hole, players, course, scores, handicapMode, null, noPar3Strokes);
+    const bigBest = getBestBallWinner(bigSide, hole, players, course, scores, handicapMode, null, noPar3Strokes);
+    if (!smallBest || !bigBest) return null; // scores not yet entered for this hole
+
+    if (smallBest.net < bigBest.net) winner = "small";
+    else if (bigBest.net < smallBest.net) winner = "big";
+    else winner = "push"; // confirmed: ties are ALWAYS a push, every format — never a loss for the lone side
+  }
+
+  const deltas = {};
+  [...smallSide, ...bigSide].forEach((id) => { deltas[id] = 0; });
+
+  if (winner === "push") {
+    return { winner, deltas, pointsPerPlayer: 0, dollarsPerPairing: 0 };
+  }
+
+  const winningSide = winner === "small" ? smallSide : bigSide;
+  const losingSide = winner === "small" ? bigSide : smallSide;
+  const pointsPerPlayer = values[winner];
+  const dollarsPerPairing = pointsPerPlayer * (Number(betAmount) || 0) * hammerMultiplier * birdieMultiplier;
+
+  // Pairwise: every losing player pays every winning player the full per-pairing amount.
+  winningSide.forEach((winId) => {
+    losingSide.forEach((loseId) => {
+      deltas[winId] = (deltas[winId] || 0) + dollarsPerPairing;
+      deltas[loseId] = (deltas[loseId] || 0) - dollarsPerPairing;
+    });
+  });
+
+  return { winner, deltas, pointsPerPlayer, dollarsPerPairing };
+}
+
+/**
+ * Carryover on Push — Section 12/12A of the confirmed spec.
+ * A 3-way mode, not a simple on/off, because Wolf's teams reshuffle every
+ * hole (unlike a fixed match), so carrying a Hammer multiplier forward is a
+ * separate decision from carrying the base point value.
+ */
+export const WOLF_CARRYOVER_MODES = {
+  OFF: "off",
+  VALUE_ONLY: "value_only",
+  VALUE_AND_HAMMERS: "value_and_hammers",
+};
+
+/**
+ * Advances Wolf carryover state by one hole.
+ *
+ * @param {{carriedAmount:number, pushCount:number}} state - pass
+ *   {carriedAmount:0, pushCount:0} for hole 1 / after any hole that was won.
+ * @param {{isPush:boolean, holeBaseValue:number, holeHammerMultiplier?:number}} hole
+ *   - the hole that just finished. holeHammerMultiplier only matters in
+ *   VALUE_AND_HAMMERS mode (defaults to 1 = no hammer).
+ * @param {{mode:string, maxCarryover?:number|null}} config - maxCarryover of
+ *   null/undefined means unlimited stacking.
+ *
+ * @returns {{nextState: object, effectiveBaseValue: number}} - effectiveBaseValue
+ *   is what THIS hole's base value actually was (its own base + whatever had
+ *   already carried in from prior pushes); nextState is what carries into
+ *   the following hole.
+ */
+export function applyWolfCarryover(state, hole, config) {
+  const { carriedAmount = 0, pushCount = 0 } = state || {};
+  const { isPush, holeBaseValue, holeHammerMultiplier = 1 } = hole;
+  const { mode = WOLF_CARRYOVER_MODES.OFF, maxCarryover = null } = config || {};
+
+  const effectiveBaseValue = holeBaseValue + carriedAmount;
+
+  // A won hole (not a push) always resets carryover for the next hole,
+  // regardless of mode.
+  if (!isPush) {
+    return { nextState: { carriedAmount: 0, pushCount: 0 }, effectiveBaseValue };
+  }
+
+  if (mode === WOLF_CARRYOVER_MODES.OFF) {
+    return { nextState: { carriedAmount: 0, pushCount: 0 }, effectiveBaseValue };
+  }
+
+  const atCap = maxCarryover != null && pushCount >= maxCarryover;
+  if (atCap) {
+    // Cap already reached — holds flat, no further increase, state unchanged.
+    return { nextState: { carriedAmount, pushCount }, effectiveBaseValue };
+  }
+
+  const contribution = mode === WOLF_CARRYOVER_MODES.VALUE_AND_HAMMERS
+    ? holeBaseValue * holeHammerMultiplier
+    : holeBaseValue;
+
+  return {
+    nextState: { carriedAmount: carriedAmount + contribution, pushCount: pushCount + 1 },
+    effectiveBaseValue,
+  };
+}
+
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
+
 
 /**
  * Get the hole value for pot skins with escalation.
