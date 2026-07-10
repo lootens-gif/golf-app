@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { fetchRound, subscribeToRound, unsubscribeFromRound } from "./lib/roundSync";
+import { supabase } from "./lib/supabase";
 import ResultsScreen from "./screens/ResultsScreen";
 import {
   getActivePlayers,
@@ -10,6 +11,19 @@ import {
   buildLeaderboard,
   settleSkinsRound,
 } from "./engine/scoringEngine";
+
+// This component's own internal "joined" render (below) duplicates
+// App.jsx's Results computation and has caused real bugs before (see
+// project Knowledge Base — wrong/empty leaderboard, bad buildBirdieResults
+// args) and is now also missing Wolf entirely. The documented, intended
+// flow is that onJoinSuccess hands off to App.jsx's own state, which
+// switches screen to "results" and unmounts this component before this
+// branch would ever paint. Turned off rather than deleted — if it's ever
+// actually reached, that's logged to bug_reports below so we get real
+// evidence instead of guessing. Flip to true to restore the old behavior.
+const SHOW_LEGACY_JOIN_RESULTS = false;
+
+let legacyJoinResultsLogged = false; // avoid spamming bug_reports on every re-render
 
 // Inlined from App.jsx
 function getTeamGameRange(teamGames, index) {
@@ -294,6 +308,25 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   }
 
   if (status === "joined" && computed) {
+    if (!SHOW_LEGACY_JOIN_RESULTS) {
+      // We expect App.jsx's own onJoinSuccess -> setScreen("results") to
+      // have already switched away from rendering this component by now.
+      // If this actually renders, that assumption was wrong — log it once
+      // so there's real evidence instead of guessing, then get out of the
+      // way rather than showing the old, Wolf-unaware Results view.
+      if (!legacyJoinResultsLogged) {
+        legacyJoinResultsLogged = true;
+        supabase.from("bug_reports").insert({
+          tester_name: "System",
+          screen: "Join",
+          severity: "broken",
+          description: `JoinRound's legacy internal results branch was reached for round ${code?.toUpperCase() || "unknown"} — expected App.jsx to have already taken over by this point. Needs investigation.`,
+          round_code: joinedCode || code || null,
+          app_version: "v1",
+        }).then(() => {}).catch(() => {});
+      }
+      return null;
+    }
     return (
       <div style={{ padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
