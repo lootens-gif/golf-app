@@ -1859,6 +1859,59 @@ export function getSuperWolfAssignment(wolfStandings, rotationOrder = []) {
   };
 }
 
+/**
+ * Super Wolf hitting order — Section 9C of the confirmed spec.
+ * Chosen once at Setup, applied identically at holes 16, 17, and 18.
+ * Super Wolf itself always hits first (Section 4A/9A) — this only orders
+ * the other 4 players.
+ */
+export const SUPER_WOLF_ORDER_MODES = {
+  STANDARD: "standard",
+  WOLF_CONTROLS: "wolf_controls",
+  RANK_BY_DEFICIT: "rank_by_deficit",
+};
+
+/**
+ * @param {string} mode - one of SUPER_WOLF_ORDER_MODES
+ * @param {string[]} otherFour - the 4 non-Super-Wolf player IDs
+ * @param {{rotationOrder?: string[], wolfStandings?: Object, manualOrder?: string[]|null}} opts
+ *   - rotationOrder: full rotation sequence — used for STANDARD ordering and all tiebreaks
+ *   - wolfStandings: { playerId: dollarAmount } — required for RANK_BY_DEFICIT
+ *   - manualOrder: required for WOLF_CONTROLS — the order Super Wolf calls out,
+ *     tapped in by the Scorekeeper at the tee box
+ * @returns {string[]|null} - the ordered 4 players, or null if WOLF_CONTROLS
+ *   mode and manualOrder hasn't been entered yet (signals the UI still needs input)
+ */
+export function getSuperWolfHittingOrder(mode, otherFour, opts = {}) {
+  const { rotationOrder = [], wolfStandings = {}, manualOrder = null } = opts;
+
+  if (mode === SUPER_WOLF_ORDER_MODES.WOLF_CONTROLS) {
+    if (!manualOrder || manualOrder.length !== otherFour.length) return null;
+    return manualOrder;
+  }
+
+  const byRotation = (a, b) => {
+    const ai = rotationOrder.indexOf(a);
+    const bi = rotationOrder.indexOf(b);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  };
+
+  if (mode === SUPER_WOLF_ORDER_MODES.RANK_BY_DEFICIT) {
+    return [...otherFour].sort((a, b) => {
+      const sa = Number(wolfStandings[a]) || 0;
+      const sb = Number(wolfStandings[b]) || 0;
+      if (sa !== sb) return sa - sb; // most negative (most down) hits first
+      return byRotation(a, b);
+    });
+  }
+
+  // STANDARD
+  return [...otherFour].sort(byRotation);
+}
+
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
 
 
