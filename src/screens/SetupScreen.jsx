@@ -962,7 +962,11 @@ export default function SetupScreen({
                   }}
                 />
 
-                {/* Birdie side bet for team game */}
+                {/* Birdie side bet for team game — not shown for Wolf, whose
+                    birdie/eagle/albatross multiplier is baked directly into
+                    its own scoring (like 9-Point's birdieDoublePoints), not
+                    a separate side bet feeding the shared Birds column. */}
+                {teamGameFormat !== "wolf" && (
                 <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12 }}>
                   <Toggle
                     checked={teamMatchConfig.teamBirdiesEnabled}
@@ -992,7 +996,7 @@ export default function SetupScreen({
                     </div>
                   )}
                 </div>
-
+                )}
                 {/* No par 3 strokes */}
                 <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -1539,6 +1543,39 @@ export default function SetupScreen({
             <div>
               <div style={{ fontSize: 12, color: sc.muted, marginBottom: 14, lineHeight: 1.5 }}>
                 Whole round · 18 holes · 5 players · teams picked live each hole by the Scorekeeper. Dollar Value Per Point and No Par 3 Strokes are the shared fields above — same as every other format.
+              </div>
+
+              {/* Wolf Style */}
+              <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Wolf Style</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Controls the payout multiplier for Lone Wolf and Blind Wolf</div>
+                <select
+                  value={teamMatchConfig.wolfStyle || "harrison"}
+                  onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfStyle: e.target.value }))}
+                  style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
+                >
+                  <option value="harrison">Harrison Wolf — Wolf 1x · Lone Wolf 2x · Blind Wolf 3x (symmetric)</option>
+                  <option value="classic">Classic Wolf — Wolf 4x/1x · Blind Wolf 12x/3x (asymmetric win/lose)</option>
+                </select>
+              </div>
+
+              {/* Settlement Style */}
+              <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Payout Style</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters on a Pack Wolf hole (partner picked) — no difference when going alone</div>
+                <select
+                  value={teamMatchConfig.wolfSettlementStyle || "pairwise"}
+                  onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfSettlementStyle: e.target.value }))}
+                  style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
+                >
+                  <option value="pairwise">Pay Each Winner — every loser pays every winner in full</option>
+                  <option value="pooled">Split the Pot — losers pay in, winners split it evenly</option>
+                </select>
+                {teamMatchConfig.wolfSettlementStyle === "pooled" && (
+                  <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
+                    Split the Pot can produce uneven cents on a Pack Wolf hole. The app will suggest the two nearest clean dollar amounts when you enter a bet that doesn't divide evenly.
+                  </div>
+                )}
               </div>
 
               {/* Hammer Rule */}
