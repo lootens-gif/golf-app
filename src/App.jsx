@@ -1403,8 +1403,24 @@ const segmentBirdieAmounts = useMemo(() => {
   return result;
 }, [teamGameResults, birdieResults, players]);
 
+const activePlayers = useMemo(() => {
+  if (enableTeamGame) return players;
+  if (skinsEnabled && matches.length === 0) return players;
+
+  const activePlayerIds = new Set();
+
+  matches.forEach((match) => {
+    if (match.p1Id) activePlayerIds.add(match.p1Id);
+    if (match.p2Id) activePlayerIds.add(match.p2Id);
+    if (match.p3Id) activePlayerIds.add(match.p3Id);
+  });
+
+  return players.filter((player) => activePlayerIds.has(player.id));
+}, [enableTeamGame, players, matches, skinsEnabled]);
+
 // WOLF: compute this round's Wolf balances (holes 1-15 only — Super Wolf
 // 16-18 still blocked) using the tested, extracted engine function.
+// Needs activePlayers, defined just above.
 let wolfResult = null;
 if (teamGameFormat === "wolf") {
   wolfResult = computeWolfRoundResult({
@@ -1442,21 +1458,6 @@ const computedResults = scoreRound(round, {
 const leaderboard = useMemo(() => {
   return buildLeaderboard(computedResults.playerLedger, { players });
 }, [computedResults, players]);
-
-const activePlayers = useMemo(() => {
-  if (enableTeamGame) return players;
-  if (skinsEnabled && matches.length === 0) return players;
-
-  const activePlayerIds = new Set();
-
-  matches.forEach((match) => {
-    if (match.p1Id) activePlayerIds.add(match.p1Id);
-    if (match.p2Id) activePlayerIds.add(match.p2Id);
-    if (match.p3Id) activePlayerIds.add(match.p3Id);
-  });
-
-  return players.filter((player) => activePlayerIds.has(player.id));
-}, [enableTeamGame, players, matches, skinsEnabled]);
 
 const skinsConfig = useMemo(() => ({
   skinsType,
