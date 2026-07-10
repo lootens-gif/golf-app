@@ -946,6 +946,7 @@ export default function SetupScreen({
               longshort: "Long bet value",
               match_fbt: "Bet per segment",
               stroke: "Bet per stroke differential",
+              wolf: "Dollar value per point",
             }[teamGameFormat] || "Unit bet";
 
             return (
@@ -1158,15 +1159,16 @@ export default function SetupScreen({
                 { value: "longshort", label: "Long/Short" },
                 { value: "match_fbt", label: "Match Play" },
                 { value: "stroke", label: "Stroke" },
-                { value: "wolf", label: "Wolf", disabled: true },
+                { value: "wolf", label: "Wolf" },
               ].map(opt => {
                 const active = (teamGameFormat || "press") === opt.value;
-                if (opt.disabled) {
+                const wolfBlocked = opt.value === "wolf" && mode !== "5p";
+                if (wolfBlocked) {
                   return (
                     <button
                       key={opt.value}
                       disabled
-                      title="Coming soon"
+                      title="Wolf requires exactly 5 players"
                       style={{
                         padding: "9px 6px", fontSize: 13, fontWeight: 400,
                         border: `1px dashed ${sc.border}`,
@@ -1176,7 +1178,7 @@ export default function SetupScreen({
                       }}
                     >
                       {opt.label}
-                      <div style={{ fontSize: 9, marginTop: 1 }}>under construction</div>
+                      <div style={{ fontSize: 9, marginTop: 1 }}>needs 5 players</div>
                     </button>
                   );
                 }
@@ -1466,7 +1468,7 @@ export default function SetupScreen({
           </>)}
 
           {/* Non-press formats: single team pairing + format options */}
-          {teamGameFormat && teamGameFormat !== "press" && (
+          {teamGameFormat && teamGameFormat !== "press" && teamGameFormat !== "wolf" && (
             <div>
               <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
                 Whole round · 18 holes · one team matchup
@@ -1528,6 +1530,126 @@ export default function SetupScreen({
                   ))}
                 </div>
               )}
+              <PrimarySetupAction />
+            </div>
+          )}
+
+          {/* Wolf-specific options — teams are picked live per-hole, not here */}
+          {teamGameFormat === "wolf" && (
+            <div>
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 14, lineHeight: 1.5 }}>
+                Whole round · 18 holes · 5 players · teams picked live each hole by the Scorekeeper. Dollar Value Per Point and No Par 3 Strokes are the shared fields above — same as every other format.
+              </div>
+
+              {/* Hammer Rule */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <Toggle
+                  checked={!!teamMatchConfig.wolfHammerEnabled}
+                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfHammerEnabled: val }))}
+                  label="Hammer Rule"
+                  sublabel="Either side can double the hole's value mid-hole"
+                />
+              </div>
+
+              {/* Add-A-Hammer */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <Toggle
+                  checked={!!teamMatchConfig.wolfAddAHammer}
+                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfAddAHammer: val }))}
+                  label="Add-A-Hammer"
+                  sublabel="Auto-double if the winning side individually beat everyone on the losing side"
+                />
+                {teamMatchConfig.wolfAddAHammer && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 10, paddingLeft: 56 }}>
+                    <input type="checkbox" checked={!!teamMatchConfig.wolfAddAHammerHammerHolesOnly}
+                      onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfAddAHammerHammerHolesOnly: e.target.checked }))}
+                      style={{ width: 16, height: 16, accentColor: sc.green }} />
+                    <span style={{ fontSize: 13, color: sc.muted }}>Apply to Hammer holes only</span>
+                  </label>
+                )}
+                {teamMatchConfig.wolfAddAHammer && teamMatchConfig.wolfAddAHammerHammerHolesOnly && !teamMatchConfig.wolfHammerEnabled && (
+                  <div style={{ fontSize: 11, color: "#b45309", marginTop: 8, paddingLeft: 56 }}>
+                    Hammer Rule is off, so no hole can be a Hammer hole — this bonus won't fire.
+                  </div>
+                )}
+              </div>
+
+              {/* Carryover on Push */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Carryover on Push</div>
+                <select
+                  value={teamMatchConfig.wolfCarryoverMode || "off"}
+                  onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfCarryoverMode: e.target.value }))}
+                  style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
+                >
+                  <option value="off">Off</option>
+                  <option value="value_only">Point Value Only</option>
+                  <option value="value_and_hammers">Point Value + Hammers</option>
+                </select>
+
+                {teamMatchConfig.wolfCarryoverMode && teamMatchConfig.wolfCarryoverMode !== "off" && (
+                  <div style={{ marginTop: 10 }}>
+                    <Toggle
+                      checked={!!teamMatchConfig.wolfLimitCarryover}
+                      onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfLimitCarryover: val }))}
+                      label="Limit Carryover"
+                      sublabel="Cap how many pushes in a row can stack"
+                    />
+                    {teamMatchConfig.wolfLimitCarryover && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, paddingLeft: 56 }}>
+                        <span style={{ fontSize: 13, color: sc.ink }}>Max stacked pushes</span>
+                        <button
+                          onClick={() => setTeamMatchConfig(prev => ({ ...prev, wolfMaxCarryover: Math.max(1, (Number(prev.wolfMaxCarryover) || 2) - 1) }))}
+                          style={{ width: 28, height: 28, border: `1px solid ${sc.border}`, borderRadius: 6, background: "#fff", cursor: "pointer", fontFamily: "inherit" }}
+                        >–</button>
+                        <span style={{ fontSize: 14, fontWeight: 600, minWidth: 16, textAlign: "center" }}>
+                          {teamMatchConfig.wolfMaxCarryover || 2}
+                        </span>
+                        <button
+                          onClick={() => setTeamMatchConfig(prev => ({ ...prev, wolfMaxCarryover: (Number(prev.wolfMaxCarryover) || 2) + 1 }))}
+                          style={{ width: 28, height: 28, border: `1px solid ${sc.border}`, borderRadius: 6, background: "#fff", cursor: "pointer", fontFamily: "inherit" }}
+                        >+</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Birdie/Eagle/Albatross Multiplier */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <Toggle
+                  checked={!!teamMatchConfig.wolfBirdieMultiplierEnabled}
+                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfBirdieMultiplierEnabled: val }))}
+                  label="Birdie / Eagle / Albatross Multiplier"
+                  sublabel="Doubles / triples / quadruples the hole's bet — applies to every hole, including Super Wolf"
+                />
+              </div>
+
+              {/* Super Wolf Hitting Order Mode */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Super Wolf Hitting Order</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Chosen once here — applies the same way at holes 16, 17, and 18</div>
+                <select
+                  value={teamMatchConfig.wolfSuperWolfOrderMode || "standard"}
+                  onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfSuperWolfOrderMode: e.target.value }))}
+                  style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
+                >
+                  <option value="standard">Standard rotation order</option>
+                  <option value="wolf_controls">Super Wolf controls the order</option>
+                  <option value="rank_by_deficit">Rank order by $$ down</option>
+                </select>
+              </div>
+
+              {/* Wolf Hits Last */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <Toggle
+                  checked={!!teamMatchConfig.wolfHitsLast}
+                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfHitsLast: val }))}
+                  label="Wolf Hits Last"
+                  sublabel="Default is Wolf hits first — turn on for the traditional last-to-hit variant"
+                />
+              </div>
+
               <PrimarySetupAction />
             </div>
           )}
