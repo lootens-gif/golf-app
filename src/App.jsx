@@ -438,6 +438,7 @@ function notifyRound(event, code) {
   const [recentRounds, setRecentRounds] = useState([]);
   const [showRecentRounds, setShowRecentRounds] = useState(false);
   const scoreEntryRef = useRef(null);
+  const wolfCardRef = useRef(null); // Wolf's tee-box card sits above score entry — scroll target needs to point here on Wolf rounds, not past it.
 
 
   function createDefaultTeamGame(index = 0) {
@@ -2273,6 +2274,17 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [setupMessage]);
 
+// WOLF: "Spread" handicap distribution is a 6/6/6-specific concept and
+// doesn't apply to Wolf at all. If it's left set from a prior format or a
+// loaded template (e.g. a Biro 6/6/6 template loaded, then switched to
+// Wolf), force it back to standard — this fires regardless of WHICH path
+// set the stale value, rather than patching each entry point individually.
+useEffect(() => {
+  if (teamGameFormat === "wolf" && handicapDistribution === "spread") {
+    setHandicapDistribution("standard");
+  }
+}, [teamGameFormat, handicapDistribution]);
+
 useEffect(() => {
   try {
     const raw = localStorage.getItem(SAVED_ROUNDS_KEY);
@@ -2655,7 +2667,8 @@ if (!enableTeamGame && !skinsEnabled) {
     .finally(() => setIsSyncing(false));
 
   setTimeout(() => {
-    scoreEntryRef.current?.scrollIntoView({
+    const scrollTarget = teamGameFormat === "wolf" ? wolfCardRef.current : scoreEntryRef.current;
+    scrollTarget?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
@@ -3387,6 +3400,7 @@ return (
     )}
 
   
+  <div ref={wolfCardRef}>
   {teamGameFormat === "wolf" && currentHole >= 1 && currentHole <= 15 && (
     <WolfHoleCard
       currentHole={currentHole}
@@ -3401,6 +3415,7 @@ return (
       Super Wolf holes (16–18) aren't wired up yet — coming in a later update.
     </div>
   )}
+  </div>
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
     currentHole={currentHole}
