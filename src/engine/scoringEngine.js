@@ -2185,6 +2185,68 @@ export function resolveWolfHoleFromConfig({
   return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, birdieMultiplier, addAHammerMultiplier, addAHammerTriggered, resolved };
 }
 
+/**
+ * Computes the effective bet amount for every Wolf hole (1-15), accounting
+ * for Carryover on Push. Whether a hole is a push doesn't depend on the
+ * bet amount at all — only the best-ball comparison — so this runs as its
+ * own sequential pass, independent of dollar math, and both
+ * computeWolfRoundResult and getWolfHoleNarrative look up their hole's
+ * entry from it instead of each re-deriving carryover state separately.
+ */
+export function computeWolfCarryoverSchedule({
+  activePlayers,
+  wolfHoles,
+  getFormat,
+  course,
+  scores,
+  handicapMode,
+  noPar3Strokes = false,
+  betAmount,
+  carryoverMode = WOLF_CARRYOVER_MODES.OFF,
+  maxCarryover = null,
+}) {
+  const schedule = {};
+  let state = { carriedAmount: 0, pushCount: 0 };
+
+  for (let hole = 1; hole <= 15; hole++) {
+    const config = { ...(wolfHoles?.[hole] || {}) };
+    const format = getFormat(config);
+    const { smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format);
+    const hammerMultiplier = Number(config.hammerMultiplier) || 1;
+    const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
+
+    let isPush = null; // null = not yet scored
+    if (concededBy) {
+      isPush = false;
+    } else {
+      const smallBest = getBestBallWinner(smallSide, hole, activePlayers, course, scores, handicapMode, null, noPar3Strokes);
+      const bigBest = getBestBallWinner(bigSide, hole, activePlayers, course, scores, handicapMode, null, noPar3Strokes);
+      if (smallBest && bigBest) isPush = smallBest.net === bigBest.net;
+    }
+
+    const carriedInAmount = state.carriedAmount;
+    const carriedInCount = state.pushCount;
+
+    schedule[hole] = {
+      effectiveBetAmount: (Number(betAmount) || 0) + carriedInAmount,
+      carriedInAmount,
+      carriedInCount,
+      isPush,
+    };
+
+    if (isPush === null) continue; // not scored yet — don't advance state for future holes
+
+    const advanced = applyWolfCarryover(
+      state,
+      { isPush, holeBaseValue: Number(betAmount) || 0, holeHammerMultiplier: hammerMultiplier },
+      { mode: carryoverMode, maxCarryover }
+    );
+    state = advanced.nextState;
+  }
+
+  return schedule;
+}
+
 export function computeWolfRoundResult({
   activePlayers,
   wolfHoles,
@@ -2199,16 +2261,24 @@ export function computeWolfRoundResult({
   birdieEnabled = false,
   addAHammerEnabled = false,
   addAHammerHammerHolesOnly = false,
+  carryoverMode = WOLF_CARRYOVER_MODES.OFF,
+  maxCarryover = null,
 }) {
   if (!activePlayers || activePlayers.length !== 5) {
     return { balancesByPlayerId: {} };
   }
 
+  const schedule = computeWolfCarryoverSchedule({
+    activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+    noPar3Strokes, betAmount, carryoverMode, maxCarryover,
+  });
+
   const holeResults = [];
   for (let hole = 1; hole <= 15; hole++) {
+    const effectiveBetAmount = schedule[hole]?.effectiveBetAmount ?? betAmount;
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
-      noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
+      noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
       addAHammerEnabled, addAHammerHammerHolesOnly,
     });
     holeResults.push(resolved);
@@ -2241,13 +2311,22 @@ export function getWolfHoleNarrative({
   birdieEnabled = false,
   addAHammerEnabled = false,
   addAHammerHammerHolesOnly = false,
+  carryoverMode = WOLF_CARRYOVER_MODES.OFF,
+  maxCarryover = null,
 }) {
   const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
+
+  const schedule = computeWolfCarryoverSchedule({
+    activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+    noPar3Strokes, betAmount, carryoverMode, maxCarryover,
+  });
+  const scheduleEntry = schedule[hole] || {};
+  const effectiveBetAmount = scheduleEntry.effectiveBetAmount ?? betAmount;
 
   const { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, addAHammerTriggered, resolved } =
     resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
-      noPar3Strokes, betAmount, wolfStyle, settlementStyle, birdieEnabled,
+      noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
       addAHammerEnabled, addAHammerHammerHolesOnly,
     });
 
@@ -2265,13 +2344,20 @@ export function getWolfHoleNarrative({
 
   const tags = [];
   if (hammerMultiplier > 1) tags.push(concededBy ? `Hammer ${hammerMultiplier}x, conceded` : `Hammer ${hammerMultiplier}x`);
-  if (addAHammerTriggered) tags.push("Add-A-Hammer 2x — clean sweep");
+  if (addAHammerTriggered) tags.push("Hammer Sweep 2x");
 
   const lines = [`${formatLabel}${tags.length ? ` (${tags.join(", ")})` : ""}`];
 
   if (resolved.winner === "push") {
     lines.push("Push — no money changes hands this hole.");
+    if (carryoverMode !== WOLF_CARRYOVER_MODES.OFF) {
+      lines.push("Carries forward to the next hole.");
+    }
   } else {
+    if ((scheduleEntry.carriedInCount || 0) > 0) {
+      const n = scheduleEntry.carriedInCount;
+      lines.push(`${n} carryover${n !== 1 ? "s" : ""} won — worth $${scheduleEntry.carriedInAmount.toFixed(2)} extra this hole.`);
+    }
     const winningSide = resolved.winner === "small" ? smallSide : bigSide;
     const losingSide = resolved.winner === "small" ? bigSide : smallSide;
     const winnerNames = winningSide.map(nameOf).join(", ");

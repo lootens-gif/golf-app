@@ -1588,12 +1588,12 @@ export default function SetupScreen({
                 />
               </div>
 
-              {/* Add-A-Hammer */}
+              {/* Hammer Sweep (internal key stays wolfAddAHammer) */}
               <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
                 <Toggle
                   checked={!!teamMatchConfig.wolfAddAHammer}
                   onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfAddAHammer: val }))}
-                  label="Add-A-Hammer"
+                  label="Auto Hammer Sweep"
                   sublabel="Auto-double if the winning side individually beat everyone on the losing side"
                 />
                 {teamMatchConfig.wolfAddAHammer && (

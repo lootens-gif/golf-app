@@ -125,13 +125,13 @@ describe('computeWolfRoundResult — Add-A-Hammer flows through the full round',
   });
 });
 
-describe('getWolfHoleNarrative — Add-A-Hammer shows up in the narrative tags', () => {
+describe('getWolfHoleNarrative — Hammer Sweep shows up in the narrative tags', () => {
   test('a triggered clean sweep is mentioned in the format label', () => {
     const scores = { 1: { A: 3, B: 4, C: 5, D: 6, E: 5 } };
     const { lines } = getWolfHoleNarrative({
       hole: 1, activePlayers: PLAYERS, wolfHoles: { 1: { partnerId: 'B' } }, getFormat: getWolfFormat,
       course: COURSE, scores, handicapMode: 'full', betAmount: 5, addAHammerEnabled: true,
     });
-    expect(lines[0]).toContain('Add-A-Hammer 2x');
+    expect(lines[0]).toContain('Hammer Sweep 2x');
   });
 });

@@ -98,11 +98,11 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(screen.getByText(/Push/)).toBeInTheDocument();
   });
 
-  test('Carryover-on-push flag shows the honest "not yet applied" warning', () => {
-    const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } };
+  test('Carryover on push now says it carries forward — real behavior, not just a warning', () => {
+    const scores = { 1: { Wolf: 4, P2: 4, P3: 4, P4: 4, P5: 4 } }; // identical scores, guaranteed push
     renderWolfAudit({ scores, teamMatchConfig: { wolfCarryoverMode: 'value_only' } });
     fireEvent.click(screen.getByText(/Hole 1/));
-    expect(screen.getByText(/Carryover is on but not yet applied/)).toBeInTheDocument();
+    expect(screen.getByText(/Carries forward to the next hole/)).toBeInTheDocument();
   });
 
   test('Hammer multiplier shows in both Level 1 and Level 2', () => {

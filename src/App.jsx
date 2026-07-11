@@ -1439,6 +1439,8 @@ if (teamGameFormat === "wolf") {
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
+    maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
 }
 
@@ -2774,6 +2776,8 @@ if (teamGameFormat === "wolf") {
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
+    maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
   return {
     holeLines: lines.length ? lines : ["Hole not fully scored yet."],

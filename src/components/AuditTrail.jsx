@@ -1522,6 +1522,8 @@ function WolfAudit({
   const birdieEnabled = !!teamMatchConfig.wolfBirdieMultiplierEnabled;
   const addAHammerEnabled = !!teamMatchConfig.wolfAddAHammer;
   const addAHammerHammerHolesOnly = !!teamMatchConfig.wolfAddAHammerHammerHolesOnly;
+  const carryoverMode = teamMatchConfig.wolfCarryoverMode || "off";
+  const maxCarryover = teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null;
 
   // LEVEL 0: overall totals — same shape as TeamGameAudit's header, reused
   // directly. computeWolfRoundResult only sums holes that have scores, so
@@ -1530,7 +1532,7 @@ function WolfAudit({
     activePlayers: players, wolfHoles, getFormat: getWolfFormat,
     course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
     betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
-    addAHammerEnabled, addAHammerHammerHolesOnly,
+    addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
   });
   const balances = roundResult.balancesByPlayerId || {};
 
@@ -1567,7 +1569,7 @@ function WolfAudit({
           hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
-          addAHammerEnabled, addAHammerHammerHolesOnly,
+          addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
         });
         if (!lines.length) return null; // hole not fully scored yet — skip
 
@@ -1591,6 +1593,9 @@ function WolfAudit({
           ? Math.max(...winningSideIds.map((id) => resolved.deltas[id] || 0))
           : 0;
         const winnerNamesStr = winningSideIds.map(firstNameOf).join("+");
+        // The narrative already computed the carryover message correctly —
+        // pull it out rather than re-deriving the same math a third time.
+        const carryoverLine = lines.find((l) => l.startsWith("Carries forward") || l.includes("carryover"));
 
         // LEVEL 1: condensed one-liner, same density as TeamGameAudit's matchup title
         const level1Title = (
@@ -1600,7 +1605,7 @@ function WolfAudit({
               {" "}· {formatLabel}{partnerName && format === "pack" ? ` (${wolfName}+${partnerName})` : ""}
             </span>
             {isPush ? (
-              <span style={{ color: "#92400e" }}> · Push</span>
+              <span style={{ color: "#92400e" }}> · Push{carryoverLine ? " · carries" : ""}</span>
             ) : (
               <span style={{ color: "#137333" }}> · {winnerNamesStr} +${holeDollarPerWinner.toFixed(2)}ea</span>
             )}
@@ -1625,6 +1630,11 @@ function WolfAudit({
                 </span>
               )}
             </div>
+            {carryoverLine && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: isPush ? "#92400e" : "#137333", background: isPush ? "#fef3c7" : "#f0f7f3", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
+                {carryoverLine}
+              </div>
+            )}
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <tbody>
                 {[...smallSide, ...bigSide].map((id) => {
@@ -1636,7 +1646,7 @@ function WolfAudit({
                   const deltaColor = delta > 0 ? "#137333" : delta < 0 ? "#b3261e" : "#6b7280";
                   const isWolf = id === wolfId;
                   return (
-                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isSmallSide ? "#f0f7f3" : "transparent" }}>
                       <td style={{ padding: "5px 4px 5px 0" }}>
                         <span style={{
                           width: 6, height: 6, borderRadius: "50%",
@@ -1656,11 +1666,6 @@ function WolfAudit({
                 })}
               </tbody>
             </table>
-            {isPush && teamMatchConfig.wolfCarryoverMode && teamMatchConfig.wolfCarryoverMode !== "off" && (
-              <div style={{ fontSize: 11, color: "#92400e", marginTop: 8 }}>
-                ⚠️ Push — Carryover is on but not yet applied to the money shown here.
-              </div>
-            )}
           </AuditSection>
         );
       })}
