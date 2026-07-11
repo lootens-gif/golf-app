@@ -135,6 +135,20 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     const hammerMentions = screen.getAllByText(/2x/);
     expect(hammerMentions.length).toBeGreaterThan(0);
   });
+
+  test('Hammer Sweep actually displays in Level 1 and Level 2, not just computed internally', () => {
+    const scores = { 1: { Wolf: 3, P2: 4, P3: 5, P4: 6, P5: 5 } }; // real clean sweep
+    renderWolfAudit({
+      scores,
+      wolfHoles: { 1: { partnerId: 'P2' } },
+      teamMatchConfig: { wolfAddAHammer: true },
+    });
+    const sweepMentionsLevel1 = screen.getAllByText(/Hammer Sweep/);
+    expect(sweepMentionsLevel1.length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText(/Hole 1/));
+    const sweepMentionsLevel2 = screen.getAllByText(/Hammer Sweep/);
+    expect(sweepMentionsLevel2.length).toBeGreaterThan(sweepMentionsLevel1.length); // Level 2 badge adds another mention
+  });
 });
 
 describe('WolfAudit — guard', () => {

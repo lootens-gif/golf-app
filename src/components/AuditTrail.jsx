@@ -1615,6 +1615,7 @@ function WolfAudit({
                 ? ` · push · ${carryingCount} carrying`
                 : ` · ${perspectiveDelta >= 0 ? "+" : "-"}$${Math.abs(perspectiveDelta).toFixed(2)}${smallSide.length > 1 ? "ea" : ""} · ${outcomeWord}`}
               {hammerMultiplier > 1 ? ` · 🔨${hammerMultiplier}x` : ""}
+              {addAHammerTriggered ? " · Hammer Sweep 2x" : ""}
             </span>
           </span>
         );
@@ -1646,15 +1647,22 @@ function WolfAudit({
 
         return (
           <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
               </div>
-              {hammerMultiplier > 1 && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
-                  🔨 Hammer {hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
-                </span>
-              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                {hammerMultiplier > 1 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
+                    🔨 Hammer {hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
+                  </span>
+                )}
+                {addAHammerTriggered && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#137333", background: "#f0f7f3", padding: "2px 8px", borderRadius: 10 }}>
+                    🔨🔨 Hammer Sweep 2x
+                  </span>
+                )}
+              </div>
             </div>
             {isPush && (
               <div style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fef3c7", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
@@ -1678,10 +1686,14 @@ function WolfAudit({
                       <td style={{ padding: "5px 4px 5px 0" }}>
                         {nameOf(id)}{isWolf ? " 🐺" : ""}{isShucker ? " 🖕" : ""}
                       </td>
-                      <td style={{ padding: "5px 0", textAlign: "center", width: arrowCount ? 44 : 0 }}>
+                      <td style={{ padding: "5px 0", textAlign: "center", width: arrowCount ? 52 : 0 }}>
                         {arrowCount > 0 && (
-                          <span style={{ color: "#000000", fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: arrowCount === 2 ? -8 : 0 }}>
-                            {"→".repeat(arrowCount)}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 0 }}>
+                            {Array.from({ length: arrowCount }).map((_, i) => (
+                              <span key={i} style={{ color: "#000000", fontSize: 32, fontWeight: 700, lineHeight: 1, marginLeft: i === 0 ? 0 : -10 }}>
+                                →
+                              </span>
+                            ))}
                           </span>
                         )}
                       </td>
