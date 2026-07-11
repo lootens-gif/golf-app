@@ -1595,44 +1595,50 @@ function loadLastRound() {
 
     const round = JSON.parse(raw);
 
-
     if (round.mode) setMode(round.mode);
     if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
     if (round.course) setCourse(round.course);
-    if (round.scores) setScores(round.scores);    
+    if (round.scores) setScores(round.scores);
     if (round.handicapMode) setHandicapMode(round.handicapMode);
-  if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
-    if (typeof round.teamGameUnitAmount === "number") {
-  setTeamGameUnitAmount(round.teamGameUnitAmount);
-}
+    if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
+    if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+    if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
+    if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
+    setNoPar3TeamGame(!!round.noPar3TeamGame);
+    if (round.teamGameUnitAmount != null && !isNaN(Number(round.teamGameUnitAmount))) setTeamGameUnitAmount(Number(round.teamGameUnitAmount));
+    setPressTrigger(Number(round.pressTrigger || 1));
+    setBirdiesEnabled(!!round.birdiesEnabled);
+    setToyRule(!!round.toyRule);
+    setBirdieBetAmount(Number(round.birdieBetAmount || 5));
+    if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
+    if (round.skinsType) setSkinsType(round.skinsType);
+    if (typeof round.skinsGross === "boolean") setSkinsGross(round.skinsGross);
+    if (round.skinValueAmount != null) setSkinValueAmount(Number(round.skinValueAmount));
+    if (typeof round.skinCarryover === "boolean") setSkinCarryover(round.skinCarryover);
+    if (typeof round.skinBirdie === "boolean") setSkinBirdie(round.skinBirdie);
+    if (typeof round.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(round.skinBirdieDoubleCarryover);
+    if (round.potType) setPotType(round.potType);
+    if (round.potDonation != null) setPotDonation(Number(round.potDonation));
+    if (round.potBaseUnit != null) setPotBaseUnit(Number(round.potBaseUnit));
 
-setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
-setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 5));
-  if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
-  if (round.skinsType) setSkinsType(round.skinsType);
-  if (typeof round.skinsGross === "boolean") setSkinsGross(round.skinsGross);
-  if (round.skinValueAmount != null) setSkinValueAmount(Number(round.skinValueAmount));
-  if (typeof round.skinCarryover === "boolean") setSkinCarryover(round.skinCarryover);
-  if (typeof round.skinBirdie === "boolean") setSkinBirdie(round.skinBirdie);
-  if (typeof round.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(round.skinBirdieDoubleCarryover);
-  if (round.potType) setPotType(round.potType);
-  if (round.potDonation != null) setPotDonation(Number(round.potDonation));
-  if (round.potBaseUnit != null) setPotBaseUnit(Number(round.potBaseUnit));
-    
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
         round.teamGames.map((game, index) => ({
           id: game.id || `team-game-${Date.now()}-${index}`,
           holes: Number(game.holes) || 6,
+          pressTrigger: Number(game.pressTrigger) || 1,
+          birdieEnabled: !!game.birdieEnabled,
+          birdieBet: Number(game.birdieBet) || 0,
           teams: game.teams || {},
         }))
       );
     }
-    if (Array.isArray(round.matches)) {
-      setMatches(round.matches);
-    }
+    if (Array.isArray(round.matches)) setMatches(round.matches);
+    if (round.wolfHoles) setWolfHoles(round.wolfHoles);
+    setCurrentHole(Number(round.currentHole || 1));
+    setLastHoleSaved(round.lastHoleSaved ?? null);
+
+    if (["setup", "live", "results"].includes(round.screen)) setScreen(round.screen);
 
     setSetupMessage("Last round loaded.");
   } catch (error) {
@@ -1894,31 +1900,47 @@ function loadNamedRound() {
     if (round.mode) setMode(round.mode);
     if (Array.isArray(round.allPlayers)) setAllPlayers(round.allPlayers);
     if (round.course) setCourse(round.course);
-    if (round.scores) setScores(round.scores);  
+    if (round.scores) setScores(round.scores);
     if (round.handicapMode) setHandicapMode(round.handicapMode);
-  if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
-    if (typeof round.teamGameUnitAmount === "number") {
-  setTeamGameUnitAmount(round.teamGameUnitAmount);
-}
+    if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
+    if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
+    if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
+    if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
+    setNoPar3TeamGame(!!round.noPar3TeamGame);
+    if (round.teamGameUnitAmount != null && !isNaN(Number(round.teamGameUnitAmount))) setTeamGameUnitAmount(Number(round.teamGameUnitAmount));
+    setPressTrigger(Number(round.pressTrigger || 1));
+    setBirdiesEnabled(!!round.birdiesEnabled);
+    setToyRule(!!round.toyRule);
+    setBirdieBetAmount(Number(round.birdieBetAmount || 5));
+    if (typeof round.skinsEnabled === "boolean") setSkinsEnabled(round.skinsEnabled);
+    if (round.skinsType) setSkinsType(round.skinsType);
+    if (typeof round.skinsGross === "boolean") setSkinsGross(round.skinsGross);
+    if (round.skinValueAmount != null) setSkinValueAmount(Number(round.skinValueAmount));
+    if (typeof round.skinCarryover === "boolean") setSkinCarryover(round.skinCarryover);
+    if (typeof round.skinBirdie === "boolean") setSkinBirdie(round.skinBirdie);
+    if (typeof round.skinBirdieDoubleCarryover === "boolean") setSkinBirdieDoubleCarryover(round.skinBirdieDoubleCarryover);
+    if (round.potType) setPotType(round.potType);
+    if (round.potDonation != null) setPotDonation(Number(round.potDonation));
+    if (round.potBaseUnit != null) setPotBaseUnit(Number(round.potBaseUnit));
 
-setPressTrigger(Number(round.pressTrigger || 1));
-  setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: Number(round.pressTrigger || g.pressTrigger || 1) })));
-setBirdiesEnabled(!!round.birdiesEnabled);
-setBirdieBetAmount(Number(round.birdieBetAmount || 5));
-    
     if (Array.isArray(round.teamGames)) {
       setTeamGames(
         round.teamGames.map((game, index) => ({
           id: game.id || `team-game-${Date.now()}-${index}`,
           holes: Number(game.holes) || 6,
           pressTrigger: Number(game.pressTrigger) || 1,
+          birdieEnabled: !!game.birdieEnabled,
+          birdieBet: Number(game.birdieBet) || 0,
           teams: game.teams || {},
         }))
       );
     }
-    if (Array.isArray(round.matches)) {
-      setMatches(round.matches);
-    }
+    if (Array.isArray(round.matches)) setMatches(round.matches);
+    if (round.wolfHoles) setWolfHoles(round.wolfHoles);
+    setCurrentHole(Number(round.currentHole || 1));
+    setLastHoleSaved(round.lastHoleSaved ?? null);
+
+    if (["setup", "live", "results"].includes(round.screen)) setScreen(round.screen);
 
     setSetupMessage("Named round loaded.");
   } catch (error) {
