@@ -8,7 +8,8 @@ import {
   getBestBallDisplay,
   getWolfHoleNarrative,
   computeWolfRoundResult,
-  getWolfHoleSides,
+  computeWolfCarryoverSchedule,
+  getNetScore,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -1544,6 +1545,14 @@ function WolfAudit({
 
   const sortedPlayers = [...players].sort((a, b) => (balances[b.id] || 0) - (balances[a.id] || 0));
 
+  // Needed for the "N carrying" count on a push — the narrative's own line
+  // doesn't include the running count, only the schedule does.
+  const carryoverSchedule = computeWolfCarryoverSchedule({
+    activePlayers: players, wolfHoles, getFormat: getWolfFormat,
+    course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
+    betAmount: teamGameUnitAmount, carryoverMode, maxCarryover,
+  });
+
   const level0Title = (
     <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
       <span style={{ fontWeight: 700, color: "#1a1a1a" }}>
@@ -1565,7 +1574,7 @@ function WolfAudit({
   return (
     <AuditSection title={level0Title} defaultOpen sessionKey={sessionKey} storageId="wolf-overall">
       {Array.from({ length: 15 }, (_, i) => i + 1).map((hole) => {
-        const { lines, resolved, format } = getWolfHoleNarrative({
+        const { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier } = getWolfHoleNarrative({
           hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
@@ -1573,90 +1582,107 @@ function WolfAudit({
         });
         if (!lines.length) return null; // hole not fully scored yet — skip
 
-        const config = { ...(wolfHoles?.[hole] || {}) };
-        const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, players, config, format);
         const nameOf = (id) => players.find((p) => p.id === id)?.name || id;
         const firstNameOf = (id) => (nameOf(id).split(" ")[0]);
-        const wolfName = firstNameOf(wolfId);
-        const partnerName = config.partnerId ? firstNameOf(config.partnerId) : null;
 
         let formatLabel;
-        if (format === "pack") formatLabel = `Pack Wolf`;
+        if (format === "pack") formatLabel = "Pack Wolf";
         else if (format === "shuck") formatLabel = "Shuck";
         else if (format === "blindWolf") formatLabel = "Blind Wolf";
         else if (format === "loneWolf") formatLabel = "Lone Wolf";
         else formatLabel = "Wolf";
 
         const isPush = resolved?.winner === "push";
-        const winningSideIds = !isPush && resolved ? (resolved.winner === "small" ? smallSide : bigSide) : [];
-        const holeDollarPerWinner = winningSideIds.length
-          ? Math.max(...winningSideIds.map((id) => resolved.deltas[id] || 0))
-          : 0;
-        const winnerNamesStr = winningSideIds.map(firstNameOf).join("+");
-        // The narrative already computed the carryover message correctly —
-        // pull it out rather than re-deriving the same math a third time.
-        const carryoverLine = lines.find((l) => l.startsWith("Carries forward") || l.includes("carryover"));
+        const smallSideWon = resolved?.winner === "small";
+        // Always Wolf's perspective — smallSide IS the perspective-holder in
+        // every format already (Wolf+partner, or the shucker on a Shuck hole).
+        const perspectiveNames = smallSide.map(firstNameOf).join("+");
+        const perspectiveDelta = smallSide.length ? (resolved?.deltas?.[smallSide[0]] || 0) : 0;
+        const outcomeColor = isPush ? "#92400e" : smallSideWon ? "#137333" : "#b3261e";
+        const outcomeWord = isPush ? "push" : smallSideWon ? "won" : "lost";
+        const scheduleEntry = carryoverSchedule[hole] || {};
+        const carryingCount = isPush ? (scheduleEntry.carriedInCount || 0) + 1 : 0;
 
-        // LEVEL 1: condensed one-liner, same density as TeamGameAudit's matchup title
+        // LEVEL 1: always Wolf's perspective, one color for the whole
+        // outcome — green won, red lost, amber push — matching how every
+        // other scorecard in the app already colors win/loss/push.
         const level1Title = (
           <span style={{ fontSize: 13 }}>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Hole {hole}</span>
-            <span style={{ color: "#6b7280" }}>
-              {" "}· {formatLabel}{partnerName && format === "pack" ? ` (${wolfName}+${partnerName})` : ""}
+            <span style={{ color: outcomeColor }}>
+              {" "}· {formatLabel}: {perspectiveNames}
+              {isPush
+                ? ` · push · ${carryingCount} carrying`
+                : ` · ${perspectiveDelta >= 0 ? "+" : "-"}$${Math.abs(perspectiveDelta).toFixed(2)}${smallSide.length > 1 ? "ea" : ""} · ${outcomeWord}`}
+              {hammerMultiplier > 1 ? ` · 🔨${hammerMultiplier}x` : ""}
             </span>
-            {isPush ? (
-              <span style={{ color: "#92400e" }}> · Push{carryoverLine ? " · carries" : ""}</span>
-            ) : (
-              <span style={{ color: "#137333" }}> · {winnerNamesStr} +${holeDollarPerWinner.toFixed(2)}ea</span>
-            )}
-            {config.hammerMultiplier > 1 && <span style={{ color: "#92400e" }}> · 🔨{config.hammerMultiplier}x</span>}
           </span>
         );
 
         // LEVEL 2: full hole detail — every score, dots, birdie highlight,
-        // per-player $ swing, hammer/shuck tags. This is where the actual
-        // trust-earning happens — every number here is directly checkable
-        // against what the group shot.
+        // per-player $ swing. This is where the actual trust-earning
+        // happens — every number here is directly checkable against what
+        // the group shot.
         const par = course?.pars?.[hole - 1];
+        const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+        const winningSideIds = isPush ? [] : (smallSideWon ? smallSide : bigSide);
+
+        // Which row(s) get the arrow: a normal win marks only the single
+        // deciding net score (the best-ball value); a Hammer Sweep marks
+        // every winning player, since each of them individually swept.
+        let arrowPlayerIds = [];
+        if (!isPush && winningSideIds.length) {
+          if (addAHammerTriggered) {
+            arrowPlayerIds = winningSideIds;
+          } else {
+            let bestId = null, bestNet = null;
+            winningSideIds.forEach((id) => {
+              const net = getNetScore(id, hole, players, course, scores, handicapMode, noPar3TeamGame);
+              if (net != null && (bestNet === null || net < bestNet)) { bestNet = net; bestId = id; }
+            });
+            if (bestId) arrowPlayerIds = [bestId];
+          }
+        }
+
         return (
           <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
               </div>
-              {config.hammerMultiplier > 1 && (
+              {hammerMultiplier > 1 && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
-                  🔨 Hammer {config.hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
+                  🔨 Hammer {hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
                 </span>
               )}
             </div>
-            {carryoverLine && (
-              <div style={{ fontSize: 12, fontWeight: 600, color: isPush ? "#92400e" : "#137333", background: isPush ? "#fef3c7" : "#f0f7f3", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
-                {carryoverLine}
+            {isPush && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fef3c7", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
+                Push · {carryingCount} carrying to the next hole
               </div>
             )}
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <tbody>
                 {[...smallSide, ...bigSide].map((id) => {
-                  const isSmallSide = smallSide.includes(id);
                   const gross = getRawScore(scores, hole, id);
-                  const strokesFn = getHandicapStrokesFn || getHandicapStrokes;
                   const strokes = (noPar3TeamGame && par === 3) ? 0 : strokesFn(id, hole, players, course, handicapMode, noPar3TeamGame);
                   const delta = resolved?.deltas?.[id] || 0;
-                  const deltaColor = delta > 0 ? "#137333" : delta < 0 ? "#b3261e" : "#6b7280";
-                  const isWolf = id === wolfId;
+                  const isWinnerRow = !isPush && winningSideIds.includes(id);
+                  const isLoserRow = !isPush && !isWinnerRow;
+                  const deltaColor = isWinnerRow ? "#137333" : isLoserRow ? "#b3261e" : "#6b7280";
+                  const isWolf = id === wolfId; // the actual rotation Wolf — stays fixed even on a Shuck hole
+                  const isShucker = format === "shuck" && id === config.partnerId;
+                  const arrowCount = arrowPlayerIds.includes(id) ? (addAHammerTriggered ? 2 : 1) : 0;
                   return (
-                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isSmallSide ? "#f0f7f3" : "transparent" }}>
+                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isWinnerRow ? "#f0f7f3" : isLoserRow ? "#fef2f2" : "transparent" }}>
                       <td style={{ padding: "5px 4px 5px 0" }}>
-                        <span style={{
-                          width: 6, height: 6, borderRadius: "50%",
-                          background: isSmallSide ? "#1a5c35" : "#9ca3af",
-                          display: "inline-block", marginRight: 6,
-                        }} />
-                        {nameOf(id)}{isWolf ? " 🐺" : ""}
+                        {nameOf(id)}{isWolf ? " 🐺" : ""}{isShucker ? " 🖕" : ""}
                       </td>
                       <td style={{ padding: "5px 4px", textAlign: "center" }}>
                         <ScoreCell gross={gross} par={par} strokes={strokes} />
+                        {Array.from({ length: arrowCount }).map((_, i) => (
+                          <span key={i} style={{ color: "#137333", fontSize: 12, marginLeft: i === 0 ? 4 : -6 }}>←</span>
+                        ))}
                       </td>
                       <td style={{ padding: "5px 0", textAlign: "right", color: deltaColor, fontWeight: 600 }}>
                         {delta > 0 ? `+$${delta.toFixed(2)}` : delta < 0 ? `-$${Math.abs(delta).toFixed(2)}` : "$0.00"}

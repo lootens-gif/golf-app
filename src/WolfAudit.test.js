@@ -92,17 +92,40 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(screen.getByText(/Pack Wolf/)).toBeInTheDocument();
   });
 
-  test('a push shows "Push" instead of a dollar amount in Level 1', () => {
+  test('a push shows "push" and a carrying count instead of a dollar amount in Level 1', () => {
     const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } }; // Wolf ties best opponent
     renderWolfAudit({ scores });
-    expect(screen.getByText(/Push/)).toBeInTheDocument();
+    expect(screen.getByText(/push · 1 carrying/)).toBeInTheDocument();
   });
 
-  test('Carryover on push now says it carries forward — real behavior, not just a warning', () => {
+  test('Carryover on push now says exactly how many are carrying — real behavior, not just a warning', () => {
     const scores = { 1: { Wolf: 4, P2: 4, P3: 4, P4: 4, P5: 4 } }; // identical scores, guaranteed push
     renderWolfAudit({ scores, teamMatchConfig: { wolfCarryoverMode: 'value_only' } });
     fireEvent.click(screen.getByText(/Hole 1/));
-    expect(screen.getByText(/Carries forward to the next hole/)).toBeInTheDocument();
+    expect(screen.getByText(/Push · 1 carrying to the next hole/)).toBeInTheDocument();
+  });
+
+  test('always shows Wolf\'s own perspective — the outcome word reflects Wolf\'s side, not the opponents\'', () => {
+    const scores = { 1: { Wolf: 5, P2: 5, P3: 3, P4: 5, P5: 5 } }; // P3 beats Wolf — Wolf loses solo
+    renderWolfAudit({ scores });
+    expect(screen.getByText(/lost/)).toBeInTheDocument();
+  });
+
+  test('on a Shuck hole, Level 1 perspective flips to the shucker, not the rotation Wolf', () => {
+    const scores = { 1: { P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 } }; // P2 (shucker) wins
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', shucked: true } } });
+    expect(screen.getByText(/Shuck: P2/)).toBeInTheDocument();
+    expect(screen.getByText(/won/)).toBeInTheDocument();
+  });
+
+  test('the wolf emoji stays on the real rotation Wolf even on a Shuck hole, and the middle finger marks the shucker', () => {
+    const scores = { 1: { P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 } };
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', shucked: true } } });
+    fireEvent.click(screen.getByText(/Hole 1/));
+    // "Wolf" is both the format word and the rotation Wolf's literal name in
+    // this fixture — getAllByText handles the resulting duplicate matches.
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('🐺')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('🖕')).length).toBeGreaterThan(0);
   });
 
   test('Hammer multiplier shows in both Level 1 and Level 2', () => {

@@ -2369,7 +2369,7 @@ export function getWolfHoleNarrative({
     });
   }
 
-  return { lines, resolved, format };
+  return { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, concededBy };
 }
 
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
