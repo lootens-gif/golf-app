@@ -18,7 +18,7 @@ import {
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
-import WolfHoleCard, { getWolfFormat } from "./components/live/WolfHoleCard";
+import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from "./components/live/WolfHoleCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
@@ -1695,6 +1695,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     potBaseUnit,
     teamGames,
     matches,
+    wolfHoles,
     screen: ["setup","live","results"].includes(screen) ? screen : "results",
     currentHole,
     lastHoleSaved,
@@ -1728,6 +1729,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   potBaseUnit,
   teamGames,
   matches,
+  wolfHoles,
   screen,
   currentHole,
   lastHoleSaved,
@@ -1765,6 +1767,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
+  if (round.wolfHoles) setWolfHoles(round.wolfHoles);
   setNoPar3TeamGame(!!round.noPar3TeamGame);
   if (round.teamGameUnitAmount != null && !isNaN(Number(round.teamGameUnitAmount))) setTeamGameUnitAmount(Number(round.teamGameUnitAmount));
 
@@ -2754,12 +2757,8 @@ function buildRealHoleResultLines(holeNumber) {
   const birdieLines = [];
 
 if (teamGameFormat === "wolf") {
-  if (holeNumber < 1 || holeNumber > 15) {
-    return {
-      holeLines: ["Super Wolf holes (16-18) aren't wired up yet."],
-      matchLines: [],
-      birdieLines: [],
-    };
+  if (holeNumber < 1 || holeNumber > 18) {
+    return { holeLines: ["Not a valid Wolf hole."], matchLines: [], birdieLines: [] };
   }
   const { lines } = getWolfHoleNarrative({
     hole: holeNumber,
@@ -3448,11 +3447,38 @@ return (
       hammerEnabled={!!teamMatchConfig.wolfHammerEnabled}
     />
   )}
-  {teamGameFormat === "wolf" && currentHole >= 16 && currentHole <= 18 && (
-    <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#92400e" }}>
-      Super Wolf holes (16–18) aren't wired up yet — coming in a later update.
-    </div>
-  )}
+  {teamGameFormat === "wolf" && currentHole >= 16 && currentHole <= 18 && (() => {
+    const superWolfInfo = getWolfHoleNarrative({
+      hole: currentHole,
+      activePlayers,
+      wolfHoles,
+      getFormat: getWolfFormat,
+      course,
+      scores,
+      handicapMode,
+      noPar3Strokes: noPar3TeamGame,
+      betAmount: teamGameUnitAmount,
+      wolfStyle: teamMatchConfig.wolfStyle || "harrison",
+      settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
+      birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
+      addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
+      addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    });
+    return (
+      <WolfHoleCard
+        currentHole={currentHole}
+        players={activePlayers}
+        wolfHoles={wolfHoles}
+        onUpdateWolfHole={updateWolfHole}
+        hammerEnabled={!!teamMatchConfig.wolfHammerEnabled}
+        isSuperWolf
+        overrideWolfId={superWolfInfo.wolfId}
+        rankedStandings={superWolfInfo.rankedStandings}
+        superWolfBetAmount={wolfHoles?.[currentHole]?.superWolfBetAmount ?? null}
+        onChangeSuperWolfBetAmount={(hole, amount) => updateWolfHole(hole, { superWolfBetAmount: amount })}
+      />
+    );
+  })()}
   </div>
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
@@ -3473,6 +3499,10 @@ return (
       if (currentHole < 18) setCurrentHole(currentHole + 1);
     }}
     onSaveHole={() => {
+      if (teamGameFormat === "wolf" && currentHole >= 1 && currentHole <= 18 && !isWolfHoleConfirmed(wolfHoles, currentHole)) {
+        alert(`Make a Wolf selection for hole ${currentHole} first — pick a partner, declare Lone/Blind Wolf, or confirm Wolf plays alone.`);
+        return;
+      }
       const nextHole = currentHole + 1;
 
 setLastHoleSaved(currentHole);

@@ -9,7 +9,7 @@
  */
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import WolfHoleCard, { getWolfFormat } from './WolfHoleCard';
+import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from './WolfHoleCard';
 
 const PLAYERS = [
   { id: 'W', name: 'Wolf' },
@@ -186,5 +186,149 @@ describe('getWolfFormat', () => {
     expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: true, partnerId: 'x' })).toBe('shuck');
     expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: false, partnerId: 'x' })).toBe('pack');
     expect(getWolfFormat({ blindWolfDeclared: false, loneWolfDeclared: false, shucked: false, partnerId: null })).toBe('solo');
+  });
+});
+
+describe('WolfHoleCard — light hard block (confirmation)', () => {
+  test('an untouched hole shows the unconfirmed "confirm Wolf plays alone" prompt', () => {
+    render(<Harness />);
+    expect(screen.getByText('No partner — confirm Wolf plays alone')).toBeInTheDocument();
+    expect(isWolfHoleConfirmed({}, 1)).toBe(false);
+  });
+
+  test('tapping the explicit solo-confirm button marks the hole confirmed', () => {
+    let latestHoles;
+    function TrackedHarness() {
+      const [wolfHoles, setWolfHoles] = require('react').useState({});
+      latestHoles = wolfHoles;
+      const onUpdateWolfHole = (hole, updates) => setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+      return <WolfHoleCard currentHole={1} players={PLAYERS} wolfHoles={wolfHoles} onUpdateWolfHole={onUpdateWolfHole} />;
+    }
+    render(<TrackedHarness />);
+    fireEvent.click(screen.getByText('No partner — confirm Wolf plays alone'));
+    expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(true);
+  });
+
+  test('picking a partner marks the hole confirmed too, no separate button needed', () => {
+    let latestHoles;
+    function TrackedHarness() {
+      const [wolfHoles, setWolfHoles] = require('react').useState({});
+      latestHoles = wolfHoles;
+      const onUpdateWolfHole = (hole, updates) => setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+      return <WolfHoleCard currentHole={1} players={PLAYERS} wolfHoles={wolfHoles} onUpdateWolfHole={onUpdateWolfHole} />;
+    }
+    render(<TrackedHarness />);
+    fireEvent.click(screen.getByText('P2'));
+    expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(true);
+  });
+
+  test('declaring Lone Wolf or Blind Wolf marks the hole confirmed', () => {
+    let latestHoles;
+    function TrackedHarness() {
+      const [wolfHoles, setWolfHoles] = require('react').useState({});
+      latestHoles = wolfHoles;
+      const onUpdateWolfHole = (hole, updates) => setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+      return <WolfHoleCard currentHole={1} players={PLAYERS} wolfHoles={wolfHoles} onUpdateWolfHole={onUpdateWolfHole} />;
+    }
+    render(<TrackedHarness />);
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(true);
+  });
+
+  test('undoing a declaration resets confirmation — a fresh decision is required again', () => {
+    let latestHoles;
+    function TrackedHarness() {
+      const [wolfHoles, setWolfHoles] = require('react').useState({});
+      latestHoles = wolfHoles;
+      const onUpdateWolfHole = (hole, updates) => setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+      return <WolfHoleCard currentHole={1} players={PLAYERS} wolfHoles={wolfHoles} onUpdateWolfHole={onUpdateWolfHole} />;
+    }
+    render(<TrackedHarness />);
+    fireEvent.click(screen.getByText('Blind Wolf'));
+    expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(true);
+    fireEvent.click(screen.getByText('✓ Blind Wolf'));
+    expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(false);
+  });
+});
+
+describe('WolfHoleCard — Super Wolf mode', () => {
+  test('shows the standings snapshot, ranked worst to first, with a wolf marker on the worst', () => {
+    render(
+      <WolfHoleCard
+        currentHole={16}
+        players={PLAYERS}
+        wolfHoles={{}}
+        onUpdateWolfHole={() => {}}
+        isSuperWolf
+        overrideWolfId="P4"
+        rankedStandings={[
+          { playerId: 'P4', standing: -40 },
+          { playerId: 'P2', standing: -10 },
+          { playerId: 'W', standing: 5 },
+          { playerId: 'P3', standing: 15 },
+          { playerId: 'P5', standing: 30 },
+        ]}
+      />
+    );
+    expect(screen.getByText(/Super Wolf/)).toBeInTheDocument();
+    expect(screen.getByText(/-\$40\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$30\.00/)).toBeInTheDocument();
+  });
+
+  test('the assigned Super Wolf (not the rotation player) shows as Wolf in the header', () => {
+    render(
+      <WolfHoleCard
+        currentHole={16} // rotation would normally give hole 16 to player index 0 (W)
+        players={PLAYERS}
+        wolfHoles={{}}
+        onUpdateWolfHole={() => {}}
+        isSuperWolf
+        overrideWolfId="P4"
+        rankedStandings={[{ playerId: 'P4', standing: -40 }]}
+      />
+    );
+    expect(screen.getByText('Hole 16 — Wolf')).toBeInTheDocument();
+    // "P4" appears both in the standings row and the header — getAllByText handles that
+    expect(screen.getAllByText('P4').length).toBeGreaterThan(0);
+  });
+
+  test('the bet amount input calls onChangeSuperWolfBetAmount with the hole and typed value', () => {
+    const onChange = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={17}
+        players={PLAYERS}
+        wolfHoles={{}}
+        onUpdateWolfHole={() => {}}
+        isSuperWolf
+        overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount={null}
+        onChangeSuperWolfBetAmount={onChange}
+      />
+    );
+    fireEvent.change(screen.getByPlaceholderText('e.g. 25'), { target: { value: '30' } });
+    expect(onChange).toHaveBeenCalledWith(17, '30');
+  });
+
+  test('a hole 1-15 render (isSuperWolf false) shows no standings snapshot or bet input', () => {
+    render(<Harness currentHole={5} />);
+    expect(screen.queryByText(/Super Wolf/)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('e.g. 25')).not.toBeInTheDocument();
+  });
+
+  test('shows a clear message instead of crashing when Super Wolf has no assignment yet', () => {
+    render(
+      <WolfHoleCard
+        currentHole={16}
+        players={PLAYERS}
+        wolfHoles={{}}
+        onUpdateWolfHole={() => {}}
+        isSuperWolf
+        overrideWolfId={null}
+        rankedStandings={null}
+      />
+    );
+    expect(screen.getByText(/Can't assign Super Wolf yet/)).toBeInTheDocument();
   });
 });

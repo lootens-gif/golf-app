@@ -25,10 +25,23 @@ const DEFAULT_WOLF_HOLE_CONFIG = {
   hammerResolution: "played_out", // "played_out" | "rejected"
   concededBy: null,               // "small" | "big" — only set if rejected
   showMoreHammer: false,
+  confirmed: false, // true once ANY real Wolf decision was made for this hole — the light hard block checks this before allowing save
 };
 
 export function getWolfHoleConfig(wolfHoles, hole) {
   return { ...DEFAULT_WOLF_HOLE_CONFIG, ...(wolfHoles?.[hole] || {}) };
+}
+
+/**
+ * Light hard block (Tim's call, July 2026): a Wolf hole can't save until
+ * SOMETHING was explicitly decided — a partner, Lone/Blind Wolf, or the
+ * explicit "Wolf plays alone" confirm button. Distinguishes "confirmed
+ * solo is correct" from "nobody looked at this hole at all," since Pack
+ * Wolf is the common case (~90%) and an untouched default silently
+ * defaulting to solo would usually be wrong, not just occasionally.
+ */
+export function isWolfHoleConfirmed(wolfHoles, hole) {
+  return !!getWolfHoleConfig(wolfHoles, hole).confirmed;
 }
 
 /**
@@ -50,28 +63,43 @@ export default function WolfHoleCard({
   wolfHoles = {},         // { [hole]: config }
   onUpdateWolfHole,       // (hole, updates) => void
   hammerEnabled = false,
+  isSuperWolf = false,
+  overrideWolfId = null,       // Super Wolf: who's actually Wolf this hole (from standings, not rotation)
+  rankedStandings = null,      // Super Wolf: [{playerId, standing}, ...] worst to best
+  superWolfBetAmount = null,   // Super Wolf: this hole's free-form bet amount
+  onChangeSuperWolfBetAmount,  // Super Wolf: (hole, amount) => void
 }) {
   const wolfIndex = useMemo(() => {
     if (!players.length) return 0;
     return (currentHole - 1) % players.length;
   }, [currentHole, players.length]);
 
-  const wolf = players[wolfIndex];
-  const others = players.filter((_, i) => i !== wolfIndex);
+  const wolf = isSuperWolf
+    ? (overrideWolfId ? players.find((p) => p.id === overrideWolfId) : null)
+    : players[wolfIndex];
+  const others = wolf ? players.filter((p) => p.id !== wolf.id) : players;
   const config = getWolfHoleConfig(wolfHoles, currentHole);
   const format = getWolfFormat(config);
   const declaredSolo = config.loneWolfDeclared || config.blindWolfDeclared;
 
-  if (!wolf || players.length !== 5) {
+  if (players.length !== 5) {
     return (
       <div style={{ background: sc.redLight, border: `1px solid ${sc.red}`, borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: sc.red }}>
         Wolf needs exactly 5 active players to show hole details.
       </div>
     );
   }
+  if (!wolf) {
+    return (
+      <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: "#92400e" }}>
+        Can't assign Super Wolf yet — finish scoring holes 1-15 first so there's a standing to rank.
+      </div>
+    );
+  }
 
   const update = (updates) => onUpdateWolfHole(currentHole, updates);
   const partner = config.partnerId ? players.find((p) => p.id === config.partnerId) : null;
+  const nameOf = (id) => players.find((p) => p.id === id)?.name || id;
 
   const declareButton = (key, label, sublabel) => {
     const active = config[key];
@@ -79,13 +107,14 @@ export default function WolfHoleCard({
       <button
         onClick={() => update(
           active
-            ? { [key]: false }
+            ? { [key]: false, confirmed: false }
             : {
                 loneWolfDeclared: false,
                 blindWolfDeclared: false,
                 [key]: true,
                 partnerId: null,
                 shucked: false,
+                confirmed: true,
               }
         )}
         style={{
@@ -106,6 +135,40 @@ export default function WolfHoleCard({
 
   return (
     <div style={{ background: "#fff", border: `1px solid ${sc.border}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+      {isSuperWolf && (
+        <div style={{ background: sc.redLight, border: `1px solid ${sc.red}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: sc.red, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Super Wolf — standings before this hole
+          </div>
+          {rankedStandings && rankedStandings.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              {rankedStandings.map((r, i) => (
+                <div key={r.playerId} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0", fontWeight: i === 0 ? 700 : 400 }}>
+                  <span style={{ color: sc.ink }}>{i === 0 ? "🐺 " : ""}{nameOf(r.playerId)}</span>
+                  <span style={{ color: r.standing < 0 ? sc.red : r.standing > 0 ? sc.green : sc.muted }}>
+                    {r.standing < 0 ? `-$${Math.abs(r.standing).toFixed(2)}` : r.standing > 0 ? `+$${r.standing.toFixed(2)}` : "$0.00"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <label style={{ display: "block", fontSize: 12, color: sc.ink, marginBottom: 4 }}>
+            Dollar value for this hole
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={superWolfBetAmount ?? ""}
+            onChange={(e) => onChangeSuperWolfBetAmount?.(currentHole, e.target.value)}
+            placeholder="e.g. 25"
+            style={{
+              width: "100%", padding: "8px 10px", fontSize: 15, fontFamily: "inherit",
+              border: `1px solid ${sc.border}`, borderRadius: 8,
+            }}
+          />
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: sc.ink }}>Hole {currentHole} — Wolf</div>
         <div style={{ fontSize: 14, fontWeight: 600, color: sc.green }}>{wolf.name}</div>
@@ -120,13 +183,13 @@ export default function WolfHoleCard({
       {!declaredSolo && (
         <>
           <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Partner</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 6 }}>
             {others.map((p) => {
               const selected = config.partnerId === p.id;
               return (
                 <button
                   key={p.id}
-                  onClick={() => update({ partnerId: selected ? null : p.id, shucked: false })}
+                  onClick={() => update({ partnerId: selected ? null : p.id, shucked: false, confirmed: true })}
                   style={{
                     padding: "10px 0", fontSize: 13, fontWeight: selected ? 600 : 400,
                     borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
@@ -141,9 +204,24 @@ export default function WolfHoleCard({
             })}
           </div>
 
+          {!config.partnerId && (
+            <button
+              onClick={() => update({ confirmed: true })}
+              style={{
+                width: "100%", padding: "9px 0", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+                borderRadius: 8, marginBottom: 10, textAlign: "center",
+                border: config.confirmed ? `1px solid ${sc.accent}` : `1px dashed ${sc.border}`,
+                background: config.confirmed ? sc.accentLight : "#fafafa",
+                color: config.confirmed ? sc.accent : sc.muted,
+              }}
+            >
+              {config.confirmed ? "✓ Confirmed — Wolf plays alone" : "No partner — confirm Wolf plays alone"}
+            </button>
+          )}
+
           {config.partnerId && (
             <div
-              onClick={() => update({ shucked: !config.shucked })}
+              onClick={() => update({ shucked: !config.shucked, confirmed: true })}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 background: config.shucked ? sc.redLight : "#fafafa",
