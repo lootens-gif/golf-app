@@ -8,7 +8,7 @@
  * ordering the other 4 players.
  */
 
-import { getSuperWolfHittingOrder, SUPER_WOLF_ORDER_MODES } from './engine/scoringEngine';
+import { getSuperWolfHittingOrder, SUPER_WOLF_ORDER_MODES } from '../engine/scoringEngine';
 
 const ROTATION = ['A', 'B', 'C', 'D', 'E'];
 

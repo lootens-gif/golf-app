@@ -9,8 +9,8 @@
  * getWolfHoleNarrative.
  */
 
-import { checkWolfCleanSweep, resolveWolfHoleFromConfig, computeWolfRoundResult, getWolfHoleNarrative } from './engine/scoringEngine';
-import { getWolfFormat } from './components/live/WolfHoleCard';
+import { checkWolfCleanSweep, resolveWolfHoleFromConfig, computeWolfRoundResult, getWolfHoleNarrative } from '../engine/scoringEngine';
+import { getWolfFormat } from '../components/live/WolfHoleCard';
 
 function makePlayer(id) { return { id, name: id, hcp: 0 }; }
 const PLAYERS = ['A', 'B', 'C', 'D', 'E'].map(makePlayer);

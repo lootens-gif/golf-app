@@ -1678,11 +1678,15 @@ function WolfAudit({
                       <td style={{ padding: "5px 4px 5px 0" }}>
                         {nameOf(id)}{isWolf ? " 🐺" : ""}{isShucker ? " 🖕" : ""}
                       </td>
+                      <td style={{ padding: "5px 0", textAlign: "center", width: arrowCount ? 44 : 0 }}>
+                        {arrowCount > 0 && (
+                          <span style={{ color: "#000000", fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: arrowCount === 2 ? -8 : 0 }}>
+                            {"→".repeat(arrowCount)}
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: "5px 4px", textAlign: "center" }}>
                         <ScoreCell gross={gross} par={par} strokes={strokes} />
-                        {Array.from({ length: arrowCount }).map((_, i) => (
-                          <span key={i} style={{ color: "#137333", fontSize: 12, marginLeft: i === 0 ? 4 : -6 }}>←</span>
-                        ))}
                       </td>
                       <td style={{ padding: "5px 0", textAlign: "right", color: deltaColor, fontWeight: 600 }}>
                         {delta > 0 ? `+$${delta.toFixed(2)}` : delta < 0 ? `-$${Math.abs(delta).toFixed(2)}` : "$0.00"}

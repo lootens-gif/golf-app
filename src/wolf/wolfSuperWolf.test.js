@@ -10,7 +10,7 @@
  * intentionally not built or tested here.
  */
 
-import { getWolfHoleSplit, getSuperWolfAssignment } from './engine/scoringEngine';
+import { getWolfHoleSplit, getSuperWolfAssignment } from '../engine/scoringEngine';
 
 describe('getWolfHoleSplit', () => {
   test('5 players / 18 holes → 15 regular + 3 Super Wolf (the v1 case)', () => {

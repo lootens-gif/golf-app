@@ -8,8 +8,8 @@
  * than only "the app didn't crash."
  */
 
-import { computeWolfRoundResult } from './engine/scoringEngine';
-import { getWolfFormat } from './components/live/WolfHoleCard';
+import { computeWolfRoundResult } from '../engine/scoringEngine';
+import { getWolfFormat } from '../components/live/WolfHoleCard';
 
 function singleHoleCourse(pars) {
   return { pars };

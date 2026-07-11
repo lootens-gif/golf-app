@@ -17,7 +17,7 @@ import {
   resolveWolfHole,
   computeWolfRoundBalances,
   scoreRound,
-} from './engine/scoringEngine';
+} from '../engine/scoringEngine';
 
 function singleHoleCourse(par = 4, hcp = 1) {
   return { pars: [par], hcp: [hcp] };

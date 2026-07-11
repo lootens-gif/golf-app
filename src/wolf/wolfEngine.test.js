@@ -13,7 +13,7 @@
  * and settlement wiring are covered in their own test files.
  */
 
-import { resolveWolfHole, WOLF_MULTIPLIER_TABLES, WOLF_STYLES, WOLF_SETTLEMENT_STYLES } from './engine/scoringEngine';
+import { resolveWolfHole, WOLF_MULTIPLIER_TABLES, WOLF_STYLES, WOLF_SETTLEMENT_STYLES } from '../engine/scoringEngine';
 
 function singleHoleCourse(par = 4, hcp = 1) {
   return { pars: [par], hcp: [hcp] };

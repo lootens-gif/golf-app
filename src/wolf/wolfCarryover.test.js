@@ -8,7 +8,7 @@
  *  - the max carryover limit across a run of 3 consecutive pushes
  */
 
-import { applyWolfCarryover, WOLF_CARRYOVER_MODES } from './engine/scoringEngine';
+import { applyWolfCarryover, WOLF_CARRYOVER_MODES } from '../engine/scoringEngine';
 
 const START = { carriedAmount: 0, pushCount: 0 };
 

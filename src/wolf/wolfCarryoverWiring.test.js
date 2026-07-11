@@ -13,8 +13,8 @@ import {
   computeWolfRoundResult,
   getWolfHoleNarrative,
   WOLF_CARRYOVER_MODES,
-} from './engine/scoringEngine';
-import { getWolfFormat } from './components/live/WolfHoleCard';
+} from '../engine/scoringEngine';
+import { getWolfFormat } from '../components/live/WolfHoleCard';
 
 function makePlayer(id) { return { id, name: id, hcp: 0 }; }
 const PLAYERS = ['A', 'B', 'C', 'D', 'E'].map(makePlayer);
