@@ -2403,11 +2403,13 @@ useEffect(() => {
   // Skip writes for 1.5 seconds after restore to let all state fully hydrate
   if (Date.now() - restoreTimeRef.current < 1500) return;
 
-  const timer = setTimeout(() => {
-    safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
-  }, 250);
-
-  return () => clearTimeout(timer);
+  // Write immediately, no debounce — localStorage is free and synchronous,
+  // unlike the Supabase sync below. A debounce here was the actual cause of
+  // real data loss: rapid hole-to-hole entry kept resetting a 250ms timer,
+  // so if someone refreshed before ever pausing that long, the write for
+  // their most recent holes never happened at all, and refresh silently
+  // restored an older snapshot.
+  safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
 }, [
   autoRestoreComplete,
   roundCode,
