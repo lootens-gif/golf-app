@@ -2091,10 +2091,10 @@ export function checkWolfCleanSweep(winningSide, losingSide, hole, players, cour
  * Extracted so both the settlement math and the display narrative share
  * exactly one source of truth for "who's playing whom."
  */
-export function getWolfHoleSides(hole, activePlayers, config, format) {
+export function getWolfHoleSides(hole, activePlayers, config, format, overrideWolfId = null) {
   const wolfIndex = (hole - 1) % activePlayers.length;
-  const wolfId = activePlayers[wolfIndex]?.id;
-  const otherIds = activePlayers.filter((_, i) => i !== wolfIndex).map((p) => p.id);
+  const wolfId = overrideWolfId || activePlayers[wolfIndex]?.id;
+  const otherIds = activePlayers.filter((p) => p.id !== wolfId).map((p) => p.id);
 
   let smallSide, bigSide;
   if (format === "pack") {
@@ -2134,10 +2134,11 @@ export function resolveWolfHoleFromConfig({
   birdieEnabled = false,
   addAHammerEnabled = false,
   addAHammerHammerHolesOnly = false,
+  overrideWolfId = null, // used for Super Wolf holes 16-18 — Wolf isn't by rotation there
 }) {
   const config = { ...(wolfHoles?.[hole] || {}) };
   const format = getFormat(config);
-  const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format);
+  const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format, overrideWolfId);
 
   const hammerMultiplier = Number(config.hammerMultiplier) || 1;
   const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
@@ -2273,7 +2274,10 @@ export function computeWolfRoundResult({
     noPar3Strokes, betAmount, carryoverMode, maxCarryover,
   });
 
+  const playerIds = activePlayers.map((p) => p.id);
   const holeResults = [];
+
+  // Holes 1-15: standard rotation, carryover-adjusted bet amount.
   for (let hole = 1; hole <= 15; hole++) {
     const effectiveBetAmount = schedule[hole]?.effectiveBetAmount ?? betAmount;
     const { resolved } = resolveWolfHoleFromConfig({
@@ -2284,7 +2288,24 @@ export function computeWolfRoundResult({
     holeResults.push(resolved);
   }
 
-  return computeWolfRoundBalances(holeResults, activePlayers.map((p) => p.id));
+  // Holes 16-18 (Super Wolf): Wolf is whoever's down the most on Wolf money
+  // ONLY, recalculated fresh before each hole — never rotation. Bet amount
+  // is whatever was set at that hole's tee box, not the round's base rate.
+  for (let hole = 16; hole <= 18; hole++) {
+    const standingsSoFar = computeWolfRoundBalances(holeResults, playerIds).balancesByPlayerId;
+    const { superWolf } = getSuperWolfAssignment(standingsSoFar, playerIds);
+    const config = wolfHoles?.[hole] || {};
+    const superWolfBetAmount = config.superWolfBetAmount != null ? Number(config.superWolfBetAmount) : betAmount;
+
+    const { resolved } = resolveWolfHoleFromConfig({
+      hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+      noPar3Strokes, betAmount: superWolfBetAmount, wolfStyle, settlementStyle, birdieEnabled,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf,
+    });
+    holeResults.push(resolved);
+  }
+
+  return computeWolfRoundBalances(holeResults, playerIds);
 }
 
 /**
@@ -2315,22 +2336,63 @@ export function getWolfHoleNarrative({
   maxCarryover = null,
 }) {
   const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
+  const playerIds = activePlayers.map((p) => p.id);
+  const isSuperWolf = hole >= 16;
 
   const schedule = computeWolfCarryoverSchedule({
     activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
     noPar3Strokes, betAmount, carryoverMode, maxCarryover,
   });
+
+  let effectiveBetAmount, overrideWolfId = null, rankedStandings = null;
+
+  if (isSuperWolf) {
+    // Rebuild every prior hole (1..hole-1) to get the standings this hole's
+    // Super Wolf assignment depends on — recalculated fresh each time, per
+    // the confirmed rule, not just carried from a stale snapshot.
+    const priorResults = [];
+    for (let h = 1; h < 16; h++) {
+      const eff = schedule[h]?.effectiveBetAmount ?? betAmount;
+      const { resolved: r } = resolveWolfHoleFromConfig({
+        hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+        noPar3Strokes, betAmount: eff, wolfStyle, settlementStyle, birdieEnabled,
+        addAHammerEnabled, addAHammerHammerHolesOnly,
+      });
+      priorResults.push(r);
+    }
+    for (let h = 16; h < hole; h++) {
+      const standingsSoFar = computeWolfRoundBalances(priorResults, playerIds).balancesByPlayerId;
+      const { superWolf } = getSuperWolfAssignment(standingsSoFar, playerIds);
+      const cfg = wolfHoles?.[h] || {};
+      const amt = cfg.superWolfBetAmount != null ? Number(cfg.superWolfBetAmount) : betAmount;
+      const { resolved: r } = resolveWolfHoleFromConfig({
+        hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
+        noPar3Strokes, betAmount: amt, wolfStyle, settlementStyle, birdieEnabled,
+        addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf,
+      });
+      priorResults.push(r);
+    }
+    const standingsForThisHole = computeWolfRoundBalances(priorResults, playerIds).balancesByPlayerId;
+    const assignment = getSuperWolfAssignment(standingsForThisHole, playerIds);
+    overrideWolfId = assignment.superWolf;
+    rankedStandings = assignment.ranked;
+    const config = wolfHoles?.[hole] || {};
+    effectiveBetAmount = config.superWolfBetAmount != null ? Number(config.superWolfBetAmount) : betAmount;
+  } else {
+    const scheduleEntry = schedule[hole] || {};
+    effectiveBetAmount = scheduleEntry.effectiveBetAmount ?? betAmount;
+  }
+
   const scheduleEntry = schedule[hole] || {};
-  const effectiveBetAmount = scheduleEntry.effectiveBetAmount ?? betAmount;
 
   const { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, addAHammerTriggered, resolved } =
     resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId,
     });
 
-  if (!resolved) return { lines: [], resolved: null, format };
+  if (!resolved) return { lines: [], resolved: null, format, isSuperWolf, rankedStandings, wolfId: overrideWolfId };
 
   const wolfName = nameOf(wolfId);
   const partnerName = config.partnerId ? nameOf(config.partnerId) : null;
@@ -2341,6 +2403,7 @@ export function getWolfHoleNarrative({
   else if (format === "blindWolf") formatLabel = `${wolfName} — Blind Wolf`;
   else if (format === "loneWolf") formatLabel = `${wolfName} — Lone Wolf`;
   else formatLabel = `${wolfName} — Wolf`;
+  if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
 
   const tags = [];
   if (hammerMultiplier > 1) tags.push(concededBy ? `Hammer ${hammerMultiplier}x, conceded` : `Hammer ${hammerMultiplier}x`);
@@ -2350,11 +2413,11 @@ export function getWolfHoleNarrative({
 
   if (resolved.winner === "push") {
     lines.push("Push — no money changes hands this hole.");
-    if (carryoverMode !== WOLF_CARRYOVER_MODES.OFF) {
+    if (!isSuperWolf && carryoverMode !== WOLF_CARRYOVER_MODES.OFF) {
       lines.push("Carries forward to the next hole.");
     }
   } else {
-    if ((scheduleEntry.carriedInCount || 0) > 0) {
+    if (!isSuperWolf && (scheduleEntry.carriedInCount || 0) > 0) {
       const n = scheduleEntry.carriedInCount;
       lines.push(`${n} carryover${n !== 1 ? "s" : ""} won — worth $${scheduleEntry.carriedInAmount.toFixed(2)} extra this hole.`);
     }
@@ -2369,7 +2432,7 @@ export function getWolfHoleNarrative({
     });
   }
 
-  return { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, concededBy };
+  return { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, concededBy, isSuperWolf, rankedStandings };
 }
 
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────
