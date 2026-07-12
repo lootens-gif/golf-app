@@ -413,7 +413,21 @@ function notifyRound(event, code) {
   // Freely editable anytime per Section 14 — no locking, just plain state.
   const [wolfHoles, setWolfHoles] = useState({});
   const updateWolfHole = (hole, updates) => {
-    setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
+    setWolfHoles((prev) => {
+      const next = { ...prev, [hole]: { ...prev[hole], ...updates } };
+      // Same direct-write protection as setScore, for the same reason —
+      // partner picks, Hammer entries, and tier declarations are exactly
+      // the kind of hard-to-recreate data this whole investigation started
+      // over. Written inside the updater so it always uses the true next
+      // value, not a closure that could be one tap behind.
+      if (roundCode) {
+        safeWriteJsonStorage(AUTO_ROUND_KEY, {
+          ...buildCurrentRoundSnapshot(),
+          wolfHoles: next,
+        });
+      }
+      return next;
+    });
   };
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
@@ -2234,6 +2248,28 @@ function resetSetup() {
         [playerId]: next,
       },
     }));
+
+    // Write directly to localStorage at the source of every score change —
+    // this is the one place ALL score edits flow through (live entry AND
+    // retroactive edits from Results via onUpdateScore), so protecting it
+    // here covers every path at once instead of patching each call site
+    // individually. Confirmed via live testing: the background autosave
+    // effect can miss a specific update even though the live app state was
+    // correct the whole time. Uses the functional updater above for the
+    // actual React state (safest against rapid successive calls), and a
+    // separately-computed value here for the write — even in the rare case
+    // this write is one keystroke behind, the very next keystroke's write
+    // catches up completely, since every change writes fresh.
+    if (roundCode) {
+      const nextScores = {
+        ...scores,
+        [hole]: { ...scores[hole], [playerId]: next },
+      };
+      safeWriteJsonStorage(AUTO_ROUND_KEY, {
+        ...buildCurrentRoundSnapshot(),
+        scores: nextScores,
+      });
+    }
   }
 
   function updateCoursePar(index, value) {
@@ -2397,7 +2433,6 @@ useEffect(() => {
 const justRestoredRef = useRef(false);
 const restoreTimeRef = useRef(0);
 
-//
 useEffect(() => {
   if (!autoRestoreComplete) return;
   if (!roundCode) return;
@@ -3532,6 +3567,24 @@ return (
 
 setLastHoleSaved(currentHole);
 setSaveMessage(`Hole ${currentHole} saved`);
+
+      // Write directly to localStorage RIGHT HERE, synchronously, with the
+      // just-changed values passed in explicitly — don't rely on the
+      // separate autosave effect to "notice" this update on its next run.
+      // This was a real, confirmed data-loss bug: the effect-based
+      // approach was proven (via live testing) to sometimes miss the exact
+      // moment of a hole save, even though the live app state was correct
+      // the whole time — the Hole Result Card would show right, but the
+      // write for that specific hole never landed in localStorage. This
+      // makes the critical moment (saving a hole) not depend on effect
+      // timing at all.
+      if (roundCode) {
+        safeWriteJsonStorage(AUTO_ROUND_KEY, {
+          ...buildCurrentRoundSnapshot(),
+          lastHoleSaved: currentHole,
+          currentHole: nextHole,
+        });
+      }
 
       // Force immediate Supabase sync on every hole save — don't wait for debounce
       if (roundCode) {
