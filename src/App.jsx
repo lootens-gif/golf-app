@@ -2394,6 +2394,18 @@ useEffect(() => {
 
   if (round && isUsableRoundSnapshot(round)) {
     applyRoundSnapshot(round, "Autosaved round restored.");
+    // THE ACTUAL ROOT CAUSE, found after multiple failed fixes: this is the
+    // PRIMARY restore path (used whenever AUTO_ROUND_KEY has valid data,
+    // which is almost always true once a round is underway) — and it never
+    // restored roundCode at all. Every single save mechanism in this app
+    // (all three direct-writes, the background effect, the Supabase sync
+    // that shows "Synced") is gated behind `if (roundCode)`. With
+    // roundCode never restored here, ALL of them silently did nothing,
+    // forever, after any refresh — no error, just quiet, total failure.
+    // roundCode is separately kept in sync to ROUND_CODE_KEY on every
+    // change, so it's always available here to restore.
+    const savedRoundCode = localStorage.getItem(ROUND_CODE_KEY);
+    if (savedRoundCode) setRoundCode(savedRoundCode);
     justRestoredRef.current = true;
     restoreTimeRef.current = Date.now();
     setAutoRestoreComplete(true);
