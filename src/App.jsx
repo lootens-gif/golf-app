@@ -64,6 +64,31 @@ function safeWriteJsonStorage(key, value) {
   }
 }
 
+/**
+ * Merges specific known-fresh fields onto whatever's ALREADY stored,
+ * instead of rebuilding the entire snapshot from React closure state and
+ * overwriting everything. This is the actual fix for a real, confirmed
+ * regression: onSaveHole/setScore/updateWolfHole each independently called
+ * buildCurrentRoundSnapshot() to do their own direct write — but that
+ * function reads its OWN closure over things like `scores`, which can be
+ * one render behind the very latest change during fast back-to-back
+ * entry. Whichever write landed last would silently overwrite and REGRESS
+ * data an earlier write had already correctly saved — the exact opposite
+ * of what the direct-write fixes were built to prevent. Merging onto the
+ * existing stored value instead means we only ever move forward, never
+ * backward, regardless of any single closure being briefly stale.
+ *
+ * fallbackFullSnapshotFn is only used the very first time — if nothing
+ * usable is in storage yet (a brand new round), there's nothing to merge
+ * onto, so we fall back to a full snapshot just this once to establish
+ * a real baseline.
+ */
+function safeMergeWriteJsonStorage(key, overrides, fallbackFullSnapshotFn) {
+  const existing = safeReadJsonStorage(key, null);
+  const base = isUsableRoundSnapshot(existing) ? existing : fallbackFullSnapshotFn();
+  return safeWriteJsonStorage(key, { ...base, ...overrides });
+}
+
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -421,10 +446,7 @@ function notifyRound(event, code) {
       // over. Written inside the updater so it always uses the true next
       // value, not a closure that could be one tap behind.
       if (roundCode) {
-        safeWriteJsonStorage(AUTO_ROUND_KEY, {
-          ...buildCurrentRoundSnapshot(),
-          wolfHoles: next,
-        });
+        safeMergeWriteJsonStorage(AUTO_ROUND_KEY, { wolfHoles: next }, buildCurrentRoundSnapshot);
       }
       return next;
     });
@@ -2265,10 +2287,7 @@ function resetSetup() {
         ...scores,
         [hole]: { ...scores[hole], [playerId]: next },
       };
-      safeWriteJsonStorage(AUTO_ROUND_KEY, {
-        ...buildCurrentRoundSnapshot(),
-        scores: nextScores,
-      });
+      safeMergeWriteJsonStorage(AUTO_ROUND_KEY, { scores: nextScores }, buildCurrentRoundSnapshot);
     }
   }
 
@@ -3579,11 +3598,10 @@ setSaveMessage(`Hole ${currentHole} saved`);
       // makes the critical moment (saving a hole) not depend on effect
       // timing at all.
       if (roundCode) {
-        safeWriteJsonStorage(AUTO_ROUND_KEY, {
-          ...buildCurrentRoundSnapshot(),
+        safeMergeWriteJsonStorage(AUTO_ROUND_KEY, {
           lastHoleSaved: currentHole,
           currentHole: nextHole,
-        });
+        }, buildCurrentRoundSnapshot);
       }
 
       // Force immediate Supabase sync on every hole save — don't wait for debounce
