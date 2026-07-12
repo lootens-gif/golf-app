@@ -1538,10 +1538,10 @@ function WolfAudit({
   const balances = roundResult.balancesByPlayerId || {};
 
   let lastScoredHole = 0;
-  for (let h = 1; h <= 15; h++) {
+  for (let h = 1; h <= 18; h++) {
     if (players.every((p) => scores?.[h]?.[p.id] != null)) lastScoredHole = h;
   }
-  const isFinal = lastScoredHole >= 15;
+  const isFinal = lastScoredHole >= 18;
 
   const sortedPlayers = [...players].sort((a, b) => (balances[b.id] || 0) - (balances[a.id] || 0));
 
@@ -1573,8 +1573,8 @@ function WolfAudit({
 
   return (
     <AuditSection title={level0Title} defaultOpen sessionKey={sessionKey} storageId="wolf-overall">
-      {Array.from({ length: 15 }, (_, i) => i + 1).map((hole) => {
-        const { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier } = getWolfHoleNarrative({
+      {Array.from({ length: 18 }, (_, i) => i + 1).map((hole) => {
+        const { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, isSuperWolf, rankedStandings } = getWolfHoleNarrative({
           hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
@@ -1591,6 +1591,7 @@ function WolfAudit({
         else if (format === "blindWolf") formatLabel = "Blind Wolf";
         else if (format === "loneWolf") formatLabel = "Lone Wolf";
         else formatLabel = "Wolf";
+        if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
 
         const isPush = resolved?.winner === "push";
         const smallSideWon = resolved?.winner === "small";
@@ -1647,6 +1648,21 @@ function WolfAudit({
 
         return (
           <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
+            {isSuperWolf && rankedStandings && rankedStandings.length > 0 && (
+              <div style={{ background: "#fef2f2", border: "1px solid #b3261e", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#b3261e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Standings before this hole
+                </div>
+                {rankedStandings.map((r, i) => (
+                  <div key={r.playerId} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, padding: "1px 0", fontWeight: i === 0 ? 700 : 400 }}>
+                    <span>{i === 0 ? "🐺 " : ""}{nameOf(r.playerId)}</span>
+                    <span style={{ color: r.standing < 0 ? "#b3261e" : r.standing > 0 ? "#137333" : "#6b7280" }}>
+                      {r.standing < 0 ? `-$${Math.abs(r.standing).toFixed(2)}` : r.standing > 0 ? `+$${r.standing.toFixed(2)}` : "$0.00"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}

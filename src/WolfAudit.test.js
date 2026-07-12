@@ -50,9 +50,9 @@ describe('WolfAudit — Level 0 (overall)', () => {
     expect(screen.getByText(/through hole 1/)).toBeInTheDocument();
   });
 
-  test('shows "Final" once all 15 holes are scored', () => {
+  test('shows "Final" once all 18 holes are scored', () => {
     const scores = {};
-    for (let h = 1; h <= 15; h++) {
+    for (let h = 1; h <= 18; h++) {
       scores[h] = { Wolf: 4, P2: 4, P3: 4, P4: 4, P5: 4 }; // all push, still "scored"
     }
     renderWolfAudit({ scores });
@@ -148,6 +148,18 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     fireEvent.click(screen.getByText(/Hole 1/));
     const sweepMentionsLevel2 = screen.getAllByText(/Hammer Sweep/);
     expect(sweepMentionsLevel2.length).toBeGreaterThan(sweepMentionsLevel1.length); // Level 2 badge adds another mention
+  });
+
+  test('Super Wolf holes (16-18) actually render in Results, labeled and with a standings snapshot', () => {
+    const scores = {};
+    for (let h = 1; h <= 15; h++) {
+      scores[h] = { Wolf: 5, P2: 5, P3: 5, P4: 5, P5: 5 }; // all pushes through 15
+    }
+    scores[16] = { Wolf: 5, P2: 5, P3: 5, P4: 2, P5: 5 }; // hole 16 decided
+    renderWolfAudit({ scores });
+    expect(screen.getByText(/Hole 16/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Hole 16/));
+    expect(screen.getByText(/Standings before this hole/)).toBeInTheDocument();
   });
 });
 
