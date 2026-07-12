@@ -2458,13 +2458,23 @@ useEffect(() => {
   // Skip writes for 1.5 seconds after restore to let all state fully hydrate
   if (Date.now() - restoreTimeRef.current < 1500) return;
 
-  // Write immediately, no debounce — localStorage is free and synchronous,
-  // unlike the Supabase sync below. A debounce here was the actual cause of
-  // real data loss: rapid hole-to-hole entry kept resetting a 250ms timer,
-  // so if someone refreshed before ever pausing that long, the write for
-  // their most recent holes never happened at all, and refresh silently
-  // restored an older snapshot.
-  safeWriteJsonStorage(AUTO_ROUND_KEY, buildCurrentRoundSnapshot());
+  // scores, wolfHoles, currentHole, and lastHoleSaved are EXCLUDED here on
+  // purpose — those 4 fields are now exclusively owned by setScore,
+  // updateWolfHole, and onSaveHole's own direct merge-writes. This effect
+  // used to include them via a full buildCurrentRoundSnapshot() rebuild,
+  // which meant its own closure (potentially stale during fast
+  // back-to-back entry) could win a race against those more targeted,
+  // more current writes and silently regress data they'd already gotten
+  // right. This effect now only ever touches the slower-changing fields
+  // below, so the two mechanisms can never fight each other over the same
+  // fields again.
+  const fullSnapshot = buildCurrentRoundSnapshot();
+  const rest = { ...fullSnapshot };
+  delete rest.scores;
+  delete rest.wolfHoles;
+  delete rest.currentHole;
+  delete rest.lastHoleSaved;
+  safeMergeWriteJsonStorage(AUTO_ROUND_KEY, rest, buildCurrentRoundSnapshot);
 }, [
   autoRestoreComplete,
   roundCode,
