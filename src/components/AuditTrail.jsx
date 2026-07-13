@@ -1600,7 +1600,7 @@ function WolfAudit({
         // alone, it does not make the shucker the new solo player).
         const perspectiveNames = smallSide.map(firstNameOf).join("+");
         const perspectiveDelta = smallSide.length ? (resolved?.deltas?.[smallSide[0]] || 0) : 0;
-        const outcomeColor = isPush ? "#92400e" : smallSideWon ? "#137333" : "#b3261e";
+        const outcomeColor = isPush ? "#6b7280" : smallSideWon ? "#137333" : "#b3261e";
         const outcomeWord = isPush ? "push" : smallSideWon ? "won" : "lost";
         const scheduleEntry = carryoverSchedule[hole] || {};
         const carryingCount = isPush ? (scheduleEntry.carriedInCount || 0) + 1 : 0;
@@ -1653,6 +1653,23 @@ function WolfAudit({
           }
         }
 
+        // On a push, mark the two specific players whose net scores
+        // actually tied — the best net from each side. Rendered on the
+        // opposite side of the score from a win's arrow (right instead of
+        // left, pointing the other direction), so a push is visually
+        // distinct from a win at a glance, not just a different color.
+        let pushArrowPlayerIds = [];
+        if (isPush) {
+          [smallSide, bigSide].forEach((side) => {
+            let bestId = null, bestNet = null;
+            side.forEach((id) => {
+              const net = getNetScore(id, hole, players, course, scores, handicapMode, noPar3TeamGame);
+              if (net != null && (bestNet === null || net < bestNet)) { bestNet = net; bestId = id; }
+            });
+            if (bestId) pushArrowPlayerIds.push(bestId);
+          });
+        }
+
         return (
           <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
             {isSuperWolf && rankedStandings && rankedStandings.length > 0 && (
@@ -1688,7 +1705,7 @@ function WolfAudit({
               </div>
             </div>
             {isPush && (
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#92400e", background: "#fef3c7", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", background: "#f3f4f6", padding: "6px 10px", borderRadius: 8, marginBottom: 8 }}>
                 Push · {carryingCount} carrying to the next hole
               </div>
             )}
@@ -1704,6 +1721,7 @@ function WolfAudit({
                   const isWolf = id === wolfId; // the actual rotation Wolf — stays fixed even on a Shuck hole
                   const isShucker = format === "shuck" && id === config.partnerId;
                   const arrowCount = arrowPlayerIds.includes(id) ? (addAHammerTriggered ? 2 : 1) : 0;
+                  const showPushArrow = pushArrowPlayerIds.includes(id);
                   return (
                     <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isWinnerRow ? "#f0f7f3" : isLoserRow ? "#fef2f2" : "transparent" }}>
                       <td style={{ padding: "5px 4px 5px 0" }}>
@@ -1722,6 +1740,11 @@ function WolfAudit({
                       </td>
                       <td style={{ padding: "5px 4px", textAlign: "center" }}>
                         <ScoreCell gross={gross} par={par} strokes={strokes} />
+                      </td>
+                      <td style={{ padding: "5px 0", textAlign: "center", width: showPushArrow ? 40 : 0 }}>
+                        {showPushArrow && (
+                          <span style={{ color: "#000000", fontSize: 32, fontWeight: 700, lineHeight: 1 }}>←</span>
+                        )}
                       </td>
                       <td style={{ padding: "5px 0", textAlign: "right", color: deltaColor, fontWeight: 600 }}>
                         {delta > 0 ? `+$${delta.toFixed(2)}` : delta < 0 ? `-$${Math.abs(delta).toFixed(2)}` : "$0.00"}

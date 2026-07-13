@@ -98,6 +98,26 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(screen.getByText(/push · 1 carrying/)).toBeInTheDocument();
   });
 
+  test('a push uses the app-wide grey for tied results, not amber, in both Level 1 and Level 2', () => {
+    const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } };
+    renderWolfAudit({ scores });
+    const level1Text = screen.getByText(/push · 1 carrying/);
+    expect(level1Text.closest('span').style.color).toBe('rgb(107, 114, 128)'); // #6b7280
+    fireEvent.click(screen.getByText(/Hole 1/));
+    const level2Box = screen.getByText(/Push · 1 carrying to the next hole/);
+    expect(level2Box.style.color).toBe('rgb(107, 114, 128)');
+  });
+
+  test('a push marks BOTH tied players with an arrow, on the score\'s right side, pointing left — mirrored from a win\'s left-side, right-pointing arrow', () => {
+    const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } }; // Wolf and P2 tie at the best score
+    renderWolfAudit({ scores });
+    fireEvent.click(screen.getByText(/Hole 1/));
+    const leftArrows = screen.queryAllByText('→');
+    const rightArrows = screen.queryAllByText('←');
+    expect(leftArrows.length).toBe(0); // no win-style arrow on a push
+    expect(rightArrows.length).toBe(2); // one per tied player
+  });
+
   test('Carryover on push now says exactly how many are carrying — real behavior, not just a warning', () => {
     const scores = { 1: { Wolf: 4, P2: 4, P3: 4, P4: 4, P5: 4 } }; // identical scores, guaranteed push
     renderWolfAudit({ scores, teamMatchConfig: { wolfCarryoverMode: 'value_only' } });
