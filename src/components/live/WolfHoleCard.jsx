@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 const sc = {
   green:      "#1a5c35",
@@ -68,7 +68,9 @@ export default function WolfHoleCard({
   rankedStandings = null,      // Super Wolf: [{playerId, standing}, ...] worst to best
   superWolfBetAmount = null,   // Super Wolf: this hole's free-form bet amount
   onChangeSuperWolfBetAmount,  // Super Wolf: (hole, amount) => void
+  teamGameUnitAmount = 5,      // the round's base bet — used for the "Standard" preset
 }) {
+  const [showCustomKeypad, setShowCustomKeypad] = useState(false);
   const wolfIndex = useMemo(() => {
     if (!players.length) return 0;
     return (currentHole - 1) % players.length;
@@ -100,6 +102,31 @@ export default function WolfHoleCard({
   const update = (updates) => onUpdateWolfHole(currentHole, updates);
   const partner = config.partnerId ? players.find((p) => p.id === config.partnerId) : null;
   const nameOf = (id) => players.find((p) => p.id === id)?.name || id;
+
+  // Super Wolf bet presets — rankedStandings[0] is always the worst-off
+  // player (the one who just became Super Wolf), so "full/half down"
+  // pulls straight from what's already shown on screen, no math for the
+  // user. Everything here is rounded to a whole dollar — a decimal bet
+  // amount was a real, confirmed bug (payouts came out in cents).
+  const worstDeficit = rankedStandings?.length ? Math.abs(rankedStandings[0].standing) : 0;
+  const fullDownAmount = Math.round(worstDeficit) || null;
+  const halfDownAmount = Math.round(worstDeficit / 2) || null;
+  const standardBase = Math.round(Number(teamGameUnitAmount) || 0) || null;
+  const currentAmount = superWolfBetAmount != null && superWolfBetAmount !== "" ? Number(superWolfBetAmount) : null;
+  // Which multiple of the standard bet the CURRENT stored value matches,
+  // if any — derived from the actual persisted value rather than tracked
+  // separately, so it's always correct even right after a refresh.
+  const currentStandardMultiple = standardBase && currentAmount != null && currentAmount % standardBase === 0
+    ? currentAmount / standardBase
+    : 0;
+  const setBetAmount = (amount) => {
+    setShowCustomKeypad(false);
+    onChangeSuperWolfBetAmount?.(currentHole, String(amount));
+  };
+  const tapStandard = () => {
+    const nextMultiple = currentStandardMultiple >= 1 && currentStandardMultiple < 3 ? currentStandardMultiple + 1 : 1;
+    setBetAmount(standardBase * nextMultiple);
+  };
 
   const declareButton = (key, label, sublabel) => {
     const active = config[key];
@@ -155,18 +182,117 @@ export default function WolfHoleCard({
           <label style={{ display: "block", fontSize: 12, color: sc.ink, marginBottom: 4 }}>
             Dollar value for this hole
           </label>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={superWolfBetAmount ?? ""}
-            onChange={(e) => onChangeSuperWolfBetAmount?.(currentHole, e.target.value)}
-            placeholder="e.g. 25"
-            style={{
-              width: "100%", padding: "8px 10px", fontSize: 15, fontFamily: "inherit",
-              border: `1px solid ${sc.border}`, borderRadius: 8,
-            }}
-          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: showCustomKeypad ? 10 : 0 }}>
+            {[
+              { key: "full", label: "Full down", amount: fullDownAmount },
+              { key: "half", label: "Half down", amount: halfDownAmount },
+            ].map(({ key, label, amount }) => {
+              const active = amount != null && currentAmount === amount;
+              return (
+                <button
+                  key={key}
+                  disabled={amount == null}
+                  onClick={() => setBetAmount(amount)}
+                  style={{
+                    padding: "10px 6px", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                    cursor: amount == null ? "default" : "pointer", borderRadius: 8, textAlign: "center",
+                    border: active ? `1px solid ${sc.accent}` : `1px solid ${sc.border}`,
+                    background: active ? sc.accentLight : "#fff",
+                    color: amount == null ? sc.muted : active ? sc.accent : sc.ink,
+                    opacity: amount == null ? 0.5 : 1,
+                  }}
+                >
+                  {label}{amount != null ? ` · $${amount}` : ""}
+                </button>
+              );
+            })}
+            <button
+              disabled={!standardBase}
+              onClick={tapStandard}
+              style={{
+                padding: "10px 6px", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                cursor: standardBase ? "pointer" : "default", borderRadius: 8, textAlign: "center",
+                border: currentStandardMultiple > 0 ? `1px solid ${sc.accent}` : `1px solid ${sc.border}`,
+                background: currentStandardMultiple > 0 ? sc.accentLight : "#fff",
+                color: !standardBase ? sc.muted : currentStandardMultiple > 0 ? sc.accent : sc.ink,
+                opacity: standardBase ? 1 : 0.5,
+              }}
+            >
+              {currentStandardMultiple > 1 ? `${currentStandardMultiple}x Standard` : "Standard"}
+              {standardBase ? ` · $${standardBase * (currentStandardMultiple || 1)}` : ""}
+              <div style={{ fontSize: 9, fontWeight: 400, marginTop: 1 }}>tap again for 2x, 3x</div>
+            </button>
+            <button
+              onClick={() => setShowCustomKeypad((v) => !v)}
+              style={{
+                padding: "10px 6px", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+                borderRadius: 8, textAlign: "center",
+                border: showCustomKeypad ? `1px solid ${sc.accent}` : `1px solid ${sc.border}`,
+                background: showCustomKeypad ? sc.accentLight : "#fff",
+                color: showCustomKeypad ? sc.accent : sc.ink,
+              }}
+            >
+              Custom{currentAmount != null && currentStandardMultiple === 0 && currentAmount !== fullDownAmount && currentAmount !== halfDownAmount ? ` · $${currentAmount}` : ""}
+            </button>
+          </div>
+
+          {showCustomKeypad && (
+            <div>
+              <div style={{ textAlign: "center", fontSize: 24, fontWeight: 700, color: sc.ink, padding: "8px 0", background: "#fff", borderRadius: 8, marginBottom: 8, border: `1px solid ${sc.border}` }}>
+                ${superWolfBetAmount || "0"}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => {
+                      const next = (superWolfBetAmount || "") + String(num);
+                      onChangeSuperWolfBetAmount?.(currentHole, String(Math.round(Number(next)) || 0));
+                    }}
+                    style={{
+                      padding: "14px 8px", fontSize: 20, fontWeight: 700,
+                      border: `1px solid ${sc.border}`, borderRadius: 10,
+                      background: "#fff", color: sc.ink, cursor: "pointer", lineHeight: 1, fontFamily: "inherit",
+                    }}
+                  >{num}</button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => onChangeSuperWolfBetAmount?.(currentHole, "")}
+                  style={{
+                    padding: "14px 8px", fontSize: 13, fontWeight: 700,
+                    border: `1px solid ${sc.border}`, borderRadius: 10,
+                    background: "#fafafa", color: sc.muted, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >Clear</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = (superWolfBetAmount || "") + "0";
+                    onChangeSuperWolfBetAmount?.(currentHole, String(Math.round(Number(next)) || 0));
+                  }}
+                  style={{
+                    padding: "14px 8px", fontSize: 20, fontWeight: 700,
+                    border: `1px solid ${sc.border}`, borderRadius: 10,
+                    background: "#fff", color: sc.ink, cursor: "pointer", lineHeight: 1, fontFamily: "inherit",
+                  }}
+                >0</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const str = String(superWolfBetAmount || "");
+                    onChangeSuperWolfBetAmount?.(currentHole, str.slice(0, -1));
+                  }}
+                  style={{
+                    padding: "14px 8px", fontSize: 16, fontWeight: 700,
+                    border: `1px solid ${sc.border}`, borderRadius: 10,
+                    background: "#fafafa", color: sc.muted, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >⌫</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>

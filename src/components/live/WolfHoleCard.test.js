@@ -292,23 +292,101 @@ describe('WolfHoleCard — Super Wolf mode', () => {
     expect(screen.getAllByText('P4').length).toBeGreaterThan(0);
   });
 
-  test('the bet amount input calls onChangeSuperWolfBetAmount with the hole and typed value', () => {
+  test('the "Full down" preset sends the worst standing rounded to a whole dollar', () => {
     const onChange = jest.fn();
     render(
       <WolfHoleCard
-        currentHole={17}
-        players={PLAYERS}
-        wolfHoles={{}}
-        onUpdateWolfHole={() => {}}
-        isSuperWolf
-        overrideWolfId="P2"
-        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
-        superWolfBetAmount={null}
-        onChangeSuperWolfBetAmount={onChange}
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -47.5 }]}
+        superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
       />
     );
-    fireEvent.change(screen.getByPlaceholderText('e.g. 25'), { target: { value: '30' } });
-    expect(onChange).toHaveBeenCalledWith(17, '30');
+    fireEvent.click(screen.getByText(/Full down/));
+    expect(onChange).toHaveBeenCalledWith(17, '48'); // rounded, never cents
+  });
+
+  test('the "Half down" preset sends half the worst standing, rounded', () => {
+    const onChange = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -50 }]}
+        superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
+      />
+    );
+    fireEvent.click(screen.getByText(/Half down/));
+    expect(onChange).toHaveBeenCalledWith(17, '25');
+  });
+
+  test('Standard cycles 1x → 2x → 3x → back to 1x on repeated taps', () => {
+    const onChange = jest.fn();
+    const { rerender } = render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={10}
+      />
+    );
+    fireEvent.click(screen.getByText(/Standard/));
+    expect(onChange).toHaveBeenLastCalledWith(17, '10'); // 1x
+
+    rerender(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount="10" onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={10}
+      />
+    );
+    fireEvent.click(screen.getByText(/Standard/));
+    expect(onChange).toHaveBeenLastCalledWith(17, '20'); // 2x
+
+    rerender(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount="20" onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={10}
+      />
+    );
+    fireEvent.click(screen.getByText(/Standard/));
+    expect(onChange).toHaveBeenLastCalledWith(17, '30'); // 3x
+
+    rerender(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount="30" onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={10}
+      />
+    );
+    fireEvent.click(screen.getByText(/Standard/));
+    expect(onChange).toHaveBeenLastCalledWith(17, '10'); // wraps back to 1x
+  });
+
+  test('Custom opens a digit keypad, never the native decimal keyboard, and only ever builds whole numbers', () => {
+    const onChange = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
+      />
+    );
+    fireEvent.click(screen.getByText('Custom'));
+    fireEvent.click(screen.getByText('4'));
+    expect(onChange).toHaveBeenLastCalledWith(17, '4');
+    // No decimal point button exists anywhere in the keypad — a fractional
+    // bet amount is now structurally impossible, not just discouraged.
+    expect(screen.queryByText('.')).not.toBeInTheDocument();
   });
 
   test('a hole 1-15 render (isSuperWolf false) shows no standings snapshot or bet input', () => {
