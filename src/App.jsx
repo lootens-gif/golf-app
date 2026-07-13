@@ -2849,6 +2849,14 @@ function goToLive() {
     alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
     return;
   }
+  // currentHole gets set to 19 (one past the last real hole) purely as an
+  // internal signal to trigger the Round Complete modal — it was never
+  // meant to also represent a real, navigable hole. Nothing in the score
+  // grid or any game format's per-hole UI has a case for hole 19, so
+  // returning to Scoring after a round was completed landed on a blank,
+  // meaningless screen for every format, not just Wolf. Reset to the last
+  // real hole so there's always something valid and editable to land on.
+  if (currentHole > 18) setCurrentHole(18);
   setScreen("live");
 }
 
