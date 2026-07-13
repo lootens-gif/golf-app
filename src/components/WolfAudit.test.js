@@ -120,6 +120,12 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(screen.getByText(/lost/)).toBeInTheDocument(); // Wolf (4) loses to P2's best-of-four (2)
   });
 
+  test('Shuck reads as "X was Shucked by Y" in Level 1, not the standard Format: Name pattern', () => {
+    const scores = { 1: { Wolf: 3, P2: 4, P3: 5, P4: 6, P5: 5 } }; // Wolf wins despite being shucked
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', shucked: true } } });
+    expect(screen.getByText(/Wolf was Shucked by P2/)).toBeInTheDocument();
+  });
+
   test('the wolf emoji stays on the real rotation Wolf even on a Shuck hole, and the middle finger marks the shucker', () => {
     const scores = { 1: { P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 } };
     renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', shucked: true } } });

@@ -1595,14 +1595,20 @@ function WolfAudit({
 
         const isPush = resolved?.winner === "push";
         const smallSideWon = resolved?.winner === "small";
-        // Always Wolf's perspective — smallSide IS the perspective-holder in
-        // every format already (Wolf+partner, or the shucker on a Shuck hole).
+        // Always Wolf's perspective — smallSide is always the real Wolf now
+        // in every format, including Shuck (fixed: a shuck leaves the Wolf
+        // alone, it does not make the shucker the new solo player).
         const perspectiveNames = smallSide.map(firstNameOf).join("+");
         const perspectiveDelta = smallSide.length ? (resolved?.deltas?.[smallSide[0]] || 0) : 0;
         const outcomeColor = isPush ? "#92400e" : smallSideWon ? "#137333" : "#b3261e";
         const outcomeWord = isPush ? "push" : smallSideWon ? "won" : "lost";
         const scheduleEntry = carryoverSchedule[hole] || {};
         const carryingCount = isPush ? (scheduleEntry.carriedInCount || 0) + 1 : 0;
+        // A Shuck reads as a sentence, not the usual "{Format}: {Names}"
+        // pattern — "Stan Shucked" would sound like Stan did the shucking,
+        // when it actually happened TO him. Passive voice, naming who
+        // actually shucked him, matches what really happened.
+        const shuckedByName = format === "shuck" && config.partnerId ? firstNameOf(config.partnerId) : null;
 
         // LEVEL 1: always Wolf's perspective, one color for the whole
         // outcome — green won, red lost, amber push — matching how every
@@ -1611,7 +1617,8 @@ function WolfAudit({
           <span style={{ fontSize: 13 }}>
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Hole {hole}</span>
             <span style={{ color: outcomeColor }}>
-              {" "}· {formatLabel}: {perspectiveNames}
+              {" "}·{" "}
+              {shuckedByName ? `${perspectiveNames} was Shucked by ${shuckedByName}` : `${formatLabel}: ${perspectiveNames}`}
               {isPush
                 ? ` · push · ${carryingCount} carrying`
                 : ` · ${perspectiveDelta >= 0 ? "+" : "-"}$${Math.abs(perspectiveDelta).toFixed(2)}${smallSide.length > 1 ? "ea" : ""} · ${outcomeWord}`}
