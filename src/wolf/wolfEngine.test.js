@@ -158,7 +158,7 @@ describe('resolveWolfHole — Classic Wolf style (opt-in, matches the original s
     expect(lone.deltas).toEqual(solo.deltas);
   });
 
-  test('Shuck (8-unit win / 2-unit lose), $5 base, wins → Shucker collects $160 from 4 opponents (matches original doc)', () => {
+  test('Shuck (8-unit win / 2-unit lose), $5 base — whoever is on smallSide collects $160 from 4 opponents when they win (matches original doc; which player is actually smallSide on a real shuck is decided separately by getWolfHoleSides)', () => {
     const scores = scoresFor({ P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 });
     const r = resolveWolfHole({ format: 'shuck', smallSide: ['P2'], bigSide: ['Wolf', 'P3', 'P4', 'P5'], hole: HOLE, players: PLAYERS, course: COURSE, scores, handicapMode: 'full', betAmount: 5, wolfStyle: WOLF_STYLES.CLASSIC });
     expect(r.deltas.P2).toBe(160);

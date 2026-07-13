@@ -72,18 +72,19 @@ describe('computeWolfRoundResult — a real played hole flows through correctly'
     expect(result.balancesByPlayerId.A).toBe(40); // 2x of the 1x $20 case above
   });
 
-  test('hole 1 (Wolf=A), A picks B as partner, B shucks → B (shucker) vs. A+C+D+E', () => {
-    const scores = { 1: { B: 2, A: 4, C: 5, D: 6, E: 5 } }; // B, the shucker, has the best score
+  test('hole 1 (Wolf=A), A picks B as partner, B shucks → Wolf A stays alone vs. B+C+D+E (the shucker is just one of the four now)', () => {
+    const scores = { 1: { B: 2, A: 4, C: 5, D: 6, E: 5 } }; // B (the shucker) happens to have the best score
     const result = computeWolfRoundResult({
       activePlayers: PLAYERS,
       wolfHoles: { 1: { partnerId: 'B', shucked: true } },
       getFormat: getWolfFormat,
       course: COURSE, scores, handicapMode: 'full', betAmount: 5,
     });
-    // Shuck (2x), $5 base → shucker collects 2×5=$10 from each of 4 opponents = $40
-    expect(result.balancesByPlayerId.B).toBe(40);
-    expect(result.balancesByPlayerId.A).toBe(-10);
-    expect(result.balancesByPlayerId.C).toBe(-10);
+    // Shuck (2x), $5 base. Best of B/C/D/E is B's 2, which beats A's 4 —
+    // the Wolf (A), left alone by the shuck, loses to each of the 4.
+    expect(result.balancesByPlayerId.A).toBe(-40);
+    expect(result.balancesByPlayerId.B).toBe(10);
+    expect(result.balancesByPlayerId.C).toBe(10);
   });
 });
 

@@ -2100,10 +2100,14 @@ export function getWolfHoleSides(hole, activePlayers, config, format, overrideWo
   if (format === "pack") {
     smallSide = [wolfId, config.partnerId];
     bigSide = otherIds.filter((id) => id !== config.partnerId);
-  } else if (format === "shuck") {
-    smallSide = [config.partnerId];
-    bigSide = [wolfId, ...otherIds.filter((id) => id !== config.partnerId)];
   } else {
+    // Shuck: the invited partner REFUSES to team up. This leaves the
+    // original Wolf alone against all 4, exactly like nobody had ever
+    // been picked — the shucker doesn't inherit anything, they're just
+    // folded back into the opponents. Confirmed by real playtesting
+    // (Jon/Harrison Biro): the previous version had this backwards,
+    // treating the shucker as if THEY became the new solo Wolf, which
+    // rewarded refusing a partnership instead of punishing it.
     smallSide = [wolfId];
     bigSide = otherIds;
   }
@@ -2399,7 +2403,7 @@ export function getWolfHoleNarrative({
 
   let formatLabel;
   if (format === "pack") formatLabel = `${wolfName} + ${partnerName} vs. the other 3`;
-  else if (format === "shuck") formatLabel = `${partnerName} shucked — alone vs. everyone else`;
+  else if (format === "shuck") formatLabel = `${wolfName} — shucked by ${partnerName}, alone vs. everyone`;
   else if (format === "blindWolf") formatLabel = `${wolfName} — Blind Wolf`;
   else if (format === "loneWolf") formatLabel = `${wolfName} — Lone Wolf`;
   else formatLabel = `${wolfName} — Wolf`;

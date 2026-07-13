@@ -379,7 +379,7 @@ export default function WolfHoleCard({
       <div style={{ fontSize: 11, color: sc.muted, marginBottom: hammerEnabled ? 12 : 0, paddingTop: 8, borderTop: `1px solid ${sc.border}` }}>
         {format === "blindWolf" && `${wolf.name} — Blind Wolf · 1v4`}
         {format === "loneWolf" && `${wolf.name} — Lone Wolf · 1v4`}
-        {format === "shuck" && `${partner?.name || "Partner"} shucked · playing alone vs. everyone else`}
+        {format === "shuck" && `${partner?.name || "Partner"} shucked ${wolf.name} · Wolf plays alone vs. everyone, 1v4`}
         {format === "pack" && partner && `Pack Wolf · ${wolf.name} + ${partner.name} vs. the other 3`}
         {format === "solo" && `${wolf.name} — Wolf · 1v4`}
       </div>

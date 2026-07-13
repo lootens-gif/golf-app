@@ -111,11 +111,13 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(screen.getByText(/lost/)).toBeInTheDocument();
   });
 
-  test('on a Shuck hole, Level 1 perspective flips to the shucker, not the rotation Wolf', () => {
-    const scores = { 1: { P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 } }; // P2 (shucker) wins
+  test('on a Shuck hole, Level 1 perspective stays on the original Wolf — a shuck no longer flips it to the shucker', () => {
+    const scores = { 1: { P2: 2, Wolf: 4, P3: 5, P4: 6, P5: 5 } }; // P2 (the shucker) happens to have the best score
     renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', shucked: true } } });
-    expect(screen.getByText(/Shuck: P2/)).toBeInTheDocument();
-    expect(screen.getByText(/won/)).toBeInTheDocument();
+    // "Wolf" is the literal player name in this fixture, unrelated to the
+    // "Wolf" format word — getAllByText handles the resulting duplicates.
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('Shuck')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/lost/)).toBeInTheDocument(); // Wolf (4) loses to P2's best-of-four (2)
   });
 
   test('the wolf emoji stays on the real rotation Wolf even on a Shuck hole, and the middle finger marks the shucker', () => {

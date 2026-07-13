@@ -91,11 +91,11 @@ describe('WolfHoleCard — shuck', () => {
     expect(screen.getByText('P2 shucked')).toBeInTheDocument();
   });
 
-  test('flipping the shuck toggle switches the summary to the Shucker format', () => {
+  test('flipping the shuck toggle switches the summary to reflect the Wolf being left alone, not the shucker', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2'));
     fireEvent.click(screen.getByText('P2 shucked'));
-    expect(screen.getByText(/P2 shucked · playing alone vs\. everyone else/)).toBeInTheDocument();
+    expect(screen.getByText(/P2 shucked \S+ · Wolf plays alone vs\. everyone, 1v4/)).toBeInTheDocument();
   });
 });
 

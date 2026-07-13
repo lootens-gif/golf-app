@@ -29,10 +29,10 @@ describe('getWolfHoleSides', () => {
     expect(sides.bigSide).toEqual(['B', 'D', 'E']);
   });
 
-  test('shuck: the shucker alone vs. Wolf + the other 3', () => {
+  test('shuck: Wolf stays alone vs. all 4 (including the shucker) — a shuck punishes the Wolf, it does not reward the shucker', () => {
     const sides = getWolfHoleSides(1, PLAYERS, { partnerId: 'C' }, 'shuck');
-    expect(sides.smallSide).toEqual(['C']);
-    expect(sides.bigSide).toEqual(['A', 'B', 'D', 'E']);
+    expect(sides.smallSide).toEqual(['A']); // hole 1's Wolf, unaffected by who was invited
+    expect(sides.bigSide).toEqual(['B', 'C', 'D', 'E']); // shucker C is just one of the four now
   });
 
   test('rotation: hole 3 → C is Wolf', () => {
@@ -80,12 +80,12 @@ describe('getWolfHoleNarrative', () => {
     expect(result.lines[0]).toContain('Hammer 2x, conceded');
   });
 
-  test('Shuck labels the shucker, not the Wolf, as the one who "shucked"', () => {
-    const scores = { 1: { B: 2, A: 4, C: 5, D: 6, E: 5 } };
+  test('Shuck labels the ORIGINAL WOLF as the one left alone, shucked by the invited partner', () => {
+    const scores = { 1: { A: 2, B: 4, C: 5, D: 6, E: 5 } }; // A is hole 1's Wolf
     const result = getWolfHoleNarrative({
       hole: 1, activePlayers: PLAYERS, wolfHoles: { 1: { partnerId: 'B', shucked: true } },
       getFormat: getWolfFormat, course: COURSE, scores, handicapMode: 'full', betAmount: 5,
     });
-    expect(result.lines[0]).toBe('B shucked — alone vs. everyone else');
+    expect(result.lines[0]).toBe('A — shucked by B, alone vs. everyone');
   });
 });
