@@ -1475,6 +1475,7 @@ if (teamGameFormat === "wolf") {
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
     carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
     maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
@@ -2884,6 +2885,7 @@ if (teamGameFormat === "wolf") {
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
     carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
     maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
@@ -3572,6 +3574,7 @@ return (
       birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
       addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
       addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
+    shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
     });
     return (
       <WolfHoleCard

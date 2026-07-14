@@ -63,7 +63,7 @@ function isNinePointMatch(match) {
 function formatMoney(value) {
   const amount = Number(value || 0);
   const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
-  return `${sign}$${Math.abs(amount)}`;
+  return `${sign}$${Math.abs(amount).toFixed(2)}`;
 }
 
 
@@ -1525,6 +1525,7 @@ function WolfAudit({
   const addAHammerHammerHolesOnly = !!teamMatchConfig.wolfAddAHammerHammerHolesOnly;
   const carryoverMode = teamMatchConfig.wolfCarryoverMode || "off";
   const maxCarryover = teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null;
+  const shuckDoubles = teamMatchConfig.wolfShuckDoubles !== false;
 
   // LEVEL 0: overall totals — same shape as TeamGameAudit's header, reused
   // directly. computeWolfRoundResult only sums holes that have scores, so
@@ -1534,6 +1535,8 @@ function WolfAudit({
     course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
     betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
     addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
+
+    shuckDoubles,
   });
   const balances = roundResult.balancesByPlayerId || {};
 
@@ -1579,6 +1582,8 @@ function WolfAudit({
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
           addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
+
+          shuckDoubles,
         });
         if (!lines.length) return null; // hole not fully scored yet — skip
 
@@ -1590,7 +1595,7 @@ function WolfAudit({
         else if (format === "shuck") formatLabel = "Shuck";
         else if (format === "blindWolf") formatLabel = "Blind Wolf";
         else if (format === "loneWolf") formatLabel = "Lone Wolf";
-        else formatLabel = "Wolf";
+        else formatLabel = "Solo Wolf";
         if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
 
         const isPush = resolved?.winner === "push";

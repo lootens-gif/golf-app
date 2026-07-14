@@ -1775,9 +1775,15 @@ export function resolveWolfHole({
   birdieMultiplier = 1,
   addAHammerMultiplier = 1,
   concededBy = null,
+  shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
 }) {
   const table = WOLF_MULTIPLIER_TABLES[wolfStyle] || WOLF_MULTIPLIER_TABLES[WOLF_STYLES.HARRISON];
-  const tierValues = table[format];
+  // With the penalty off, a Shuck plays exactly like an ordinary solo Wolf
+  // hole would under whatever style is active — not a hardcoded 1x, since
+  // Classic Wolf's own solo tier is already asymmetric (4x/1x). "No
+  // penalty" means "no different from any other solo hole," not "always
+  // flat."
+  const tierValues = (format === "shuck" && !shuckDoubles) ? table.solo : table[format];
   if (!tierValues) throw new Error(`Unknown Wolf format: ${format}`);
 
   let winner; // "small" | "big" | "push"
@@ -2139,6 +2145,7 @@ export function resolveWolfHoleFromConfig({
   addAHammerEnabled = false,
   addAHammerHammerHolesOnly = false,
   overrideWolfId = null, // used for Super Wolf holes 16-18 — Wolf isn't by rotation there
+  shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
 }) {
   const config = { ...(wolfHoles?.[hole] || {}) };
   const format = getFormat(config);
@@ -2151,7 +2158,7 @@ export function resolveWolfHoleFromConfig({
     format, smallSide, bigSide, hole,
     players: activePlayers, course, scores, handicapMode,
     noPar3Strokes, betAmount, wolfStyle, settlementStyle,
-    hammerMultiplier, concededBy,
+    hammerMultiplier, concededBy, shuckDoubles,
   });
   if (!provisional) return { config, format, wolfId, smallSide, bigSide, hammerMultiplier, concededBy, resolved: null };
 
@@ -2183,7 +2190,7 @@ export function resolveWolfHoleFromConfig({
         format, smallSide, bigSide, hole,
         players: activePlayers, course, scores, handicapMode,
         noPar3Strokes, betAmount, wolfStyle, settlementStyle,
-        hammerMultiplier, concededBy, birdieMultiplier, addAHammerMultiplier,
+        hammerMultiplier, concededBy, birdieMultiplier, addAHammerMultiplier, shuckDoubles,
       })
     : provisional;
 
@@ -2268,6 +2275,7 @@ export function computeWolfRoundResult({
   addAHammerHammerHolesOnly = false,
   carryoverMode = WOLF_CARRYOVER_MODES.OFF,
   maxCarryover = null,
+  shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
 }) {
   if (!activePlayers || activePlayers.length !== 5) {
     return { balancesByPlayerId: {} };
@@ -2287,7 +2295,7 @@ export function computeWolfRoundResult({
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly,
+      addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles,
     });
     holeResults.push(resolved);
   }
@@ -2304,7 +2312,7 @@ export function computeWolfRoundResult({
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: superWolfBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles,
     });
     holeResults.push(resolved);
   }
@@ -2338,6 +2346,7 @@ export function getWolfHoleNarrative({
   addAHammerHammerHolesOnly = false,
   carryoverMode = WOLF_CARRYOVER_MODES.OFF,
   maxCarryover = null,
+  shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
 }) {
   const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
   const playerIds = activePlayers.map((p) => p.id);
@@ -2360,7 +2369,7 @@ export function getWolfHoleNarrative({
       const { resolved: r } = resolveWolfHoleFromConfig({
         hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
         noPar3Strokes, betAmount: eff, wolfStyle, settlementStyle, birdieEnabled,
-        addAHammerEnabled, addAHammerHammerHolesOnly,
+        addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles,
       });
       priorResults.push(r);
     }
@@ -2372,7 +2381,7 @@ export function getWolfHoleNarrative({
       const { resolved: r } = resolveWolfHoleFromConfig({
         hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
         noPar3Strokes, betAmount: amt, wolfStyle, settlementStyle, birdieEnabled,
-        addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf,
+        addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles,
       });
       priorResults.push(r);
     }
@@ -2393,7 +2402,7 @@ export function getWolfHoleNarrative({
     resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId, shuckDoubles,
     });
 
   if (!resolved) return { lines: [], resolved: null, format, isSuperWolf, rankedStandings, wolfId: overrideWolfId };
@@ -2406,7 +2415,7 @@ export function getWolfHoleNarrative({
   else if (format === "shuck") formatLabel = `${wolfName} — shucked by ${partnerName}, alone vs. everyone`;
   else if (format === "blindWolf") formatLabel = `${wolfName} — Blind Wolf`;
   else if (format === "loneWolf") formatLabel = `${wolfName} — Lone Wolf`;
-  else formatLabel = `${wolfName} — Wolf`;
+  else formatLabel = `${wolfName} — Solo Wolf`;
   if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
 
   const tags = [];

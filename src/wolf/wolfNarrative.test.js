@@ -8,7 +8,7 @@
  * "what happened on this Wolf hole, in words."
  */
 
-import { getWolfHoleSides, getWolfHoleNarrative } from '../engine/scoringEngine';
+import { getWolfHoleSides, getWolfHoleNarrative, resolveWolfHoleFromConfig } from '../engine/scoringEngine';
 import { getWolfFormat } from '../components/live/WolfHoleCard';
 
 function makePlayer(id) { return { id, name: id, hcp: 0 }; }
@@ -33,6 +33,30 @@ describe('getWolfHoleSides', () => {
     const sides = getWolfHoleSides(1, PLAYERS, { partnerId: 'C' }, 'shuck');
     expect(sides.smallSide).toEqual(['A']); // hole 1's Wolf, unaffected by who was invited
     expect(sides.bigSide).toEqual(['B', 'C', 'D', 'E']); // shucker C is just one of the four now
+  });
+
+  test('shuckDoubles=false makes a Shuck play at the normal solo rate, not 2x — a real Setup toggle, not hardcoded', () => {
+    const scores = { 1: { A: 2, B: 5, C: 5, D: 6, E: 5 } };
+    const withDoubling = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: { 1: { partnerId: 'B', shucked: true } }, getFormat: getWolfFormat,
+      course: COURSE, scores, handicapMode: 'full', betAmount: 5, shuckDoubles: true,
+    });
+    const withoutDoubling = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: { 1: { partnerId: 'B', shucked: true } }, getFormat: getWolfFormat,
+      course: COURSE, scores, handicapMode: 'full', betAmount: 5, shuckDoubles: false,
+    });
+    expect(withDoubling.resolved.deltas.A).toBe(40); // 2x, 4 opponents × $10
+    expect(withoutDoubling.resolved.deltas.A).toBe(20); // 1x, matches an ordinary solo win
+  });
+
+  test('shuckDoubles=false on Classic Wolf falls back to Classic\'s own solo tier (4x/1x), not a flat 1x', () => {
+    const scores = { 1: { A: 2, B: 5, C: 5, D: 6, E: 5 } }; // A wins
+    const result = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: { 1: { partnerId: 'B', shucked: true } }, getFormat: getWolfFormat,
+      course: COURSE, scores, handicapMode: 'full', betAmount: 5, wolfStyle: 'classic', shuckDoubles: false,
+    });
+    // Classic solo win = 4x, same as an ordinary Classic solo hole would be
+    expect(result.resolved.deltas.A).toBe(80); // $5 × 4 × 4 opponents
   });
 
   test('rotation: hole 3 → C is Wolf', () => {

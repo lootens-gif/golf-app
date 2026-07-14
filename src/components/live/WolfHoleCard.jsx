@@ -223,7 +223,14 @@ export default function WolfHoleCard({
               <div style={{ fontSize: 9, fontWeight: 400, marginTop: 1 }}>tap again for 2x, 3x</div>
             </button>
             <button
-              onClick={() => setShowCustomKeypad((v) => !v)}
+              onClick={() => {
+                const opening = !showCustomKeypad;
+                // Clear whatever a previous preset tap already stored, so
+                // Custom always starts blank instead of forcing a backspace
+                // before you can type a fresh number.
+                if (opening) onChangeSuperWolfBetAmount?.(currentHole, "");
+                setShowCustomKeypad(opening);
+              }}
               style={{
                 padding: "10px 6px", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
                 borderRadius: 8, textAlign: "center",
@@ -341,7 +348,7 @@ export default function WolfHoleCard({
                 color: config.confirmed ? sc.accent : sc.muted,
               }}
             >
-              {config.confirmed ? "✓ Confirmed — Wolf plays alone" : "No partner — confirm Wolf plays alone"}
+              {config.confirmed ? "✓ Confirmed — Solo Wolf" : "No partner — confirm Solo Wolf"}
             </button>
           )}
 
@@ -381,7 +388,7 @@ export default function WolfHoleCard({
         {format === "loneWolf" && `${wolf.name} — Lone Wolf · 1v4`}
         {format === "shuck" && `${partner?.name || "Partner"} shucked ${wolf.name} · Wolf plays alone vs. everyone, 1v4`}
         {format === "pack" && partner && `Pack Wolf · ${wolf.name} + ${partner.name} vs. the other 3`}
-        {format === "solo" && `${wolf.name} — Wolf · 1v4`}
+        {format === "solo" && `${wolf.name} — Solo Wolf · 1v4`}
       </div>
 
       {/* Hammer entry */}

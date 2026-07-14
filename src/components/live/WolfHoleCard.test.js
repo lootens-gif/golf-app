@@ -74,12 +74,12 @@ describe('WolfHoleCard — partner selection (default "Wolf" tier)', () => {
     render(<Harness />);
     fireEvent.click(screen.getByText('P2'));
     fireEvent.click(screen.getByText('P2'));
-    expect(screen.getByText(/Wolf — Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.getByText(/Wolf — Solo Wolf · 1v4/)).toBeInTheDocument();
   });
 
   test('no partner selected defaults to the base Wolf summary (no early declaration)', () => {
     render(<Harness />);
-    expect(screen.getByText(/Wolf — Wolf · 1v4/)).toBeInTheDocument();
+    expect(screen.getByText(/Wolf — Solo Wolf · 1v4/)).toBeInTheDocument();
   });
 });
 
@@ -190,9 +190,9 @@ describe('getWolfFormat', () => {
 });
 
 describe('WolfHoleCard — light hard block (confirmation)', () => {
-  test('an untouched hole shows the unconfirmed "confirm Wolf plays alone" prompt', () => {
+  test('an untouched hole shows the unconfirmed "confirm Solo Wolf" prompt', () => {
     render(<Harness />);
-    expect(screen.getByText('No partner — confirm Wolf plays alone')).toBeInTheDocument();
+    expect(screen.getByText('No partner — confirm Solo Wolf')).toBeInTheDocument();
     expect(isWolfHoleConfirmed({}, 1)).toBe(false);
   });
 
@@ -205,7 +205,7 @@ describe('WolfHoleCard — light hard block (confirmation)', () => {
       return <WolfHoleCard currentHole={1} players={PLAYERS} wolfHoles={wolfHoles} onUpdateWolfHole={onUpdateWolfHole} />;
     }
     render(<TrackedHarness />);
-    fireEvent.click(screen.getByText('No partner — confirm Wolf plays alone'));
+    fireEvent.click(screen.getByText('No partner — confirm Solo Wolf'));
     expect(isWolfHoleConfirmed(latestHoles, 1)).toBe(true);
   });
 
@@ -387,6 +387,33 @@ describe('WolfHoleCard — Super Wolf mode', () => {
     // No decimal point button exists anywhere in the keypad — a fractional
     // bet amount is now structurally impossible, not just discouraged.
     expect(screen.queryByText('.')).not.toBeInTheDocument();
+  });
+
+  test('opening Custom after a preset was already tapped clears the value instead of requiring a backspace first', () => {
+    const onChange = jest.fn();
+    const { rerender } = render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={25}
+      />
+    );
+    fireEvent.click(screen.getByText(/Standard/)); // stores "25"
+    expect(onChange).toHaveBeenLastCalledWith(17, '25');
+
+    rerender(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount="25" onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={25}
+      />
+    );
+    fireEvent.click(screen.getByText('Custom')); // opening should clear it
+    expect(onChange).toHaveBeenLastCalledWith(17, '');
   });
 
   test('a hole 1-15 render (isSuperWolf false) shows no standings snapshot or bet input', () => {

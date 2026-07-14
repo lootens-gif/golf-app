@@ -1548,14 +1548,16 @@ export default function SetupScreen({
               {/* Wolf Style */}
               <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Wolf Style</div>
-                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Controls the payout multiplier for Lone Wolf and Blind Wolf</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>
+                  Harrison Wolf: same multiplier whether Wolf's side wins or loses. Classic Wolf: Wolf wins bigger, but loses smaller — the win and lose numbers are different.
+                </div>
                 <select
                   value={teamMatchConfig.wolfStyle || "harrison"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfStyle: e.target.value }))}
                   style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
                 >
-                  <option value="harrison">Harrison Wolf — Wolf 1x · Lone Wolf 2x · Blind Wolf 3x (symmetric)</option>
-                  <option value="classic">Classic Wolf — Wolf 4x/1x · Blind Wolf 12x/3x (asymmetric win/lose)</option>
+                  <option value="harrison">Harrison Wolf — Wolf 1x, Lone Wolf 2x, Blind Wolf 3x — same either way</option>
+                  <option value="classic">Classic Wolf — Wolf wins 4x / loses 1x, Blind Wolf wins 12x / loses 3x</option>
                 </select>
               </div>
 
@@ -1609,6 +1611,16 @@ export default function SetupScreen({
                     Hammer Rule is off, so no hole can be a Hammer hole — this bonus won't fire.
                   </div>
                 )}
+              </div>
+
+              {/* Shuck Doubles the Bet */}
+              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
+                <Toggle
+                  checked={teamMatchConfig.wolfShuckDoubles !== false}
+                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfShuckDoubles: val }))}
+                  label="Shuck Doubles the Bet"
+                  sublabel="When someone refuses to partner with the Wolf, they get left alone at 2x. Turn off to leave them alone at the normal rate instead."
+                />
               </div>
 
               {/* Carryover on Push */}

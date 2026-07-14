@@ -50,6 +50,15 @@ describe('WolfAudit — Level 0 (overall)', () => {
     expect(screen.getByText(/through hole 1/)).toBeInTheDocument();
   });
 
+  test('Level 0 totals always show exactly 2 decimal places, even when Split the Pot division produces repeating decimals', () => {
+    // 2v3 Pack Wolf, Split the Pot: a $10/3 split produces $3.333... repeating.
+    // A raw, unrounded display was a real, confirmed bug from a live round.
+    const scores = { 1: { Wolf: 5, P2: 5, P3: 3, P4: 4, P5: 3 } }; // big side (3) wins
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2' } }, teamMatchConfig: { wolfSettlementStyle: 'pooled' } });
+    expect(screen.queryByText(/\.3333/)).not.toBeInTheDocument();
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('3.33')).length).toBeGreaterThan(0);
+  });
+
   test('shows "Final" once all 18 holes are scored', () => {
     const scores = {};
     for (let h = 1; h <= 18; h++) {
