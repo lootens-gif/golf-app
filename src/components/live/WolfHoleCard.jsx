@@ -111,8 +111,12 @@ export default function WolfHoleCard({
   // user. Everything here is rounded to a whole dollar — a decimal bet
   // amount was a real, confirmed bug (payouts came out in cents).
   const worstDeficit = rankedStandings?.length ? Math.abs(rankedStandings[0].standing) : 0;
-  const fullDownAmount = Math.round(worstDeficit) || null;
-  const halfDownAmount = Math.round(worstDeficit / 2) || null;
+  // Full/Half Down show the REAL number, cents and all — nobody's
+  // negotiating a bet at the tee, this is just "make me whole" pulled
+  // straight from the standings. Only Standard and Custom stay whole
+  // dollars, since those ARE something a person actually says out loud.
+  const fullDownAmount = worstDeficit ? Math.round(worstDeficit * 100) / 100 : null;
+  const halfDownAmount = worstDeficit ? Math.round((worstDeficit / 2) * 100) / 100 : null;
   const standardBase = Math.round(Number(teamGameUnitAmount) || 0) || null;
   const currentAmount = superWolfBetAmount != null && superWolfBetAmount !== "" ? Number(superWolfBetAmount) : null;
   // Which multiple of the standard bet the CURRENT stored value matches, IF
@@ -230,7 +234,7 @@ export default function WolfHoleCard({
                     opacity: amount == null ? 0.5 : 1,
                   }}
                 >
-                  {label}{amount != null ? ` · $${amount}` : ""}
+                  {label}{amount != null ? ` · $${amount.toFixed(2)}` : ""}
                 </button>
               );
             })}

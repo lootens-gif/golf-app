@@ -292,7 +292,7 @@ describe('WolfHoleCard — Super Wolf mode', () => {
     expect(screen.getAllByText('P4').length).toBeGreaterThan(0);
   });
 
-  test('the "Full down" preset sends the worst standing rounded to a whole dollar', () => {
+  test('the "Full down" preset sends the exact real number, cents and all — no rounding, unlike Standard/Custom', () => {
     const onChange = jest.fn();
     render(
       <WolfHoleCard
@@ -302,22 +302,24 @@ describe('WolfHoleCard — Super Wolf mode', () => {
         superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
       />
     );
+    expect(screen.getByText(/Full down.*\$47\.50/)).toBeInTheDocument();
     fireEvent.click(screen.getByText(/Full down/));
-    expect(onChange).toHaveBeenCalledWith(17, '48'); // rounded, never cents
+    expect(onChange).toHaveBeenCalledWith(17, '47.5'); // exact, not rounded to 48
   });
 
-  test('the "Half down" preset sends half the worst standing, rounded', () => {
+  test('the "Half down" preset also preserves real cents, not whole dollars', () => {
     const onChange = jest.fn();
     render(
       <WolfHoleCard
         currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
         isSuperWolf overrideWolfId="P2"
-        rankedStandings={[{ playerId: 'P2', standing: -50 }]}
+        rankedStandings={[{ playerId: 'P2', standing: -47.5 }]}
         superWolfBetAmount={null} onChangeSuperWolfBetAmount={onChange}
       />
     );
+    expect(screen.getByText(/Half down.*\$23\.75/)).toBeInTheDocument();
     fireEvent.click(screen.getByText(/Half down/));
-    expect(onChange).toHaveBeenCalledWith(17, '25');
+    expect(onChange).toHaveBeenCalledWith(17, '23.75');
   });
 
   test('a stale value that happens to divide evenly (e.g. $990 from earlier testing, with a $5 base) does NOT get read as "198x Standard" — tapping Standard starts fresh at 1x', () => {

@@ -956,9 +956,17 @@ export default function SetupScreen({
                   value={teamGameUnitAmount}
                   inputRef={betAmountRef}
                   onChange={(e) => {
-                    setTeamGameUnitAmount(e.target.value);
+                    // Wolf specifically is whole dollars only — nobody
+                    // stands on the tee and calls a bet "$37.50," they'd
+                    // get laughed at. Other formats are untouched; this
+                    // only rounds when Wolf is the active format.
+                    const raw = e.target.value;
+                    const value = teamGameFormat === "wolf" && raw !== ""
+                      ? String(Math.round(Number(raw)) || 0)
+                      : raw;
+                    setTeamGameUnitAmount(value);
                     // Always sync birdie bet to match unit bet
-                    setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value) || 5 }));
+                    setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(value) || 5 }));
                   }}
                 />
 
@@ -1670,7 +1678,7 @@ export default function SetupScreen({
                   checked={!!teamMatchConfig.wolfBirdieMultiplierEnabled}
                   onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfBirdieMultiplierEnabled: val }))}
                   label="Birdie / Eagle / Albatross Multiplier"
-                  sublabel="Doubles / triples / quadruples the hole's bet — applies to every hole, including Super Wolf (Gross Only)"
+                  sublabel="Doubles / triples / quadruples the hole's bet — applies to every hole, including Super Wolf"
                 />
               </div>
 
