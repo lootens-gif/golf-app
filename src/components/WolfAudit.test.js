@@ -118,6 +118,28 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     expect(level2Box.style.color).toBe('rgb(107, 114, 128)');
   });
 
+  test('Level 2 rows are shaded grey on a push, but only Wolf\'s own side (Wolf + partner, if any) — not the opposing side', () => {
+    const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } }; // Wolf ties P2 (the opponent)
+    renderWolfAudit({ scores });
+    fireEvent.click(screen.getByText(/Hole 1/));
+    // "Wolf" here is also the literal rotation Wolf, so its cell reads
+    // "Wolf 🐺" — a regex match is needed, an exact string won't match.
+    const wolfRow = screen.getAllByText(/^Wolf/).find((el) => el.tagName === 'TD').closest('tr');
+    const p2Row = screen.getAllByText(/^P2/).find((el) => el.tagName === 'TD').closest('tr');
+    expect(wolfRow.style.background).toBe('rgb(243, 244, 246)'); // #f3f4f6 — Wolf's own row
+    expect(p2Row.style.background).not.toBe('rgb(243, 244, 246)'); // opponent stays untinted
+  });
+
+  test('Level 2 push shading covers both Wolf and partner on a Pack Wolf push', () => {
+    const scores = { 1: { Wolf: 4, P2: 4, P3: 4, P4: 6, P5: 5 } }; // Wolf+P2 (2) tie P3 (best of the 3)
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2' } } });
+    fireEvent.click(screen.getByText(/Hole 1/));
+    const wolfRow = screen.getAllByText(/^Wolf/).find((el) => el.tagName === 'TD').closest('tr');
+    const p2Row = screen.getAllByText(/^P2/).find((el) => el.tagName === 'TD').closest('tr');
+    expect(wolfRow.style.background).toBe('rgb(243, 244, 246)');
+    expect(p2Row.style.background).toBe('rgb(243, 244, 246)'); // partner shaded too
+  });
+
   test('a push marks BOTH tied players with an arrow, on the score\'s right side, pointing left — mirrored from a win\'s left-side, right-pointing arrow', () => {
     const scores = { 1: { Wolf: 3, P2: 3, P3: 5, P4: 6, P5: 5 } }; // Wolf and P2 tie at the best score
     renderWolfAudit({ scores });

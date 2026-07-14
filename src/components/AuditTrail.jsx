@@ -1741,8 +1741,9 @@ function WolfAudit({
                   const isShucker = format === "shuck" && id === config.partnerId;
                   const arrowCount = arrowPlayerIds.includes(id) ? (addAHammerTriggered ? 2 : 1) : 0;
                   const showPushArrow = pushArrowPlayerIds.includes(id);
+                  const isPushShaded = isPush && smallSide.includes(id);
                   return (
-                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isWinnerRow ? "#f0f7f3" : isLoserRow ? "#fef2f2" : "transparent" }}>
+                    <tr key={id} style={{ borderTop: "1px solid #e5e7eb", background: isWinnerRow ? "#f0f7f3" : isLoserRow ? "#fef2f2" : (isPushShaded ? "#f3f4f6" : "transparent") }}>
                       <td style={{ padding: "5px 4px 5px 0" }}>
                         {nameOf(id)}{isWolf ? " 🐺" : ""}{isShucker ? " 🖕" : ""}
                       </td>
