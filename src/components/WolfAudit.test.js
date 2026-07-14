@@ -20,7 +20,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-function renderWolfAudit({ wolfHoles = {}, scores = {}, teamMatchConfig = {} } = {}) {
+function renderWolfAudit({ wolfHoles = {}, scores = {}, teamMatchConfig = {}, goToLive } = {}) {
   return render(
     <AuditTrail
       players={PLAYERS}
@@ -39,6 +39,7 @@ function renderWolfAudit({ wolfHoles = {}, scores = {}, teamMatchConfig = {} } =
       teamGameFormat="wolf"
       wolfHoles={wolfHoles}
       teamMatchConfig={teamMatchConfig}
+      goToLive={goToLive}
     />
   );
 }
@@ -201,6 +202,22 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
 });
 
 describe('WolfAudit — guard', () => {
+  test('Edit this hole button calls goToLive with the specific hole number', () => {
+    const goToLive = jest.fn();
+    const scores = { 1: { Wolf: 3, P2: 5, P3: 5, P4: 6, P5: 5 } };
+    renderWolfAudit({ scores, goToLive });
+    fireEvent.click(screen.getByText(/Hole 1/));
+    fireEvent.click(screen.getByText(/Edit this hole/));
+    expect(goToLive).toHaveBeenCalledWith(1);
+  });
+
+  test('Edit this hole button does not render at all when goToLive is not provided', () => {
+    const scores = { 1: { Wolf: 3, P2: 5, P3: 5, P4: 6, P5: 5 } };
+    renderWolfAudit({ scores }); // no goToLive passed
+    fireEvent.click(screen.getByText(/Hole 1/));
+    expect(screen.queryByText(/Edit this hole/)).not.toBeInTheDocument();
+  });
+
   test('fewer than 5 players renders nothing, does not crash', () => {
     render(
       <AuditTrail

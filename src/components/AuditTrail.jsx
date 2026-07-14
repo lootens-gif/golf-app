@@ -1515,6 +1515,7 @@ function WolfAudit({
   noPar3TeamGame,
   getHandicapStrokesFn,
   sessionKey,
+  goToLive,
 }) {
   if (!players || players.length !== 5) return null;
 
@@ -1696,7 +1697,7 @@ function WolfAudit({
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {hammerMultiplier > 1 && (
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
                     🔨 Hammer {hammerMultiplier}x{config.hammerResolution === "rejected" ? " · conceded" : ""}
@@ -1706,6 +1707,18 @@ function WolfAudit({
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#137333", background: "#f0f7f3", padding: "2px 8px", borderRadius: 10 }}>
                     🔨🔨 Hammer Sweep 2x
                   </span>
+                )}
+                {goToLive && (
+                  <button
+                    onClick={() => goToLive(hole)}
+                    style={{
+                      fontSize: 11, fontWeight: 600, color: "#1a5c35", background: "#f0f7f3",
+                      border: "1px solid #1a5c35", padding: "2px 10px", borderRadius: 10,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    ✎ Edit this hole
+                  </button>
                 )}
               </div>
             </div>
@@ -2471,6 +2484,7 @@ export default function AuditTrail({
         noPar3TeamGame={noPar3TeamGame}
         getHandicapStrokesFn={getHandicapStrokesFn}
         sessionKey={sessionKey}
+        goToLive={goToLive}
       />
     ) : (
 <TeamGameAudit

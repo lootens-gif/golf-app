@@ -2845,19 +2845,28 @@ function goToResults() {
   setScreen("results");
 }
 
-function goToLive() {
+function goToLive(targetHole = null) {
   if (!hasValidTeamSetup()) {
     alert("Team Game is enabled but teams are not fully selected. Please select teams before proceeding.");
     return;
   }
-  // currentHole gets set to 19 (one past the last real hole) purely as an
-  // internal signal to trigger the Round Complete modal — it was never
-  // meant to also represent a real, navigable hole. Nothing in the score
-  // grid or any game format's per-hole UI has a case for hole 19, so
-  // returning to Scoring after a round was completed landed on a blank,
-  // meaningless screen for every format, not just Wolf. Reset to the last
-  // real hole so there's always something valid and editable to land on.
-  if (currentHole > 18) setCurrentHole(18);
+  // targetHole lets a direct "edit this hole" link (Results Level 2) jump
+  // straight to a specific hole instead of just returning to wherever
+  // currentHole happens to be. Guarded with typeof here on purpose — this
+  // function is also wired directly to onClick in one place, which would
+  // otherwise silently pass the click event itself as this argument.
+  if (typeof targetHole === "number" && targetHole >= 1 && targetHole <= 18) {
+    setCurrentHole(targetHole);
+  } else if (currentHole > 18) {
+    // currentHole gets set to 19 (one past the last real hole) purely as an
+    // internal signal to trigger the Round Complete modal — it was never
+    // meant to also represent a real, navigable hole. Nothing in the score
+    // grid or any game format's per-hole UI has a case for hole 19, so
+    // returning to Scoring after a round was completed landed on a blank,
+    // meaningless screen for every format, not just Wolf. Reset to the last
+    // real hole so there's always something valid and editable to land on.
+    setCurrentHole(18);
+  }
   setScreen("live");
 }
 
@@ -3135,7 +3144,7 @@ return (
 
     <button
       className="secondary-button"
-      onClick={goToLive}
+      onClick={() => goToLive()}
       disabled={screen === "live"}
     >
       Scoring
