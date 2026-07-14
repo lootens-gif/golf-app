@@ -320,6 +320,23 @@ describe('WolfHoleCard — Super Wolf mode', () => {
     expect(onChange).toHaveBeenCalledWith(17, '25');
   });
 
+  test('a stale value that happens to divide evenly (e.g. $990 from earlier testing, with a $5 base) does NOT get read as "198x Standard" — tapping Standard starts fresh at 1x', () => {
+    const onChange = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2"
+        rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        superWolfBetAmount="990" onChangeSuperWolfBetAmount={onChange}
+        teamGameUnitAmount={5}
+      />
+    );
+    // The button itself must not display an absurd multiple
+    expect(screen.queryByText(/198x/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/^Standard/));
+    expect(onChange).toHaveBeenLastCalledWith(17, '5'); // fresh 1x, not 199x
+  });
+
   test('Standard cycles 1x → 2x → 3x → back to 1x on repeated taps', () => {
     const onChange = jest.fn();
     const { rerender } = render(

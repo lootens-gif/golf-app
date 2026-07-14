@@ -115,12 +115,17 @@ export default function WolfHoleCard({
   const halfDownAmount = Math.round(worstDeficit / 2) || null;
   const standardBase = Math.round(Number(teamGameUnitAmount) || 0) || null;
   const currentAmount = superWolfBetAmount != null && superWolfBetAmount !== "" ? Number(superWolfBetAmount) : null;
-  // Which multiple of the standard bet the CURRENT stored value matches,
-  // if any — derived from the actual persisted value rather than tracked
-  // separately, so it's always correct even right after a refresh.
-  const currentStandardMultiple = standardBase && currentAmount != null && currentAmount % standardBase === 0
+  // Which multiple of the standard bet the CURRENT stored value matches, IF
+  // it's actually one this cycle button could have produced (1x, 2x, or
+  // 3x). Any other divisible value — a stale Custom entry, leftover test
+  // data, anything — is NOT "Standard was tapped N times," it just
+  // happens to divide evenly. Treating every divisible value as a valid
+  // multiple was a real bug: a leftover $990 with a $5 base read as
+  // "198x Standard" instead of correctly starting fresh at 1x.
+  const derivedMultiple = standardBase && currentAmount != null && currentAmount % standardBase === 0
     ? currentAmount / standardBase
     : 0;
+  const currentStandardMultiple = (derivedMultiple >= 1 && derivedMultiple <= 3) ? derivedMultiple : 0;
   const setBetAmount = (amount) => {
     setShowCustomKeypad(false);
     onChangeSuperWolfBetAmount?.(currentHole, String(amount));

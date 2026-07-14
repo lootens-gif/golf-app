@@ -2405,7 +2405,7 @@ export function getWolfHoleNarrative({
       addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId, shuckDoubles,
     });
 
-  if (!resolved) return { lines: [], resolved: null, format, isSuperWolf, rankedStandings, wolfId: overrideWolfId };
+  if (!resolved) return { lines: [], resolved: null, format, isSuperWolf, rankedStandings, wolfId: overrideWolfId, effectiveBetAmount };
 
   const wolfName = nameOf(wolfId);
   const partnerName = config.partnerId ? nameOf(config.partnerId) : null;
@@ -2416,7 +2416,7 @@ export function getWolfHoleNarrative({
   else if (format === "blindWolf") formatLabel = `${wolfName} — Blind Wolf`;
   else if (format === "loneWolf") formatLabel = `${wolfName} — Lone Wolf`;
   else formatLabel = `${wolfName} — Solo Wolf`;
-  if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
+  if (isSuperWolf) formatLabel = `Super Wolf ($${effectiveBetAmount} bet) — ${formatLabel}`;
 
   const tags = [];
   if (hammerMultiplier > 1) tags.push(concededBy ? `Hammer ${hammerMultiplier}x, conceded` : `Hammer ${hammerMultiplier}x`);
@@ -2445,7 +2445,7 @@ export function getWolfHoleNarrative({
     });
   }
 
-  return { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, concededBy, isSuperWolf, rankedStandings };
+  return { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, concededBy, isSuperWolf, rankedStandings, effectiveBetAmount };
 }
 
 // ─── SKINS ENGINE ────────────────────────────────────────────────────────────

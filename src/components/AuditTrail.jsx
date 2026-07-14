@@ -1578,7 +1578,7 @@ function WolfAudit({
   return (
     <AuditSection title={level0Title} defaultOpen sessionKey={sessionKey} storageId="wolf-overall">
       {Array.from({ length: 18 }, (_, i) => i + 1).map((hole) => {
-        const { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, isSuperWolf, rankedStandings } = getWolfHoleNarrative({
+        const { lines, resolved, format, wolfId, smallSide, bigSide, config, addAHammerTriggered, hammerMultiplier, isSuperWolf, rankedStandings, effectiveBetAmount } = getWolfHoleNarrative({
           hole, activePlayers: players, wolfHoles, getFormat: getWolfFormat,
           course, scores, handicapMode, noPar3Strokes: noPar3TeamGame,
           betAmount: teamGameUnitAmount, wolfStyle, settlementStyle, birdieEnabled,
@@ -1597,7 +1597,7 @@ function WolfAudit({
         else if (format === "blindWolf") formatLabel = "Blind Wolf";
         else if (format === "loneWolf") formatLabel = "Lone Wolf";
         else formatLabel = "Solo Wolf";
-        if (isSuperWolf) formatLabel = `Super Wolf — ${formatLabel}`;
+        if (isSuperWolf) formatLabel = `Super Wolf ($${effectiveBetAmount} bet) — ${formatLabel}`;
 
         const isPush = resolved?.winner === "push";
         const smallSideWon = resolved?.winner === "small";
@@ -1696,6 +1696,7 @@ function WolfAudit({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 Par {par ?? "-"} · HCP {course?.hcp?.[hole - 1] ?? "-"}
+                {isSuperWolf ? ` · Super Wolf bet: $${effectiveBetAmount}` : ""}
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {hammerMultiplier > 1 && (

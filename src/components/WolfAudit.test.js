@@ -199,6 +199,18 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
     fireEvent.click(screen.getByText(/Hole 16/));
     expect(screen.getByText(/Standings before this hole/)).toBeInTheDocument();
   });
+
+  test('Super Wolf holes show the actual bet amount used, in both Level 1 and Level 2', () => {
+    const scores = {};
+    for (let h = 1; h <= 15; h++) {
+      scores[h] = { Wolf: 5, P2: 5, P3: 5, P4: 5, P5: 5 };
+    }
+    scores[16] = { Wolf: 5, P2: 5, P3: 5, P4: 2, P5: 5 };
+    renderWolfAudit({ scores, wolfHoles: { 16: { superWolfBetAmount: '75' } } });
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('$75')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText(/Hole 16/));
+    expect(screen.getByText(/Super Wolf bet: \$75/)).toBeInTheDocument();
+  });
 });
 
 describe('WolfAudit — guard', () => {
