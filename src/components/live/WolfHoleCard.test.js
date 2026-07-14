@@ -436,4 +436,67 @@ describe('WolfHoleCard — Super Wolf mode', () => {
     );
     expect(screen.getByText(/Can't assign Super Wolf yet/)).toBeInTheDocument();
   });
+
+  test('Standard hitting order mode shows a computed, read-only list — no tapping needed', () => {
+    render(
+      <WolfHoleCard
+        currentHole={16} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="W" rankedStandings={[{ playerId: 'W', standing: -40 }]}
+        hittingOrderMode="standard"
+      />
+    );
+    expect(screen.getByText(/Hitting order/)).toBeInTheDocument();
+    expect(screen.getByText(/1\. P2.*2\. P3.*3\. P4.*4\. P5/)).toBeInTheDocument();
+  });
+
+  test('Rank By Deficit mode orders the other 4 by who\'s down the most, worst first', () => {
+    render(
+      <WolfHoleCard
+        currentHole={16} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="W"
+        rankedStandings={[
+          { playerId: 'W', standing: -40 },
+          { playerId: 'P4', standing: -30 },
+          { playerId: 'P2', standing: -10 },
+          { playerId: 'P3', standing: 5 },
+          { playerId: 'P5', standing: 20 },
+        ]}
+        hittingOrderMode="rank_by_deficit"
+      />
+    );
+    expect(screen.getByText(/1\. P4.*2\. P2.*3\. P3.*4\. P5/)).toBeInTheDocument();
+  });
+
+  test('Wolf Controls mode lets the Scorekeeper tap in the order one at a time, showing position numbers', () => {
+    const onUpdateWolfHole = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={16} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={onUpdateWolfHole}
+        isSuperWolf overrideWolfId="W" rankedStandings={[{ playerId: 'W', standing: -40 }]}
+        hittingOrderMode="wolf_controls"
+      />
+    );
+    expect(screen.getByText(/Tap in the order Super Wolf calls out/)).toBeInTheDocument();
+    // "P3" also appears in the ordinary partner picker further down the
+    // same card — the hitting-order button is the first match in DOM order.
+    fireEvent.click(screen.getAllByText('P3')[0]);
+    expect(onUpdateWolfHole).toHaveBeenLastCalledWith(16, { superWolfManualOrder: ['P3'] });
+  });
+
+  test('Wolf Controls: tapping an already-tapped player removes them, so a mistake is easy to undo', () => {
+    const onUpdateWolfHole = jest.fn();
+    render(
+      <WolfHoleCard
+        currentHole={16} players={PLAYERS}
+        wolfHoles={{ 16: { superWolfManualOrder: ['P3', 'P2'] } }}
+        onUpdateWolfHole={onUpdateWolfHole}
+        isSuperWolf overrideWolfId="W" rankedStandings={[{ playerId: 'W', standing: -40 }]}
+        hittingOrderMode="wolf_controls"
+      />
+    );
+    expect(screen.getByText(/1\. P3/)).toBeInTheDocument();
+    expect(screen.getByText(/2\. P2/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/1\. P3/));
+    expect(onUpdateWolfHole).toHaveBeenLastCalledWith(16, { superWolfManualOrder: ['P2'] });
+  });
 });

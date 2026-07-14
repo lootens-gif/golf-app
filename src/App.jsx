@@ -3589,6 +3589,7 @@ return (
         superWolfBetAmount={wolfHoles?.[currentHole]?.superWolfBetAmount ?? null}
         onChangeSuperWolfBetAmount={(hole, amount) => updateWolfHole(hole, { superWolfBetAmount: amount })}
         teamGameUnitAmount={teamGameUnitAmount}
+        hittingOrderMode={teamMatchConfig.wolfSuperWolfOrderMode || "standard"}
       />
     );
   })()}

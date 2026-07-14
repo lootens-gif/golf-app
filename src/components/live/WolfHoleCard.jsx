@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { getSuperWolfHittingOrder, SUPER_WOLF_ORDER_MODES } from "../../engine/scoringEngine";
 
 const sc = {
   green:      "#1a5c35",
@@ -69,6 +70,7 @@ export default function WolfHoleCard({
   superWolfBetAmount = null,   // Super Wolf: this hole's free-form bet amount
   onChangeSuperWolfBetAmount,  // Super Wolf: (hole, amount) => void
   teamGameUnitAmount = 5,      // the round's base bet — used for the "Standard" preset
+  hittingOrderMode = "standard", // Super Wolf: one of SUPER_WOLF_ORDER_MODES, from Setup
 }) {
   const [showCustomKeypad, setShowCustomKeypad] = useState(false);
   const wolfIndex = useMemo(() => {
@@ -126,6 +128,27 @@ export default function WolfHoleCard({
   const tapStandard = () => {
     const nextMultiple = currentStandardMultiple >= 1 && currentStandardMultiple < 3 ? currentStandardMultiple + 1 : 1;
     setBetAmount(standardBase * nextMultiple);
+  };
+
+  // Hitting order is purely informational — it never affects money, since
+  // scores get entered after the fact either way. Standard and Rank By
+  // Deficit are fully computed, no input needed. Wolf Controls needs the
+  // Scorekeeper to tap in the order Super Wolf actually calls out at the
+  // tee, so it's stored per-hole and can be changed by tapping again.
+  const otherFourIds = others.map((p) => p.id);
+  const rotationOrderIds = players.map((p) => p.id);
+  const wolfStandingsMap = {};
+  (rankedStandings || []).forEach((r) => { wolfStandingsMap[r.playerId] = r.standing; });
+  const manualOrder = config.superWolfManualOrder || null;
+  const hittingOrder = isSuperWolf
+    ? getSuperWolfHittingOrder(hittingOrderMode, otherFourIds, {
+        rotationOrder: rotationOrderIds, wolfStandings: wolfStandingsMap, manualOrder,
+      })
+    : null;
+  const tapManualOrderPlayer = (playerId) => {
+    const current = config.superWolfManualOrder || [];
+    const next = current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId];
+    update({ superWolfManualOrder: next });
   };
 
   const declareButton = (key, label, sublabel) => {
@@ -300,6 +323,49 @@ export default function WolfHoleCard({
               </div>
             </div>
           )}
+
+          <div style={{ borderTop: `1px solid ${sc.red}`, marginTop: 12, paddingTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: sc.red, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Hitting order (doesn't affect money)
+            </div>
+            {hittingOrderMode === SUPER_WOLF_ORDER_MODES.WOLF_CONTROLS ? (
+              <>
+                <div style={{ fontSize: 12, color: sc.ink, marginBottom: 8 }}>
+                  Tap in the order Super Wolf calls out, one at a time.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                  {others.map((p) => {
+                    const position = (manualOrder || []).indexOf(p.id);
+                    const tapped = position !== -1;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => tapManualOrderPlayer(p.id)}
+                        style={{
+                          padding: "10px 6px", fontSize: 13, fontWeight: tapped ? 600 : 400, fontFamily: "inherit",
+                          cursor: "pointer", borderRadius: 8, textAlign: "center",
+                          border: tapped ? `1.5px solid ${sc.red}` : `1px solid ${sc.border}`,
+                          background: tapped ? sc.redLight : "#fff",
+                          color: tapped ? sc.red : sc.ink,
+                        }}
+                      >
+                        {tapped ? `${position + 1}. ` : ""}{p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(!manualOrder || manualOrder.length < 4) && (
+                  <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
+                    {4 - (manualOrder || []).length} more to tap.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 13, color: sc.ink }}>
+                {(hittingOrder || []).map((id, i) => `${i + 1}. ${nameOf(id)}`).join("  ·  ")}
+              </div>
+            )}
+          </div>
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
