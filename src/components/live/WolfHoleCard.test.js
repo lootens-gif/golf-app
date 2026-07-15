@@ -252,6 +252,28 @@ describe('WolfHoleCard — light hard block (confirmation)', () => {
 });
 
 describe('WolfHoleCard — Super Wolf mode', () => {
+  test('shows the cents-divisibility hint when Split the Pot is selected, with the correct divisor for 5 players', () => {
+    render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2" rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        settlementStyle="pooled"
+      />
+    );
+    expect(screen.getByText(/\$12 multiples = no cents \(5 players\)/)).toBeInTheDocument();
+  });
+
+  test('hides the cents-divisibility hint entirely under Pay Each Winner, since it never produces uneven cents', () => {
+    render(
+      <WolfHoleCard
+        currentHole={17} players={PLAYERS} wolfHoles={{}} onUpdateWolfHole={() => {}}
+        isSuperWolf overrideWolfId="P2" rankedStandings={[{ playerId: 'P2', standing: -20 }]}
+        settlementStyle="pairwise"
+      />
+    );
+    expect(screen.queryByText(/no cents/)).not.toBeInTheDocument();
+  });
+
   test('shows the standings snapshot, ranked worst to first, with a wolf marker on the worst', () => {
     render(
       <WolfHoleCard

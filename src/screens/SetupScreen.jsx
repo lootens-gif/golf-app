@@ -1572,7 +1572,7 @@ export default function SetupScreen({
               {/* Settlement Style */}
               <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Payout Style</div>
-                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters on a Pack Wolf hole (partner picked) — no difference when going alone</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters when more than one player wins a hole — no difference on a clean solo win</div>
                 <select
                   value={teamMatchConfig.wolfSettlementStyle || "pairwise"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfSettlementStyle: e.target.value }))}
@@ -1581,11 +1581,25 @@ export default function SetupScreen({
                   <option value="pairwise">Pay Each Winner — every loser pays every winner in full</option>
                   <option value="pooled">Split the Pot — losers pay in, winners split it evenly</option>
                 </select>
-                {teamMatchConfig.wolfSettlementStyle === "pooled" && (
-                  <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
-                    Split the Pot can produce uneven cents on a Pack Wolf hole. The app will suggest the two nearest clean dollar amounts when you enter a bet that doesn't divide evenly.
-                  </div>
-                )}
+                {teamMatchConfig.wolfSettlementStyle === "pooled" && (() => {
+                  // The bet needs to divide cleanly across every possible
+                  // split size Split the Pot can produce. For 5 players
+                  // that's Solo Wolf losing to all 4 (÷4) AND Pack Wolf's
+                  // 2-or-3-way splits (÷2, ÷3) — the smallest number
+                  // divisible by all of them is 12, not 6. Pack Wolf alone
+                  // only needs 6, which is why the old wording (claiming
+                  // this "only matters on a Pack Wolf hole") understated
+                  // it — Solo Wolf is actually what drives the number up.
+                  const WOLF_CENTS_SAFE_DIVISOR = { "3p": 2, "4p": 6, "5p": 12 };
+                  const divisor = WOLF_CENTS_SAFE_DIVISOR[mode];
+                  const playerCount = parseInt(mode, 10);
+                  if (!divisor) return null;
+                  return (
+                    <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
+                      ${divisor} multiples = no cents ({playerCount} players).
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Hammer Rule */}

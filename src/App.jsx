@@ -3599,6 +3599,7 @@ return (
         onChangeSuperWolfBetAmount={(hole, amount) => updateWolfHole(hole, { superWolfBetAmount: amount })}
         teamGameUnitAmount={teamGameUnitAmount}
         hittingOrderMode={teamMatchConfig.wolfSuperWolfOrderMode || "standard"}
+        settlementStyle={teamMatchConfig.wolfSettlementStyle || "pairwise"}
       />
     );
   })()}

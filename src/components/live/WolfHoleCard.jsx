@@ -71,6 +71,7 @@ export default function WolfHoleCard({
   onChangeSuperWolfBetAmount,  // Super Wolf: (hole, amount) => void
   teamGameUnitAmount = 5,      // the round's base bet — used for the "Standard" preset
   hittingOrderMode = "standard", // Super Wolf: one of SUPER_WOLF_ORDER_MODES, from Setup
+  settlementStyle = "pairwise", // "pairwise" | "pooled" — used for the cents-divisibility hint
 }) {
   const [showCustomKeypad, setShowCustomKeypad] = useState(false);
   const wolfIndex = useMemo(() => {
@@ -214,6 +215,18 @@ export default function WolfHoleCard({
           <label style={{ display: "block", fontSize: 12, color: sc.ink, marginBottom: 4 }}>
             Dollar value for this hole
           </label>
+          {settlementStyle === "pooled" && (() => {
+            // Same hint as Setup, same reasoning — Split the Pot needs the
+            // bet to divide cleanly across every possible split size.
+            const WOLF_CENTS_SAFE_DIVISOR = { 3: 2, 4: 6, 5: 12 };
+            const divisor = WOLF_CENTS_SAFE_DIVISOR[players.length];
+            if (!divisor) return null;
+            return (
+              <div style={{ fontSize: 11, color: "#b45309", marginBottom: 6 }}>
+                ${divisor} multiples = no cents ({players.length} players).
+              </div>
+            );
+          })()}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: showCustomKeypad ? 10 : 0 }}>
             {[
               { key: "full", label: "Full down", amount: fullDownAmount },
