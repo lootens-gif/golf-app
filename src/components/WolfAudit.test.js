@@ -190,7 +190,7 @@ describe('WolfAudit — Level 1 (per-hole) and Level 2 (detail)', () => {
 
   test('Hammer multiplier shows in both Level 1 and Level 2', () => {
     const scores = { 1: { Wolf: 3, P2: 5, P3: 4, P4: 5, P5: 5 } };
-    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', hammerMultiplier: 2 } } });
+    renderWolfAudit({ scores, wolfHoles: { 1: { partnerId: 'P2', hammerMultiplier: 2 } }, teamMatchConfig: { wolfHammerEnabled: true } });
     fireEvent.click(screen.getByText(/Hole 1/));
     const hammerMentions = screen.getAllByText(/2x/);
     expect(hammerMentions.length).toBeGreaterThan(0);

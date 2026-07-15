@@ -59,6 +59,31 @@ describe('getWolfHoleSides', () => {
     expect(result.resolved.deltas.A).toBe(80); // $5 × 4 × 4 opponents
   });
 
+  test('a stale hammerMultiplier from a previous session does NOT apply when Hammer Rule is off — real bug reported by Jon Biro', () => {
+    const scores = { 1: { A: 3, B: 5, C: 5, D: 6, E: 5 } };
+    const staleWolfHoles = { 1: { hammerMultiplier: 2 } }; // leftover from before, Hammer Rule now off
+    const withHammerRuleOff = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: staleWolfHoles, getFormat: getWolfFormat,
+      course: COURSE, scores, handicapMode: 'full', betAmount: 5, hammerEnabled: false,
+    });
+    const withHammerRuleOn = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: staleWolfHoles, getFormat: getWolfFormat,
+      course: COURSE, scores, handicapMode: 'full', betAmount: 5, hammerEnabled: true,
+    });
+    expect(withHammerRuleOff.resolved.deltas.A).toBe(20); // 1x, stale hammer ignored — $5 × 4 opponents
+    expect(withHammerRuleOn.resolved.deltas.A).toBe(40);  // 2x, hammer correctly applies when the rule is genuinely on
+    expect(withHammerRuleOff.hammerMultiplier).toBe(1);
+  });
+
+  test('a stale conceded/rejected Hammer hole does NOT resolve without scores when Hammer Rule is off', () => {
+    const staleWolfHoles = { 1: { hammerResolution: 'rejected', concededBy: 'small' } };
+    const result = resolveWolfHoleFromConfig({
+      hole: 1, activePlayers: PLAYERS, wolfHoles: staleWolfHoles, getFormat: getWolfFormat,
+      course: COURSE, scores: {}, handicapMode: 'full', betAmount: 5, hammerEnabled: false,
+    });
+    expect(result.resolved).toBeNull(); // correctly unresolved — no real scores, and the stale concession is ignored
+  });
+
   test('rotation: hole 3 → C is Wolf', () => {
     const sides = getWolfHoleSides(3, PLAYERS, {}, 'solo');
     expect(sides.wolfId).toBe('C');

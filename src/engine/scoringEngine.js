@@ -2146,13 +2146,20 @@ export function resolveWolfHoleFromConfig({
   addAHammerHammerHolesOnly = false,
   overrideWolfId = null, // used for Super Wolf holes 16-18 — Wolf isn't by rotation there
   shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
+  hammerEnabled = true, // Setup toggle — "Hammer Rule." Confirmed real bug: the
+  // engine previously read config.hammerMultiplier unconditionally, with
+  // no awareness of whether Hammer Rule was even on. The toggle only ever
+  // controlled whether the UI buttons were shown — a stale or leftover
+  // hammer value in storage would still apply financially either way.
+  // This gate is defense in depth: correct even if wolfHoles ever ends up
+  // stale again for some other reason in the future.
 }) {
   const config = { ...(wolfHoles?.[hole] || {}) };
   const format = getFormat(config);
   const { wolfId, smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format, overrideWolfId);
 
-  const hammerMultiplier = Number(config.hammerMultiplier) || 1;
-  const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
+  const hammerMultiplier = hammerEnabled ? (Number(config.hammerMultiplier) || 1) : 1;
+  const concededBy = hammerEnabled && config.hammerResolution === "rejected" ? config.concededBy : null;
 
   const provisional = resolveWolfHole({
     format, smallSide, bigSide, hole,
@@ -2216,6 +2223,8 @@ export function computeWolfCarryoverSchedule({
   betAmount,
   carryoverMode = WOLF_CARRYOVER_MODES.OFF,
   maxCarryover = null,
+  hammerEnabled = true, // same gate as resolveWolfHoleFromConfig — a stale
+  // conceded hole with Hammer Rule off should not affect push detection.
 }) {
   const schedule = {};
   let state = { carriedAmount: 0, pushCount: 0 };
@@ -2224,8 +2233,8 @@ export function computeWolfCarryoverSchedule({
     const config = { ...(wolfHoles?.[hole] || {}) };
     const format = getFormat(config);
     const { smallSide, bigSide } = getWolfHoleSides(hole, activePlayers, config, format);
-    const hammerMultiplier = Number(config.hammerMultiplier) || 1;
-    const concededBy = config.hammerResolution === "rejected" ? config.concededBy : null;
+    const hammerMultiplier = hammerEnabled ? (Number(config.hammerMultiplier) || 1) : 1;
+    const concededBy = hammerEnabled && config.hammerResolution === "rejected" ? config.concededBy : null;
 
     let isPush = null; // null = not yet scored
     if (concededBy) {
@@ -2276,6 +2285,7 @@ export function computeWolfRoundResult({
   carryoverMode = WOLF_CARRYOVER_MODES.OFF,
   maxCarryover = null,
   shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
+  hammerEnabled = true, // Setup toggle — "Hammer Rule"
 }) {
   if (!activePlayers || activePlayers.length !== 5) {
     return { balancesByPlayerId: {} };
@@ -2283,7 +2293,7 @@ export function computeWolfRoundResult({
 
   const schedule = computeWolfCarryoverSchedule({
     activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
-    noPar3Strokes, betAmount, carryoverMode, maxCarryover,
+    noPar3Strokes, betAmount, carryoverMode, maxCarryover, hammerEnabled,
   });
 
   const playerIds = activePlayers.map((p) => p.id);
@@ -2295,7 +2305,7 @@ export function computeWolfRoundResult({
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles,
+      addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles, hammerEnabled,
     });
     holeResults.push(resolved);
   }
@@ -2312,7 +2322,7 @@ export function computeWolfRoundResult({
     const { resolved } = resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: superWolfBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles, hammerEnabled,
     });
     holeResults.push(resolved);
   }
@@ -2347,6 +2357,7 @@ export function getWolfHoleNarrative({
   carryoverMode = WOLF_CARRYOVER_MODES.OFF,
   maxCarryover = null,
   shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
+  hammerEnabled = true, // Setup toggle — "Hammer Rule"
 }) {
   const nameOf = (id) => activePlayers.find((p) => p.id === id)?.name || id;
   const playerIds = activePlayers.map((p) => p.id);
@@ -2354,7 +2365,7 @@ export function getWolfHoleNarrative({
 
   const schedule = computeWolfCarryoverSchedule({
     activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
-    noPar3Strokes, betAmount, carryoverMode, maxCarryover,
+    noPar3Strokes, betAmount, carryoverMode, maxCarryover, hammerEnabled,
   });
 
   let effectiveBetAmount, overrideWolfId = null, rankedStandings = null;
@@ -2369,7 +2380,7 @@ export function getWolfHoleNarrative({
       const { resolved: r } = resolveWolfHoleFromConfig({
         hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
         noPar3Strokes, betAmount: eff, wolfStyle, settlementStyle, birdieEnabled,
-        addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles,
+        addAHammerEnabled, addAHammerHammerHolesOnly, shuckDoubles, hammerEnabled,
       });
       priorResults.push(r);
     }
@@ -2381,7 +2392,7 @@ export function getWolfHoleNarrative({
       const { resolved: r } = resolveWolfHoleFromConfig({
         hole: h, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
         noPar3Strokes, betAmount: amt, wolfStyle, settlementStyle, birdieEnabled,
-        addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles,
+        addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId: superWolf, shuckDoubles, hammerEnabled,
       });
       priorResults.push(r);
     }
@@ -2402,7 +2413,7 @@ export function getWolfHoleNarrative({
     resolveWolfHoleFromConfig({
       hole, activePlayers, wolfHoles, getFormat, course, scores, handicapMode,
       noPar3Strokes, betAmount: effectiveBetAmount, wolfStyle, settlementStyle, birdieEnabled,
-      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId, shuckDoubles,
+      addAHammerEnabled, addAHammerHammerHolesOnly, overrideWolfId, shuckDoubles, hammerEnabled,
     });
 
   if (!resolved) return { lines: [], resolved: null, format, isSuperWolf, rankedStandings, wolfId: overrideWolfId, effectiveBetAmount };

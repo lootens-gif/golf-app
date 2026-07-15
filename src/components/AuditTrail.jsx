@@ -1527,6 +1527,7 @@ function WolfAudit({
   const carryoverMode = teamMatchConfig.wolfCarryoverMode || "off";
   const maxCarryover = teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null;
   const shuckDoubles = teamMatchConfig.wolfShuckDoubles !== false;
+  const hammerEnabled = !!teamMatchConfig.wolfHammerEnabled;
 
   // LEVEL 0: overall totals — same shape as TeamGameAudit's header, reused
   // directly. computeWolfRoundResult only sums holes that have scores, so
@@ -1538,6 +1539,9 @@ function WolfAudit({
     addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
 
     shuckDoubles,
+
+
+    hammerEnabled,
   });
   const balances = roundResult.balancesByPlayerId || {};
 
@@ -1585,6 +1589,9 @@ function WolfAudit({
           addAHammerEnabled, addAHammerHammerHolesOnly, carryoverMode, maxCarryover,
 
           shuckDoubles,
+
+
+          hammerEnabled,
         });
         if (!lines.length) return null; // hole not fully scored yet — skip
 

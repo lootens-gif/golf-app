@@ -1476,6 +1476,7 @@ if (teamGameFormat === "wolf") {
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
     shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
+    hammerEnabled: !!teamMatchConfig.wolfHammerEnabled,
     carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
     maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
@@ -1615,6 +1616,7 @@ const roundSummaryRows = activePlayers.map((player) => {
       }
 
       setScores({});
+      setWolfHoles({});
       setMatches([]);
       setSetupMessage("Setup loaded. Round data reset.");
     } catch (error) {
@@ -2098,6 +2100,7 @@ async function handleLoadTemplate(template) {
     if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
     if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
     setScores({});
+    setWolfHoles({});
     setLoadedTemplate(template);
     setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
     incrementTemplateUse(template.id).catch(() => {});
@@ -2230,6 +2233,7 @@ function resetSetup() {
   setBirdiesEnabled(false);
   setBirdieBetAmount(5);
   setScores({});
+  setWolfHoles({});
   setMatches([]);
   setTeamGameFormat("press");
   setLoadedTemplate(null);
@@ -2895,6 +2899,7 @@ if (teamGameFormat === "wolf") {
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
     shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
+    hammerEnabled: !!teamMatchConfig.wolfHammerEnabled,
     carryoverMode: teamMatchConfig.wolfCarryoverMode || "off",
     maxCarryover: teamMatchConfig.wolfLimitCarryover ? (Number(teamMatchConfig.wolfMaxCarryover) || 2) : null,
   });
@@ -3584,6 +3589,7 @@ return (
       addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
       addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
     shuckDoubles: teamMatchConfig.wolfShuckDoubles !== false,
+    hammerEnabled: !!teamMatchConfig.wolfHammerEnabled,
     });
     return (
       <WolfHoleCard
