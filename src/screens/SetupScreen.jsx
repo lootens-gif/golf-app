@@ -1,6 +1,7 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import MatchList from "../components/MatchList";
 import { useEffect, useRef, useState } from "react";
+import { WOLF_MULTIPLIER_TABLES } from "../engine/scoringEngine";
 
 const sc = {
   green:      "#1a5c35",
@@ -1557,16 +1558,40 @@ export default function SetupScreen({
               <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Wolf Style</div>
                 <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>
-                  Harrison Wolf: same multiplier whether Wolf's side wins or loses. Classic Wolf: Wolf wins bigger, but loses smaller — the win and lose numbers are different.
+                  How much winning or losing pays — set once for the whole round.
                 </div>
                 <select
                   value={teamMatchConfig.wolfStyle || "harrison"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfStyle: e.target.value }))}
                   style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
                 >
-                  <option value="harrison">Harrison Wolf — Wolf 1x, Lone Wolf 2x, Blind Wolf 3x — same either way</option>
-                  <option value="classic">Classic Wolf — Wolf wins 4x / loses 1x, Blind Wolf wins 12x / loses 3x</option>
+                  <option value="harrison">Harrison Wolf — Solo 1x, Lone 2x, Blind 3x</option>
+                  <option value="classic">Classic Wolf — Solo 4x, Blind 12x</option>
                 </select>
+                {(() => {
+                  // Computed live from the real multiplier tables, not
+                  // written as static text, so this can never drift out of
+                  // sync the way a hardcoded sentence would. Deliberately
+                  // "per opponent," not a real Wolf total — the real total
+                  // depends on Settlement Style too, and showing that here
+                  // would mean this text either goes stale or has to
+                  // duplicate logic that already lives in Payout Style.
+                  const currentWolfStyle = teamMatchConfig.wolfStyle || "harrison";
+                  const table = WOLF_MULTIPLIER_TABLES[currentWolfStyle] || WOLF_MULTIPLIER_TABLES.harrison;
+                  const bet = 5;
+                  const fmt = (tier) => tier.small === tier.big
+                    ? `$${bet * tier.small}`
+                    : `$${bet * tier.small} win / $${bet * tier.big} lose`;
+                  return currentWolfStyle === "classic" ? (
+                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
+                      $5 bet per opponent: {fmt(table.solo)} (Solo), {fmt(table.blindWolf)} (Blind Wolf).
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
+                      $5 bet per opponent: {fmt(table.solo)} (Wolf), {fmt(table.loneWolf)} (Lone Wolf), {fmt(table.blindWolf)} (Blind Wolf) — same win or lose.
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Settlement Style */}
@@ -1641,8 +1666,27 @@ export default function SetupScreen({
                   checked={teamMatchConfig.wolfShuckDoubles !== false}
                   onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfShuckDoubles: val }))}
                   label="Shuck Doubles the Bet"
-                  sublabel="When someone refuses to partner with the Wolf, they get left alone at 2x. Turn off to leave them alone at the normal rate instead."
+                  sublabel="When someone refuses to partner with the Wolf, they get left alone at an extra penalty rate. Turn off to leave them alone at the normal rate instead."
                 />
+                {(() => {
+                  // Same live-computed pattern as Wolf Style above — this
+                  // is the one place both the current Wolf Style AND this
+                  // toggle are actually visible together, so it's the
+                  // right spot for a number that depends on both.
+                  const currentWolfStyle = teamMatchConfig.wolfStyle || "harrison";
+                  const shuckDoublesOn = teamMatchConfig.wolfShuckDoubles !== false;
+                  const table = WOLF_MULTIPLIER_TABLES[currentWolfStyle] || WOLF_MULTIPLIER_TABLES.harrison;
+                  const packWin = table.pack.small;
+                  const shuckTier = shuckDoublesOn ? table.shuck : table.solo; // mirrors the exact engine fallback
+                  const shuckWin = shuckTier.small;
+                  const shuckLose = shuckTier.big;
+                  const shuckText = shuckWin === shuckLose ? `${shuckWin}x` : `${shuckWin}x win / ${shuckLose}x lose`;
+                  return (
+                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 8 }}>
+                      Currently ({currentWolfStyle === "classic" ? "Classic" : "Harrison"} Wolf): Pack Wolf {packWin}x, Shuck {shuckText}{!shuckDoublesOn ? " — same as Solo" : ""}.
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Carryover on Push */}
