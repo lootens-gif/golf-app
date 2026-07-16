@@ -72,6 +72,7 @@ export default function WolfHoleCard({
   teamGameUnitAmount = 5,      // the round's base bet — used for the "Standard" preset
   hittingOrderMode = "standard", // Super Wolf: one of SUPER_WOLF_ORDER_MODES, from Setup
   settlementStyle = "pairwise", // "pairwise" | "pooled" — used for the cents-divisibility hint
+  wolfStyle = "harrison", // "harrison" | "classic" — Classic has no distinct Lone Wolf tier
 }) {
   const [showCustomKeypad, setShowCustomKeypad] = useState(false);
   const wolfIndex = useMemo(() => {
@@ -395,9 +396,13 @@ export default function WolfHoleCard({
         <div style={{ fontSize: 14, fontWeight: 600, color: sc.green }}>{wolf.name}</div>
       </div>
 
-      {/* Declare solo — two distinct tiers, based on WHEN it's declared */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
-        {declareButton("loneWolfDeclared", "Lone Wolf", "after own shot")}
+      {/* Declare solo — Lone Wolf only exists as its own tier under Harrison
+          Wolf. Classic Wolf's "going alone" window is a single tier (Solo)
+          covering the same range Harrison splits into Solo/Lone — showing
+          a Lone Wolf button under Classic would look like a real, distinct
+          choice when it's actually identical to just doing nothing. */}
+      <div style={{ display: "grid", gridTemplateColumns: wolfStyle === "classic" ? "1fr" : "1fr 1fr", gap: 6, marginBottom: 12 }}>
+        {wolfStyle !== "classic" && declareButton("loneWolfDeclared", "Lone Wolf", "after own shot")}
         {declareButton("blindWolfDeclared", "Blind Wolf", "before own shot")}
       </div>
 

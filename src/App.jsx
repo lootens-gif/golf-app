@@ -3570,6 +3570,7 @@ return (
       wolfHoles={wolfHoles}
       onUpdateWolfHole={updateWolfHole}
       hammerEnabled={!!teamMatchConfig.wolfHammerEnabled}
+      wolfStyle={teamMatchConfig.wolfStyle || "harrison"}
     />
   )}
   {teamGameFormat === "wolf" && currentHole >= 16 && currentHole <= 18 && (() => {
@@ -3606,6 +3607,7 @@ return (
         teamGameUnitAmount={teamGameUnitAmount}
         hittingOrderMode={teamMatchConfig.wolfSuperWolfOrderMode || "standard"}
         settlementStyle={teamMatchConfig.wolfSettlementStyle || "pairwise"}
+        wolfStyle={teamMatchConfig.wolfStyle || "harrison"}
       />
     );
   })()}

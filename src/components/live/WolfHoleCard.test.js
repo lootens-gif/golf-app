@@ -19,7 +19,7 @@ const PLAYERS = [
   { id: 'P5', name: 'P5' },
 ];
 
-function Harness({ initialHoles = {}, hammerEnabled = false, currentHole = 1 }) {
+function Harness({ initialHoles = {}, hammerEnabled = false, currentHole = 1, wolfStyle = "harrison" }) {
   const [wolfHoles, setWolfHoles] = require('react').useState(initialHoles);
   const onUpdateWolfHole = (hole, updates) => {
     setWolfHoles((prev) => ({ ...prev, [hole]: { ...prev[hole], ...updates } }));
@@ -31,6 +31,7 @@ function Harness({ initialHoles = {}, hammerEnabled = false, currentHole = 1 }) 
       wolfHoles={wolfHoles}
       onUpdateWolfHole={onUpdateWolfHole}
       hammerEnabled={hammerEnabled}
+      wolfStyle={wolfStyle}
     />
   );
 }
@@ -176,6 +177,17 @@ describe('WolfHoleCard — Hammer entry', () => {
     fireEvent.click(screen.getByText('Rejected'));
     expect(screen.getByText(/Wolf conceded/)).toBeInTheDocument();
     expect(screen.getByText('Opponents conceded')).toBeInTheDocument();
+  });
+
+  test('Lone Wolf button is hidden entirely under Classic Wolf, since it isn\'t a real distinct tier there', () => {
+    render(<Harness currentHole={1} wolfStyle="classic" />);
+    expect(screen.queryByText('Lone Wolf')).not.toBeInTheDocument();
+    expect(screen.getByText('Blind Wolf')).toBeInTheDocument(); // Blind Wolf is real in both styles
+  });
+
+  test('Lone Wolf button stays visible under Harrison Wolf (the default)', () => {
+    render(<Harness currentHole={1} wolfStyle="harrison" />);
+    expect(screen.getByText('Lone Wolf')).toBeInTheDocument();
   });
 });
 
