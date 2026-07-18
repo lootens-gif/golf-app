@@ -1,7 +1,6 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import MatchList from "../components/MatchList";
 import { useEffect, useRef, useState } from "react";
-import { WOLF_MULTIPLIER_TABLES } from "../engine/scoringEngine";
 
 const sc = {
   green:      "#1a5c35",
@@ -175,6 +174,13 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const [updatePin, setUpdatePin] = useState("");
   const [updateStatus, setUpdateStatus] = useState("");
   const [showList, setShowList] = useState(false);
+  const [courseMode, setCourseMode] = useState("list"); // "list" | "add" | "edit"
+  const [editPars, setEditPars] = useState(Array(18).fill(4));
+  const [editHcps, setEditHcps] = useState(Array(18).fill(0));
+  const [editName, setEditName] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editSaveStatus, setEditSaveStatus] = useState("");
 
   const savedBy = players?.[0]?.name && players[0].name !== "P1" ? players[0].name : "Anonymous";
 
@@ -275,6 +281,118 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   return (
     <Card>
       <SectionLabel>Course Setup</SectionLabel>
+
+      {/* ADD NEW or EDIT EXISTING course grid */}
+      {(courseMode === "add" || courseMode === "edit") && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: sc.green, marginBottom: 10 }}>
+            {courseMode === "add" ? "Add New Course" : `Edit: ${editName}`}
+          </div>
+
+          {/* Course name */}
+          <input
+            type="text"
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            placeholder="Course Name *"
+            style={{ width: "100%", fontSize: 14, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }}
+          />
+
+          {/* City / State */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input type="text" value={editCity} onChange={e => setEditCity(e.target.value)} placeholder="City *"
+              style={{ flex: 1, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }} />
+            <input type="text" value={editState} onChange={e => setEditState(e.target.value.toUpperCase())} placeholder="ST *" maxLength={2}
+              style={{ width: 50, fontSize: 13, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit", textTransform: "uppercase" }} />
+          </div>
+
+          {/* Hole grid */}
+          <div style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch", marginBottom: 10 }}>
+            <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: 400 }}>
+              <thead>
+                <tr>
+                  <td style={{ padding: "4px 6px", fontWeight: 700, color: sc.muted, minWidth: 36 }}></td>
+                  {Array.from({length: 18}, (_, i) => (
+                    <td key={i} style={{ padding: "4px 4px", textAlign: "center", color: sc.muted, minWidth: 28, fontWeight: 600 }}>{i + 1}</td>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "4px 6px", fontWeight: 700, color: sc.ink }}>Par</td>
+                  {editPars.map((par, i) => (
+                    <td key={i} style={{ padding: "2px" }}>
+                      <input
+                        type="number" min="3" max="5"
+                        value={par}
+                        onChange={e => setEditPars(prev => { const n = [...prev]; n[i] = Number(e.target.value); return n; })}
+                        style={{ width: 28, textAlign: "center", fontSize: 12, padding: "4px 2px", border: `1px solid ${sc.border}`, borderRadius: 4, fontFamily: "inherit" }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 6px", fontWeight: 700, color: sc.ink }}>HCP</td>
+                  {editHcps.map((hcp, i) => (
+                    <td key={i} style={{ padding: "2px" }}>
+                      <input
+                        type="number" min="1" max="18"
+                        value={hcp}
+                        onChange={e => setEditHcps(prev => { const n = [...prev]; n[i] = Number(e.target.value); return n; })}
+                        style={{ width: 28, textAlign: "center", fontSize: 12, padding: "4px 2px", border: `1px solid ${sc.border}`, borderRadius: 4, fontFamily: "inherit" }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {editSaveStatus === "saved" && <div style={{ fontSize: 13, color: sc.green, fontWeight: 600, marginBottom: 8 }}>✓ Course saved to library</div>}
+          {editSaveStatus === "error" && <div style={{ fontSize: 13, color: "#b3261e", marginBottom: 8 }}>Save failed — try again</div>}
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={async () => {
+                if (!editName.trim() || !editCity.trim() || !editState.trim()) {
+                  alert("Course name, city, and state are required.");
+                  return;
+                }
+                setEditSaveStatus("saving");
+                try {
+                  if (courseMode === "add") {
+                    await saveCourseToLibrary({ name: editName.trim(), pars: editPars, hcp: editHcps, city: editCity.trim(), state: editState.trim() }, savedBy);
+                  } else {
+                    const pin = window.prompt("Admin PIN to update this course:");
+                    if (!pin) { setEditSaveStatus(""); return; }
+                    await updateCourseInLibrary(loadedCourse.id, { name: editName.trim(), pars: editPars, hcp: editHcps, city: editCity.trim(), state: editState.trim() }, deviceId, pin);
+                    // Reload the updated course
+                    updateCourseName(editName.trim());
+                    editPars.forEach((par, i) => updateCoursePar(i, par));
+                    editHcps.forEach((hcp, i) => updateCourseHcp(i, hcp));
+                  }
+                  setEditSaveStatus("saved");
+                  searchCourses("%").then(r => setAllCourses(r || [])).catch(() => {});
+                  setTimeout(() => { setEditSaveStatus(""); setCourseMode("list"); }, 1500);
+                } catch (e) {
+                  setEditSaveStatus("error");
+                }
+              }}
+              disabled={editSaveStatus === "saving"}
+              style={{ flex: 2, padding: "10px 0", fontSize: 14, fontWeight: 700, background: sc.green, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {editSaveStatus === "saving" ? "Saving…" : courseMode === "add" ? "Save to Library" : "Update in Library"}
+            </button>
+            <button
+              onClick={() => { setCourseMode("list"); setEditSaveStatus(""); }}
+              style={{ flex: 1, padding: "10px 0", fontSize: 14, background: "#fff", color: sc.muted, border: `1px solid ${sc.border}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+            >Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Normal course mode */}
+      {courseMode === "list" && (<>
 
       {/* Locked during round */}
       {roundInProgress && course?.name ? (
@@ -449,6 +567,38 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
           <div style={{ fontSize: 11, color: sc.muted, marginTop: 4 }}>Once saved, anyone can search and load this course.</div>
         </>
       )}
+
+      {/* Add / Edit buttons */}
+      {!roundInProgress && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button
+            onClick={() => {
+              setEditName("");
+              setEditCity("");
+              setEditState("");
+              setEditPars(Array(18).fill(4));
+              setEditHcps(Array.from({length: 18}, (_, i) => i + 1));
+              setCourseMode("add");
+            }}
+            style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, background: "#fff", color: sc.green, border: `1px solid ${sc.green}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+          >+ Add New Course</button>
+          {loadedCourse && (
+            <button
+              onClick={() => {
+                setEditName(loadedCourse.name || "");
+                setEditCity(loadedCourse.city || "");
+                setEditState(loadedCourse.state || "");
+                setEditPars([...(loadedCourse.pars || Array(18).fill(4))]);
+                setEditHcps([...(loadedCourse.hcp || Array.from({length: 18}, (_, i) => i + 1))]);
+                setCourseMode("edit");
+              }}
+              style={{ flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600, background: "#fff", color: sc.gold, border: `1px solid ${sc.gold}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}
+            >✏️ Edit Course</button>
+          )}
+        </div>
+      )}
+
+      </>)}
     </Card>
   );
 }
@@ -957,17 +1107,9 @@ export default function SetupScreen({
                   value={teamGameUnitAmount}
                   inputRef={betAmountRef}
                   onChange={(e) => {
-                    // Wolf specifically is whole dollars only — nobody
-                    // stands on the tee and calls a bet "$37.50," they'd
-                    // get laughed at. Other formats are untouched; this
-                    // only rounds when Wolf is the active format.
-                    const raw = e.target.value;
-                    const value = teamGameFormat === "wolf" && raw !== ""
-                      ? String(Math.round(Number(raw)) || 0)
-                      : raw;
-                    setTeamGameUnitAmount(value);
+                    setTeamGameUnitAmount(e.target.value);
                     // Always sync birdie bet to match unit bet
-                    setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(value) || 5 }));
+                    setTeamMatchConfig(prev => ({ ...prev, teamBirdieBetAmount: Number(e.target.value) || 5 }));
                   }}
                 />
 
@@ -1557,47 +1699,21 @@ export default function SetupScreen({
               {/* Wolf Style */}
               <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Wolf Style</div>
-                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>
-                  How much winning or losing pays — set once for the whole round.
-                </div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Controls the payout multiplier for Lone Wolf and Blind Wolf</div>
                 <select
                   value={teamMatchConfig.wolfStyle || "harrison"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfStyle: e.target.value }))}
                   style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
                 >
-                  <option value="harrison">Harrison Wolf — Solo 1x, Lone 2x, Blind 3x</option>
-                  <option value="classic">Classic Wolf — Solo 4x, Blind 12x</option>
+                  <option value="harrison">Harrison Wolf — Wolf 1x · Lone Wolf 2x · Blind Wolf 3x (symmetric)</option>
+                  <option value="classic">Classic Wolf — Wolf 4x/1x · Blind Wolf 12x/3x (asymmetric win/lose)</option>
                 </select>
-                {(() => {
-                  // Computed live from the real multiplier tables, not
-                  // written as static text, so this can never drift out of
-                  // sync the way a hardcoded sentence would. Deliberately
-                  // "per opponent," not a real Wolf total — the real total
-                  // depends on Settlement Style too, and showing that here
-                  // would mean this text either goes stale or has to
-                  // duplicate logic that already lives in Payout Style.
-                  const currentWolfStyle = teamMatchConfig.wolfStyle || "harrison";
-                  const table = WOLF_MULTIPLIER_TABLES[currentWolfStyle] || WOLF_MULTIPLIER_TABLES.harrison;
-                  const bet = 5;
-                  const fmt = (tier) => tier.small === tier.big
-                    ? `$${bet * tier.small}`
-                    : `$${bet * tier.small} win / $${bet * tier.big} lose`;
-                  return currentWolfStyle === "classic" ? (
-                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
-                      $5 bet per opponent: {fmt(table.solo)} (Solo), {fmt(table.blindWolf)} (Blind Wolf).
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 6 }}>
-                      $5 bet per opponent: {fmt(table.solo)} (Wolf), {fmt(table.loneWolf)} (Lone Wolf), {fmt(table.blindWolf)} (Blind Wolf) — same win or lose.
-                    </div>
-                  );
-                })()}
               </div>
 
               {/* Settlement Style */}
               <div style={{ borderBottom: `1px solid ${sc.border}`, paddingBottom: 12, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Payout Style</div>
-                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters when more than one player wins a hole — no difference on a clean solo win</div>
+                <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters on a Pack Wolf hole (partner picked) — no difference when going alone</div>
                 <select
                   value={teamMatchConfig.wolfSettlementStyle || "pairwise"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfSettlementStyle: e.target.value }))}
@@ -1606,25 +1722,11 @@ export default function SetupScreen({
                   <option value="pairwise">Pay Each Winner — every loser pays every winner in full</option>
                   <option value="pooled">Split the Pot — losers pay in, winners split it evenly</option>
                 </select>
-                {teamMatchConfig.wolfSettlementStyle === "pooled" && (() => {
-                  // The bet needs to divide cleanly across every possible
-                  // split size Split the Pot can produce. For 5 players
-                  // that's Solo Wolf losing to all 4 (÷4) AND Pack Wolf's
-                  // 2-or-3-way splits (÷2, ÷3) — the smallest number
-                  // divisible by all of them is 12, not 6. Pack Wolf alone
-                  // only needs 6, which is why the old wording (claiming
-                  // this "only matters on a Pack Wolf hole") understated
-                  // it — Solo Wolf is actually what drives the number up.
-                  const WOLF_CENTS_SAFE_DIVISOR = { "3p": 2, "4p": 6, "5p": 12 };
-                  const divisor = WOLF_CENTS_SAFE_DIVISOR[mode];
-                  const playerCount = parseInt(mode, 10);
-                  if (!divisor) return null;
-                  return (
-                    <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
-                      ${divisor} multiples = no cents ({playerCount} players).
-                    </div>
-                  );
-                })()}
+                {teamMatchConfig.wolfSettlementStyle === "pooled" && (
+                  <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
+                    Split the Pot can produce uneven cents on a Pack Wolf hole. The app will suggest the two nearest clean dollar amounts when you enter a bet that doesn't divide evenly.
+                  </div>
+                )}
               </div>
 
               {/* Hammer Rule */}
@@ -1658,35 +1760,6 @@ export default function SetupScreen({
                     Hammer Rule is off, so no hole can be a Hammer hole — this bonus won't fire.
                   </div>
                 )}
-              </div>
-
-              {/* Shuck Doubles the Bet */}
-              <div style={{ borderTop: `1px solid ${sc.border}`, paddingTop: 12, marginBottom: 12 }}>
-                <Toggle
-                  checked={teamMatchConfig.wolfShuckDoubles !== false}
-                  onChange={(val) => setTeamMatchConfig(prev => ({ ...prev, wolfShuckDoubles: val }))}
-                  label="Shuck Doubles the Bet"
-                  sublabel="When someone refuses to partner with the Wolf, they get left alone at an extra penalty rate. Turn off to leave them alone at the normal rate instead."
-                />
-                {(() => {
-                  // Same live-computed pattern as Wolf Style above — this
-                  // is the one place both the current Wolf Style AND this
-                  // toggle are actually visible together, so it's the
-                  // right spot for a number that depends on both.
-                  const currentWolfStyle = teamMatchConfig.wolfStyle || "harrison";
-                  const shuckDoublesOn = teamMatchConfig.wolfShuckDoubles !== false;
-                  const table = WOLF_MULTIPLIER_TABLES[currentWolfStyle] || WOLF_MULTIPLIER_TABLES.harrison;
-                  const packWin = table.pack.small;
-                  const shuckTier = shuckDoublesOn ? table.shuck : table.solo; // mirrors the exact engine fallback
-                  const shuckWin = shuckTier.small;
-                  const shuckLose = shuckTier.big;
-                  const shuckText = shuckWin === shuckLose ? `${shuckWin}x` : `${shuckWin}x win / ${shuckLose}x lose`;
-                  return (
-                    <div style={{ fontSize: 11, color: sc.muted, marginTop: 8 }}>
-                      Currently ({currentWolfStyle === "classic" ? "Classic" : "Harrison"} Wolf): Pack Wolf {packWin}x, Shuck {shuckText}{!shuckDoublesOn ? " — same as Solo" : ""}.
-                    </div>
-                  );
-                })()}
               </div>
 
               {/* Carryover on Push */}
