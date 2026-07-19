@@ -579,7 +579,7 @@ function decideMatchPlaySegment(holes, startHole, endHole) {
 
     const margin = Math.abs(clinchScore);
     const remaining = endHole - decidedOn;
-    label = `${margin}&${remaining}`;
+    label = remaining === 0 ? `${margin} up` : `${margin}&${remaining}`;
   } else if (total !== 0) {
     label = `${Math.abs(total)} up`;
   }

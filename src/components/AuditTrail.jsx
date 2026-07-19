@@ -1078,9 +1078,14 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
 
     // Find if match was decided within this section
-    const decidedHole = result?.decidedOn
-      ?? result?.segments?.reduce((found, s) => found ?? s.decidedOn, null)
-      ?? null;
+    // For FBT, each segment has its own decidedOn — never bleed across segments
+    const decidedHole = isFBT
+      ? (label === "Front 9"
+          ? (frontDecidedOn != null && sectionHoles.includes(frontDecidedOn) ? frontDecidedOn : null)
+          : label === "Back 9"
+            ? (backDecidedOn != null && sectionHoles.includes(backDecidedOn) ? backDecidedOn : null)
+            : null)
+      : (result?.decidedOn ?? null);
     const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
 
     // Gross totals per player for this section (all scored holes)
@@ -1215,10 +1220,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const seg = isFrontDeciding ? result?.segments?.find(s => s.key === "front")
                            : isBackDeciding ? result?.segments?.find(s => s.key === "back")
                            : null;
-                const units = seg ? seg.units : running;
-                const lastHole = isFrontDeciding ? 9 : isBackDeciding ? 18 : 18;
-                const fmt = fmtConclusion(units, hole, lastHole);
-                return <td key={hole} style={{ ...scorecardCellStyle, color: fmt.color, fontWeight: 700 }}>{fmt.label}</td>;
+                const segUnits = seg ? seg.units : running;
+                const label2 = seg?.resultLabel || (segUnits === 0 ? "Even" : segUnits > 0 ? `${Math.abs(segUnits)} up` : `${Math.abs(segUnits)} dn`);
+                const color = segUnits > 0 ? "#137333" : segUnits < 0 ? "#b3261e" : "#6b7280";
+                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{label2}</td>;
               }
 
               // Non-FBT decided on this hole
@@ -1240,25 +1245,40 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </tr>
 
           {/* Total row — on both Front 9 and Back 9 when F/B/T */}
-          {(label === "Back 9" || label === "Front 9") && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (
-            <tr>
-              <td style={{ ...scorecardLabelCellStyle, fontWeight: 700 }}>Total</td>
-              {sectionData.map(({ hole, totalRunning }) => {
-                const aScore = getRawScore(scores, hole, playerA.id);
-                const bScore = getRawScore(scores, hole, playerB.id);
-                if (aScore == null || bScore == null || totalRunning == null) {
-                  return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
-                }
-                const color = totalRunning > 0 ? "#137333" : totalRunning < 0 ? "#b3261e" : "#6b7280";
-                return (
-                  <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
-                    {totalRunning === 0 ? "Even" : totalRunning > 0 ? `${totalRunning} up` : `${Math.abs(totalRunning)} dn`}
-                  </td>
-                );
-              })}
-              <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
-            </tr>
-          )}
+          {(label === "Back 9" || label === "Front 9") && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
+            // Find total decidedOn — when 18-hole running exceeds remaining
+            const totalSeg = result?.segments?.find(s => s.key === "total");
+            const totalDecidedOn = totalSeg?.decidedOn ?? null;
+            return (
+              <tr>
+                <td style={{ ...scorecardLabelCellStyle, fontWeight: 700 }}>Total</td>
+                {sectionData.map(({ hole, totalRunning }) => {
+                  const aScore = getRawScore(scores, hole, playerA.id);
+                  const bScore = getRawScore(scores, hole, playerB.id);
+                  if (aScore == null || bScore == null || totalRunning == null) {
+                    return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  }
+                  // After total decided: blank
+                  if (totalDecidedOn != null && hole > totalDecidedOn) {
+                    return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  }
+                  // On deciding hole: show conclusion format using resultLabel from engine
+                  if (totalDecidedOn != null && hole === totalDecidedOn) {
+                    const label2 = totalSeg?.resultLabel || (totalRunning > 0 ? `${totalRunning} up` : `${Math.abs(totalRunning)} dn`);
+                    const color = totalRunning > 0 ? "#137333" : totalRunning < 0 ? "#b3261e" : "#6b7280";
+                    return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{label2}</td>;
+                  }
+                  const color = totalRunning > 0 ? "#137333" : totalRunning < 0 ? "#b3261e" : "#6b7280";
+                  return (
+                    <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
+                      {totalRunning === 0 ? "Even" : totalRunning > 0 ? `${totalRunning} up` : `${Math.abs(totalRunning)} dn`}
+                    </td>
+                  );
+                })}
+                <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
+              </tr>
+            );
+          })()}
         </tbody>
       </table>
       </div>
