@@ -29,7 +29,7 @@ import RoundPreview from "./components/RoundPreview";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
-import {generateRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse } from "./lib/roundSync";
+import {generateRoundCode, generateUniqueRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -568,8 +568,19 @@ function notifyRound(event, code) {
     // so Supabase backup starts immediately (protects against iOS localStorage loss)
     if (field === "name" && value.trim() && !roundCode) {
       const earlyCode = generateRoundCode();
-      setRoundCode(earlyCode);
+      setRoundCode(earlyCode); // set immediately — typing must stay instant
       localStorage.setItem(ROUND_CODE_KEY, earlyCode);
+      // Verify uniqueness in the background. This is the moment a brand
+      // new round's identity first gets established — if this code
+      // already belongs to an old round sitting in Supabase, silently
+      // upgrade to a genuinely free one before any real data (scores,
+      // players) has a chance to be written under the colliding code.
+      generateUniqueRoundCode(20, earlyCode).then((verifiedCode) => {
+        if (verifiedCode !== earlyCode) {
+          setRoundCode(verifiedCode);
+          localStorage.setItem(ROUND_CODE_KEY, verifiedCode);
+        }
+      });
     }
 
     setAllPlayers((prev) =>
@@ -2224,7 +2235,7 @@ function importSavedRounds(event) {
   reader.readAsText(file);
 }
 
-function resetSetup() {
+async function resetSetup() {
   setMode("5p");
   setAllPlayers(createDefaultAllPlayers());
   setCourse(createDefaultCourse());
@@ -2254,7 +2265,7 @@ function resetSetup() {
   setLastHoleSaved(null);
   setFocusGameTarget(null);
   setScreen("setup");
-  setRoundCode(generateRoundCode());
+  setRoundCode(await generateUniqueRoundCode());
   setRoundName("");
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
@@ -2583,7 +2594,7 @@ useEffect(() => {
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
-function startRound() {
+async function startRound() {
 if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
     setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
@@ -2738,7 +2749,7 @@ if (!enableTeamGame && !skinsEnabled) {
   }
 
   // Generate a round code if we don't have one, then push initial state
-  const code = roundCode || generateRoundCode();
+  const code = roundCode || (await generateUniqueRoundCode());
   if (!roundCode) setRoundCode(code);
   // Only notify on truly new rounds (no scores entered yet)
   if (Object.keys(scores).length === 0) notifyRound("started", code);
@@ -2797,7 +2808,7 @@ async function shareCurrentRound() {
   try {
     setIsSyncing(true);
     setSyncMessage("Sharing...");
-    const code = roundCode || generateRoundCode();
+    const code = roundCode || (await generateUniqueRoundCode());
     if (!roundCode) setRoundCode(code);
     const snapshot = buildCurrentRoundSnapshot();
     await shareRoundWithDevice(code, snapshot, deviceId);
@@ -3265,7 +3276,7 @@ return (
           }}>
             👁 You joined this round — Setup is view only.{" "}
             <button
-              onClick={() => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(generateRoundCode()); setRoundName(""); }}
+              onClick={async () => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(await generateUniqueRoundCode()); setRoundName(""); }}
               style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
             >
               Start my own round →

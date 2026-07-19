@@ -5,6 +5,57 @@ export function generateRoundCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
+// Checks whether a round code is already in use. Returns false ONLY when
+// Supabase confirms zero rows exist (PGRST116) — any other error (network
+// down, auth issue, etc.) is treated as "couldn't verify," not "it's free,"
+// since silently proceeding on an unknown error is exactly how the
+// original collision bug slipped through undetected.
+async function isRoundCodeTaken(code) {
+  const { error } = await supabase
+    .from("rounds")
+    .select("code")
+    .eq("code", code.toUpperCase())
+    .single();
+  if (error && error.code === "PGRST116") return false; // confirmed: no round with this code
+  if (error) throw error; // some other real error — don't guess either way
+  return true; // a round genuinely exists under this code
+}
+
+// Generates a round code and verifies it isn't already in use before
+// handing it back — this is the actual fix for a real, confirmed bug: a
+// brand new round silently colliding with an old leftover round sharing
+// the same random 4-digit code, corrupting a live scored round with old
+// placeholder players and sample scores. Retries a handful of times; if
+// Supabase can't be reached at all to verify, falls back to the plain
+// random code rather than blocking someone from starting a round over a
+// connectivity hiccup — matching the previous behavior as a safe floor,
+// not a regression.
+export async function generateUniqueRoundCode(maxAttempts = 20, preferredCode = null) {
+  // If a specific code is already showing on screen (e.g. optimistically
+  // set the instant someone starts typing), verify THAT one first rather
+  // than always generating a fresh one — otherwise the visible code would
+  // flicker to a different number moments later even when the original
+  // was completely fine all along.
+  if (preferredCode) {
+    try {
+      const taken = await isRoundCodeTaken(preferredCode);
+      if (!taken) return preferredCode;
+    } catch (error) {
+      return preferredCode;
+    }
+  }
+  for (let i = 0; i < maxAttempts; i++) {
+    const code = generateRoundCode();
+    try {
+      const taken = await isRoundCodeTaken(code);
+      if (!taken) return code;
+    } catch (error) {
+      return code; // couldn't verify — don't block starting a round over it
+    }
+  }
+  return generateRoundCode(); // exceedingly unlikely: 20 real collisions in a row
+}
+
 // Share a round — create or update in Supabase
 export async function shareRound(code, roundData) {
   const { error } = await supabase
