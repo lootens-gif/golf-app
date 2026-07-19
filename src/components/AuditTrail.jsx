@@ -946,6 +946,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const isLongShort = match.type === "longshort";
   const longClosedOn = result?.longDecidedOn || null;
   const isStroke = match.type === "stroke";
+  const isNetHoles = match.type === "standard";
   const isGrossStroke = isStroke && (match.strokeScoring === "gross");
   const isPlayEven = !!match.playEven;
 
@@ -1198,6 +1199,13 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
               }
 
+              // Net Holes: always show running hole differential, never match play notation
+              if (isNetHoles) {
+                const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
+                const lbl = running === 0 ? "Even" : running > 0 ? `+${running}` : `${running}`;
+                return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
+              }
+
               // On the deciding hole: show conclusion format
               const isFrontDeciding = label === "Front 9" && isFBT && frontDecidedOn === hole;
               const isBackDeciding = label === "Back 9" && isFBT && backDecidedOn === hole;
@@ -1231,8 +1239,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
 
-          {/* Total row — only on Back 9 when F/B/T all checked */}
-          {label === "Back 9" && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (
+          {/* Total row — on both Front 9 and Back 9 when F/B/T */}
+          {(label === "Back 9" || label === "Front 9") && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (
             <tr>
               <td style={{ ...scorecardLabelCellStyle, fontWeight: 700 }}>Total</td>
               {sectionData.map(({ hole, totalRunning }) => {
@@ -1343,28 +1351,24 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           const items = [];
           if (frontSeg && frontHasScores) {
-            const fmt = frontSeg.decidedOn != null
-              ? fmtConclusion(frontSeg.units, frontSeg.decidedOn, 9)
-              : fmtResult(frontSeg.units, "match");
-            items.push({ key: "f", label: "Front", value: fmt.label, color: fmt.color });
+            const color = frontSeg.units > 0 ? "#137333" : frontSeg.units < 0 ? "#b3261e" : "#6b7280";
+            const value = frontSeg.resultLabel || fmtResult(frontSeg.units, "match").label;
+            items.push({ key: "f", label: "Front", value, color });
           }
           if (backSeg && backHasScores) {
-            const fmt = backSeg.decidedOn != null
-              ? fmtConclusion(backSeg.units, backSeg.decidedOn, 18)
-              : fmtResult(backSeg.units, "match");
-            items.push({ key: "b", label: "Back", value: fmt.label, color: fmt.color });
+            const color = backSeg.units > 0 ? "#137333" : backSeg.units < 0 ? "#b3261e" : "#6b7280";
+            const value = backSeg.resultLabel || fmtResult(backSeg.units, "match").label;
+            items.push({ key: "b", label: "Back", value, color });
           }
           if (totalSeg && (frontSeg || backSeg) && frontHasScores) {
-            const fmt = totalSeg.decidedOn != null
-              ? fmtConclusion(totalSeg.units, totalSeg.decidedOn, 18)
-              : fmtResult(totalSeg.units, "match");
-            items.push({ key: "t", label: "Total", value: fmt.label, color: fmt.color });
+            const color = totalSeg.units > 0 ? "#137333" : totalSeg.units < 0 ? "#b3261e" : "#6b7280";
+            const value = totalSeg.resultLabel || fmtResult(totalSeg.units, "match").label;
+            items.push({ key: "t", label: "Total", value, color });
           }
           if (totalSeg && !frontSeg && !backSeg) {
-            const fmt = totalSeg.decidedOn != null
-              ? fmtConclusion(totalSeg.units, totalSeg.decidedOn, 18)
-              : fmtResult(totalSeg.units, "match");
-            items.push({ key: "t", label: "Full Match", value: fmt.label, color: fmt.color });
+            const color = totalSeg.units > 0 ? "#137333" : totalSeg.units < 0 ? "#b3261e" : "#6b7280";
+            const value = totalSeg.resultLabel || fmtResult(totalSeg.units, "match").label;
+            items.push({ key: "t", label: "Full Match", value, color });
           }
           if (!items.length) return null;
           return (
@@ -1400,6 +1404,30 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                   <span style={{ color: item.color, fontWeight: 700 }}>{item.value}</span>
                 </span>
               ))}
+            </div>
+          );
+        }
+
+        if (isNetHoles) {
+          const holeResults = result?.holes || [];
+          const p1Won = holeResults.filter(h => h === 1).length;
+          const p2Won = holeResults.filter(h => h === -1).length;
+          const pushed = holeResults.filter(h => h === 0).length;
+          const net = p1Won - p2Won;
+          const playedHoles = p1Won + p2Won + pushed;
+          if (playedHoles === 0) return null;
+          const netColor = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
+          const netLabel = net === 0 ? "All square (even)"
+            : net > 0 ? `${playerA.name.split(" ")[0]} won +${net} holes (net)`
+            : `${playerB.name.split(" ")[0]} won +${Math.abs(net)} holes (net)`;
+          return (
+            <div style={{ fontSize: 13, padding: "8px 2px", borderTop: "1px solid #eee" }}>
+              <div style={{ fontWeight: 600, color: netColor, marginBottom: 6 }}>{netLabel}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ background: "#f0fdf4", color: "#137333", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerA.name.split(" ")[0]} {p1Won}W</span>
+                <span style={{ background: "#fef2f2", color: "#b3261e", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerB.name.split(" ")[0]} {p2Won}W</span>
+                <span style={{ background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6, border: "0.5px solid #e5e7eb" }}>{pushed} Push</span>
+              </div>
             </div>
           );
         }
