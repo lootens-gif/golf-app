@@ -433,11 +433,20 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey }) {
+function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey, noStorage = false }) {
+  // CRITICAL_GUARDS.md Guard #28: inner match/hole rows (individual 1v1
+  // matches, Wolf per-hole drill-ins, team game matchups) must NOT persist
+  // open/closed state to localStorage — only the outer, top-level sections
+  // (Team Game, 1v1 Matches, Wolf overall, 9-Point, Total Scorecard) do.
+  // Root cause of the "everything auto-expands" bug: once a leaf row is
+  // opened, localStorage remembered it forever, and leaf rows accumulate
+  // (up to 18 Wolf holes, N 1v1 matches, N team matchups per round).
   const baseKey = storageId || (typeof title === "string" ? title : "");
   const storageKey = `scorecard-section:${sessionKey ? `${sessionKey}:` : ""}${baseKey}`;
 
   const [open, setOpen] = useState(() => {
+    if (noStorage) return defaultOpen;
+
     try {
       const saved = window.localStorage.getItem(storageKey);
 
@@ -454,10 +463,12 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
     setOpen((current) => {
       const next = !current;
 
-      try {
-        window.localStorage.setItem(storageKey, next ? "open" : "closed");
-      } catch {
-        // ignore localStorage issues
+      if (!noStorage) {
+        try {
+          window.localStorage.setItem(storageKey, next ? "open" : "closed");
+        } catch {
+          // ignore localStorage issues
+        }
       }
 
       return next;
@@ -626,6 +637,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   storageId={`onevone-match-${entryIndex}`}
   defaultOpen={false}
   sessionKey={sessionKey}
+  noStorage
 >
   <OneVOneScorecard
     match={match}
@@ -1782,7 +1794,7 @@ function WolfAudit({
         }
 
         return (
-          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
+          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey} noStorage>
             {isSuperWolf && rankedStandings && rankedStandings.length > 0 && (
               <div style={{ background: "#fef2f2", border: "1px solid #b3261e", borderRadius: 8, padding: 8, marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#b3261e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -2181,6 +2193,7 @@ function TeamGameAudit({
                   storageId={`matchup-${gameIndex}-${matchupIndex}`}
                   defaultOpen={false}
                   sessionKey={sessionKey}
+                  noStorage
                 >
                   {isNonPress && (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
