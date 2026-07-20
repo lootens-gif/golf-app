@@ -688,6 +688,26 @@ export function playIndividualMatch(match, context) {
   // Play Even — override handicap function to return 0 strokes for all holes
   const playEvenFn = match.playEven ? () => 0 : null;
 
+  // Custom strokes — distribute N strokes to hardest holes by HCP order
+  // Positive N = higher HCP player gets strokes, negative = lower HCP player gets strokes
+  const customStrokesFn = (!match.playEven && match.customStrokes != null) ? (() => {
+    const p1 = players.find(p => p.id === match.p1Id);
+    const p2 = players.find(p => p.id === match.p2Id);
+    if (!p1 || !p2) return null;
+    const p1Hcp = Number(p1.hcp || 0);
+    const p2Hcp = Number(p2.hcp || 0);
+    const n = Number(match.customStrokes);
+    // higherHcpId gets strokes when n > 0, lowerHcpId when n < 0
+    const higherHcpId = p1Hcp >= p2Hcp ? p1.id : p2.id;
+    const lowerHcpId = p1Hcp >= p2Hcp ? p2.id : p1.id;
+    const receiverId = n >= 0 ? higherHcpId : lowerHcpId;
+    const absN = Math.abs(n);
+    // Build set of holes receiver gets strokes on (hardest first by HCP ranking)
+    const hcpRanking = course?.hcp ? [...course.hcp].map((h, i) => ({ hole: i + 1, hcp: h })).sort((a, b) => a.hcp - b.hcp) : [];
+    const strokeHoles = new Set(hcpRanking.slice(0, absN).map(h => h.hole));
+    return (playerId, hole) => (playerId === receiverId && strokeHoles.has(hole)) ? 1 : 0;
+  })() : null;
+
 // -----------------------------
 // 9 POINT MODE (3-player)
 // -----------------------------
@@ -730,7 +750,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
       course,
       scores,
       handicapMode,
-      getHandicapStrokesFn: playEvenFn,
+      getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
     });
 
     holes.push(result);

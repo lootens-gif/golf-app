@@ -948,6 +948,23 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const isNetHoles = match.type === "standard";
   const isGrossStroke = isStroke && (match.strokeScoring === "gross");
   const isPlayEven = !!match.playEven;
+  const hasCustomStrokes = !isPlayEven && match.customStrokes != null;
+
+  // Build custom stroke function for rendering (same logic as engine)
+  const customStrokesFn = hasCustomStrokes ? (() => {
+    const p1Hcp = Number(playerA?.hcp || 0);
+    const p2Hcp = Number(playerB?.hcp || 0);
+    const n = Number(match.customStrokes);
+    const higherHcpId = p1Hcp >= p2Hcp ? playerA.id : playerB.id;
+    const lowerHcpId = p1Hcp >= p2Hcp ? playerB.id : playerA.id;
+    const receiverId = n >= 0 ? higherHcpId : lowerHcpId;
+    const absN = Math.abs(n);
+    const hcpRanking = course?.hcp ? [...course.hcp].map((h, i) => ({ hole: i + 1, hcp: h })).sort((a, b) => a.hcp - b.hcp) : [];
+    const strokeHoles = new Set(hcpRanking.slice(0, absN).map(h => h.hole));
+    return (playerId, hole) => (playerId === receiverId && strokeHoles.has(hole)) ? 1 : 0;
+  })() : null;
+
+  const overrideStrokesFn = isPlayEven ? () => 0 : customStrokesFn;
 
   // For stroke play, use pre-computed running diffs from result
   // result.holes[i] = cumulative running diff at hole i+1 (positive = P1 ahead)
@@ -994,6 +1011,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     const res = holePlayed ? computeHoleResult({
       hole, teamA: [playerA.id], teamB: [playerB.id],
       players: matchPlayers, course, scores, handicapMode,
+      getHandicapStrokesFn: overrideStrokesFn,
     }) : null;
 
     // Cumulative across all 18
@@ -1130,7 +1148,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               <td style={scorecardLabelCellStyle}>{player.name.split(" ")[0]}</td>
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
-                const strokes = (isGrossStroke || isPlayEven) ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
+                const strokes = overrideStrokesFn
+                  ? overrideStrokesFn(player.id, hole)
+                  : (isGrossStroke ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes));
                 const grossBirdie = isGrossBirdie(scores, course, hole, player.id);
                 const par = course?.pars?.[hole - 1];
                 const isEagleOrBetter = grossBirdie && par != null && gross != null && (Number(gross) - Number(par)) <= -2;

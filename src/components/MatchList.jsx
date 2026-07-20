@@ -583,6 +583,7 @@ export default function MatchList({
               Birdies
             </label>
 
+
             <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <input
                 type="checkbox"
@@ -604,6 +605,31 @@ export default function MatchList({
               />
               Play Even (no strokes)
             </label>
+
+            {/* Custom strokes — greyed out when Play Even is on */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: match.playEven ? 0.4 : 1, pointerEvents: match.playEven ? "none" : "auto" }}>
+              <span style={{ fontSize: 13, color: "#555" }}>Custom strokes:</span>
+              <button
+                type="button"
+                onClick={() => onUpdateMatch(match.id, { customStrokes: Math.max(-18, (match.customStrokes ?? null) - 1) })}
+                style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
+              >−</button>
+              <span style={{ fontSize: 16, fontWeight: 600, minWidth: 28, textAlign: "center", color: "#222" }}>
+                {match.customStrokes != null ? match.customStrokes : "—"}
+              </span>
+              <button
+                type="button"
+                onClick={() => onUpdateMatch(match.id, { customStrokes: Math.min(18, (match.customStrokes ?? 0) + 1) })}
+                style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
+              >+</button>
+              {match.customStrokes != null && (
+                <button
+                  type="button"
+                  onClick={() => onUpdateMatch(match.id, { customStrokes: null })}
+                  style={{ fontSize: 11, color: "#999", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                >clear</button>
+              )}
+            </div>
 
            <button
   type="button"
