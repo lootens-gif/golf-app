@@ -143,6 +143,29 @@ export async function fetchRecentRounds(deviceId) {
 
 // Share a round with device ID tagged
 export async function shareRoundWithDevice(code, roundData, deviceId) {
+  // Guard: only overwrite Supabase if our data is at least as far along as what's there.
+  // This prevents a stale device (e.g. browser with old localStorage) from overwriting
+  // a completed round with partial data.
+  try {
+    const { data: existing } = await supabase
+      .from("rounds")
+      .select("data")
+      .eq("id", code)
+      .single();
+
+    if (existing?.data) {
+      const remoteHole = existing.data.lastHoleSaved ?? -1;
+      const localHole = roundData.lastHoleSaved ?? -1;
+      if (localHole < remoteHole) {
+        // Our data is behind — don't overwrite
+        console.warn(`[sync] Skipping save: local lastHoleSaved=${localHole} < remote=${remoteHole}`);
+        return;
+      }
+    }
+  } catch {
+    // If we can't fetch, proceed with save (don't block on network error)
+  }
+
   const { error } = await supabase
     .from("rounds")
     .upsert({
