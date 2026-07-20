@@ -142,3 +142,24 @@ td {
 .scorecard-scroll::-webkit-scrollbar-thumb:hover {
   background: #888;
 }
+
+/* macOS override — forces scrollbar track always visible on mouse/trackpad devices */
+@media (pointer: fine) {
+  .scorecard-scroll {
+    overflow-x: scroll !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scorecard-scroll::-webkit-scrollbar {
+    height: 8px;
+    display: block !important;
+  }
+  .scorecard-scroll::-webkit-scrollbar-track {
+    background: #e5e7eb;
+    border-radius: 4px;
+  }
+  .scorecard-scroll::-webkit-scrollbar-thumb {
+    background: #9ca3af;
+    border-radius: 4px;
+    min-width: 40px;
+  }
+}

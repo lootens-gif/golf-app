@@ -274,7 +274,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{teamAName}</td>
+            <td style={scorecardLabelCellStyle}>{teamA.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
             {rows.map((row) => {
               const teamAHasBirdie = teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
@@ -310,7 +310,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{teamBName}</td>
+            <td style={scorecardLabelCellStyle}>{teamB.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
             {rows.map((row) => {
               const teamBHasBirdie = teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
@@ -840,7 +840,7 @@ function NinePointScorecard({
               {/* SCORE ROWS */}
               {matchPlayers.map((player) => (
                 <tr key={`score-${player.id}`}>
-                  <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{shortName(player.name)}</td>
+                  <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{player.name.split(" ")[0]}</td>
                   {sectionHoles.map((h) => {
                     const gross = getRawScore(scores, h.hole, player.id);
                     const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
@@ -1128,7 +1128,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           {[playerA, playerB].map((player) => (
             <tr key={player.id}>
-              <td style={scorecardLabelCellStyle}>{player.name}</td>
+              <td style={scorecardLabelCellStyle}>{player.name.split(" ")[0]}</td>
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = (isGrossStroke || isPlayEven) ? 0 : getHandicapStrokes(player.id, hole, matchPlayers, course, handicapMode, isLongShort ? false : !!match.noPar3Strokes);
@@ -1209,6 +1209,28 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
                 const lbl = running === 0 ? "Even" : running > 0 ? `+${running}` : `${running}`;
                 return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
+              }
+
+              // Long/Short deciding holes
+              if (isLongShort) {
+                const longDec = result?.longDecidedOn;
+                const shortDec = result?.shortDecidedOn;
+                // After Short decided: blank
+                if (shortDec != null && hole > shortDec) {
+                  return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                }
+                // On Short deciding hole: show shortLabel
+                if (shortDec != null && hole === shortDec) {
+                  const lbl = result?.shortLabel || (running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`);
+                  const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
+                  return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{lbl}</td>;
+                }
+                // On Long deciding hole: show longLabel
+                if (longDec != null && hole === longDec) {
+                  const lbl = result?.longLabel || (running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`);
+                  const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
+                  return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{lbl}</td>;
+                }
               }
 
               // On the deciding hole: show conclusion format
@@ -1345,15 +1367,16 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
         };
 
         if (result?.type === "longshort") {
-          const longUnits = result.long / (match.bet || 1);
-          const longFmt = fmtResult(longUnits, "match");
-          const longDone = result.longDecidedOn != null;
-          const shortUnits = longDone ? (result.short / (match.bet / 2 || 1)) : null;
+          const longLabel = result.longLabel || fmtResult(result.long / (match.bet || 1), "match").label;
+          const longColor = result.long > 0 ? "#137333" : result.long < 0 ? "#b3261e" : "#6b7280";
+          const longDone = result.longDecidedOn != null || result.longLabel;
+          const shortLabel = result.shortLabel || null;
+          const shortColor = result.short > 0 ? "#137333" : result.short < 0 ? "#b3261e" : "#6b7280";
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longFmt.color, fontWeight: 700 }}>{longFmt.label}</span></span>
-              {longDone && shortUnits !== null && (
-                <span><span style={{ color: "#555" }}>Short </span><span style={{ color: fmtResult(shortUnits, "match").color, fontWeight: 700 }}>{fmtResult(shortUnits, "match").label}</span></span>
+              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longColor, fontWeight: 700 }}>{longLabel}</span></span>
+              {shortLabel && (
+                <span><span style={{ color: "#555" }}>Short </span><span style={{ color: shortColor, fontWeight: 700 }}>{shortLabel}</span></span>
               )}
             </div>
           );
