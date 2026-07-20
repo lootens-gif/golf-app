@@ -684,7 +684,6 @@ function NinePointScorecard({
   const initial = (p) => p.name.trim()[0]?.toUpperCase() || "?";
 
   // Truncate name for score rows
-  const shortName = (name) => name.length > 10 ? name.slice(0, 9) + "…" : name;
 
   // Point color
   const ptColor = (pts, played) => {
@@ -1369,7 +1368,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
         if (result?.type === "longshort") {
           const longLabel = result.longLabel || fmtResult(result.long / (match.bet || 1), "match").label;
           const longColor = result.long > 0 ? "#137333" : result.long < 0 ? "#b3261e" : "#6b7280";
-          const longDone = result.longDecidedOn != null || result.longLabel;
           const shortLabel = result.shortLabel || null;
           const shortColor = result.short > 0 ? "#137333" : result.short < 0 ? "#b3261e" : "#6b7280";
           return (
