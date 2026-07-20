@@ -2425,7 +2425,15 @@ useEffect(() => {
             const remoteHole = result.data.lastHoleSaved ?? -1;
             const localHole = round.lastHoleSaved ?? -1;
             if (remoteHole > localHole) {
+              // Remote is further ahead — use it
               applyRoundSnapshot(result.data, "Cloud data is newer — restored from cloud ☁️");
+            } else if (remoteHole === localHole && remoteHole >= 0) {
+              // Same progress — compare scores. Remote wins on conflict.
+              const remoteScores = JSON.stringify(result.data.scores || {});
+              const localScores = JSON.stringify(round.scores || {});
+              if (remoteScores !== localScores) {
+                applyRoundSnapshot(result.data, "Cloud data restored ☁️");
+              }
             }
           }
         })

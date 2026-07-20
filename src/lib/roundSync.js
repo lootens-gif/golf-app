@@ -143,9 +143,8 @@ export async function fetchRecentRounds(deviceId) {
 
 // Share a round with device ID tagged
 export async function shareRoundWithDevice(code, roundData, deviceId) {
-  // Guard: only overwrite Supabase if our data is at least as far along as what's there.
-  // This prevents a stale device (e.g. browser with old localStorage) from overwriting
-  // a completed round with partial data.
+  // Guard: only overwrite Supabase if our data is genuinely newer or identical.
+  // Prevents a stale device from overwriting a completed round.
   try {
     const { data: existing } = await supabase
       .from("rounds")
@@ -156,10 +155,22 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
     if (existing?.data) {
       const remoteHole = existing.data.lastHoleSaved ?? -1;
       const localHole = roundData.lastHoleSaved ?? -1;
+
+      // Local is behind — never overwrite
       if (localHole < remoteHole) {
-        // Our data is behind — don't overwrite
         console.warn(`[sync] Skipping save: local lastHoleSaved=${localHole} < remote=${remoteHole}`);
         return;
+      }
+
+      // Same hole count — compare scores. If remote has scores and they differ,
+      // don't overwrite. The remote is the source of truth for completed rounds.
+      if (localHole === remoteHole && remoteHole >= 18) {
+        const remoteScores = JSON.stringify(existing.data.scores || {});
+        const localScores = JSON.stringify(roundData.scores || {});
+        if (remoteScores !== localScores) {
+          console.warn(`[sync] Skipping save: completed round scores differ — keeping remote`);
+          return;
+        }
       }
     }
   } catch {
