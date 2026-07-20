@@ -1182,7 +1182,11 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
             {sectionData.map(({ hole, res, afterFrontDecided, afterBackDecided }) => {
-              const afterDecided = (label === "Front 9" && afterFrontDecided) || (label === "Back 9" && afterBackDecided) || (!isFBT && decidedInSection && hole > decidedHole);
+              const afterDecided = !isNetHoles && (
+                (label === "Front 9" && afterFrontDecided) ||
+                (label === "Back 9" && afterBackDecided) ||
+                (!isFBT && decidedInSection && hole > decidedHole)
+              );
               const aScore = getRawScore(scores, hole, playerA.id);
               const bScore = getRawScore(scores, hole, playerB.id);
               const holePlayed = aScore != null && bScore != null;
@@ -1193,7 +1197,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 const lbl = res === 0 ? "0" : res > 0 ? `+${res}` : `${res}`;
                 return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{lbl}</td>;
               }
-              // After segment decided: show result in grey (still counts for Total)
               const color = afterDecided ? "#bbb" : res > 0 ? "#137333" : res < 0 ? "#b3261e" : "#6b7280";
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
@@ -1205,9 +1208,15 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{label}</td>
+            <td style={scorecardLabelCellStyle}>
+              {isNetHoles ? "Net Holes" : label}
+            </td>
             {sectionData.map(({ hole, running, segment, afterFrontDecided, afterBackDecided }) => {
-              const afterDecided = (label === "Front 9" && afterFrontDecided) || (label === "Back 9" && afterBackDecided) || (!isFBT && decidedInSection && hole > decidedHole);
+              const afterDecided = !isNetHoles && (
+                (label === "Front 9" && afterFrontDecided) ||
+                (label === "Back 9" && afterBackDecided) ||
+                (!isFBT && decidedInSection && hole > decidedHole)
+              );
               const aScore = getRawScore(scores, hole, playerA.id);
               const bScore = getRawScore(scores, hole, playerB.id);
               const holePlayed = aScore != null && bScore != null;
