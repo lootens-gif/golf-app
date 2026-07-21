@@ -1222,7 +1222,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           <tr>
             <td style={scorecardLabelCellStyle}>
-              {isNetHoles ? "Net Holes" : isStroke ? (label === "Front 9" ? "Front" : "Back") : label}
+              {isNetHoles ? "Net Holes" : isStroke ? (label === "Front 9" ? "Front" : "Back") : isLongShort ? "Long" : label}
             </td>
             {sectionData.map(({ hole, running, segment, afterFrontDecided, afterBackDecided }) => {
               const afterDecided = !isNetHoles && !isStroke && (
@@ -1256,12 +1256,16 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               if (isLongShort) {
                 const longDec = result?.longDecidedOn;
                 const shortDec = result?.shortDecidedOn;
+                // In Back 9: Long row shows blank after Long decided
+                if (label === "Back 9" && longDec != null && hole > longDec) {
+                  return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                }
                 // After Short decided: blank
                 if (shortDec != null && hole > shortDec) {
                   return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
                 }
-                // On Short deciding hole: show shortLabel
-                if (shortDec != null && hole === shortDec) {
+                // On Short deciding hole: show shortLabel (only if no separate Short row — i.e. Front 9)
+                if (label === "Front 9" && shortDec != null && hole === shortDec) {
                   const lbl = result?.shortLabel || (running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`);
                   const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
                   return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{lbl}</td>;
@@ -1297,17 +1301,50 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               }
 
               const color = running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280";
-              const prefix = segment ? `${segment[0]}: ` : "";
               return (
                 <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>
-                  {prefix}{running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`}
+                  {running === 0 ? "Even" : running > 0 ? `${running} up` : `${Math.abs(running)} dn`}
                 </td>
               );
             })}
             <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
           </tr>
 
-          {/* Total row — on both Front 9 and Back 9 when F/B/T */}
+          {/* Long/Short — Short row (Back 9 only) */}
+          {isLongShort && label === "Back 9" && (() => {
+            const longDec = result?.longDecidedOn;
+            const shortDec = result?.shortDecidedOn;
+            return (
+              <tr>
+                <td style={scorecardLabelCellStyle}>Short</td>
+                {sectionData.map(({ hole }) => {
+                  const aScore = getRawScore(scores, hole, playerA.id);
+                  const bScore = getRawScore(scores, hole, playerB.id);
+                  if (aScore == null || bScore == null) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  // Short hasn't started yet (Long still running)
+                  if (longDec == null || hole <= longDec) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  // Compute Short running up to this hole
+                  let sr = 0;
+                  for (let h = longDec + 1; h <= hole; h++) {
+                    const r = result?.holes?.[h - 1];
+                    if (shortDec != null && h > shortDec) break;
+                    if (r != null) { if (r > 0) sr++; if (r < 0) sr--; }
+                  }
+                  // After Short decided: blank
+                  if (shortDec != null && hole > shortDec) return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  // On Short deciding hole
+                  if (shortDec != null && hole === shortDec) {
+                    const lbl = result?.shortLabel || (sr === 0 ? "Even" : sr > 0 ? `${sr} up` : `${Math.abs(sr)} dn`);
+                    const color = sr > 0 ? "#137333" : sr < 0 ? "#b3261e" : "#6b7280";
+                    return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{lbl}</td>;
+                  }
+                  const color = sr > 0 ? "#137333" : sr < 0 ? "#b3261e" : "#6b7280";
+                  return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 600 }}>{sr === 0 ? "Even" : sr > 0 ? `${sr} up` : `${Math.abs(sr)} dn`}</td>;
+                })}
+                <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
+              </tr>
+            );
+          })()}
           {(label === "Back 9" || label === "Front 9") && !isLongShort && !isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
             // Find total decidedOn — when 18-hole running exceeds remaining
             const totalSeg = result?.segments?.find(s => s.key === "total");
