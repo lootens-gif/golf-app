@@ -510,6 +510,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
         const p1First = p1Name.split(" ")[0];
+        const p2First = p2Name.split(" ")[0];
 
         // Birdie $$ for this match from P1 perspective
         const matchBirdieNet = (birdieResults || [])
@@ -534,13 +535,16 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             return <span style={{ color: col(total) }}>{label}</span>;
           }
           if (result.type === "longshort") {
+            const longLabel = result.longLabel || fmtMoney(result.long || 0);
+            const shortLabel = result.shortLabel || null;
             const longCol = col(result.long || 0);
             const shortCol = col(result.short || 0);
+            const netTotal = (result.long || 0) + (result.short || 0);
             return (
               <span>
-                <span style={{ color: longCol }}>Long {fmtMoney(result.long || 0)}</span>
-                <span style={{ color: "#6b7280" }}> · </span>
-                <span style={{ color: shortCol }}>Short {fmtMoney(result.short || 0)}</span>
+                <span style={{ color: longCol }}>Long {longLabel}</span>
+                {shortLabel && <><span style={{ color: "#6b7280" }}> · </span><span style={{ color: shortCol }}>Short {shortLabel}</span></>}
+                <span style={{ color: col(netTotal), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(netTotal)})</span>
               </span>
             );
           }
@@ -549,14 +553,11 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             const frontSeg = segs.find(s => s.key === "front");
             const backSeg = segs.find(s => s.key === "back");
             const totalSeg = segs.find(s => s.key === "total");
-            // Total only — show P1 name + golf notation + $$
             if (totalSeg && !frontSeg && !backSeg) {
               const units = totalSeg.units || 0;
               const resultLbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
-              // Always from P1 perspective — show P1 name + result
               return <span style={{ color: col(total) }}>{p1First} {resultLbl} ({fmtMoney(total)})</span>;
             }
-            // F/B or F/B/T — show segment breakdown
             return (
               <span>
                 {segs.map((seg, i) => {
@@ -571,6 +572,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
                     </span>
                   );
                 })}
+                <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
               </span>
             );
           }
@@ -579,26 +581,28 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             const frontSeg = segs.find(s => s.key === "front");
             const backSeg = segs.find(s => s.key === "back");
             const totalSeg = segs.find(s => s.key === "total");
+            const isDiff = result.strokePayoutMode === "differential";
             if (totalSeg && !frontSeg && !backSeg) {
-              const diff = totalSeg.strokeDiff ?? totalSeg.units ?? 0;
-              const lbl = diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`;
-              return <span style={{ color: col(diff) }}>{p1First} {lbl} strokes ({fmtMoney(total)})</span>;
+              const u = totalSeg.units ?? 0;
+              const lbl = isDiff ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`) : (u > 0 ? p1First : u < 0 ? p2First : "Push");
+              return <span style={{ color: col(u) }}>{lbl} ({fmtMoney(total)})</span>;
             }
             return (
               <span>
                 {segs.map((seg, i) => {
-                  const diff = seg.strokeDiff ?? seg.units ?? 0;
-                  const lbl = diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`;
+                  const u = seg.units ?? 0;
+                  const lbl = isDiff
+                    ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`)
+                    : (u > 0 ? p1First : u < 0 ? p2First : "Push");
+                  const key = seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T";
                   return (
                     <span key={seg.key}>
                       {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
-                      <span style={{ color: col(diff) }}>
-                        {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {lbl}
-                      </span>
+                      <span style={{ color: col(u) }}>{key} {lbl}</span>
                     </span>
                   );
                 })}
-                <span style={{ color: col(total), marginLeft: 6 }}>({fmtMoney(total)})</span>
+                <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
               </span>
             );
           }
@@ -1460,11 +1464,16 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const longColor = result.long > 0 ? "#137333" : result.long < 0 ? "#b3261e" : "#6b7280";
           const shortLabel = result.shortLabel || null;
           const shortColor = result.short > 0 ? "#137333" : result.short < 0 ? "#b3261e" : "#6b7280";
+          const netTotal = (result.long || 0) + (result.short || 0);
+          const netColor = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#6b7280";
           return (
-            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longColor, fontWeight: 700 }}>{longLabel}</span></span>
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longColor, fontWeight: 700 }}>{longLabel}</span><span style={{ color: longColor }}> ({longColor === "#137333" ? "+" : ""}{result.long > 0 ? `+$${result.long}` : result.long < 0 ? `-$${Math.abs(result.long)}` : "$0"})</span></span>
               {shortLabel && (
-                <span><span style={{ color: "#555" }}>Short </span><span style={{ color: shortColor, fontWeight: 700 }}>{shortLabel}</span></span>
+                <span><span style={{ color: "#555" }}>Short </span><span style={{ color: shortColor, fontWeight: 700 }}>{shortLabel}</span><span style={{ color: shortColor }}> ({result.short > 0 ? `+$${result.short}` : result.short < 0 ? `-$${Math.abs(result.short)}` : "$0"})</span></span>
+              )}
+              {(result.long !== 0 || result.short !== 0) && (
+                <span style={{ color: netColor, fontWeight: 700 }}>{netTotal > 0 ? `+$${netTotal}` : netTotal < 0 ? `-$${Math.abs(netTotal)}` : "$0"}</span>
               )}
             </div>
           );
@@ -1476,7 +1485,6 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
 
-          // Only show segment if holes in that segment have been scored
           const frontHasScores = front.some(h => getRawScore(scores, h, playerA.id) != null && getRawScore(scores, h, playerB.id) != null);
           const backHasScores = back.some(h => getRawScore(scores, h, playerA.id) != null && getRawScore(scores, h, playerB.id) != null);
 
@@ -1484,33 +1492,37 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           if (frontSeg && frontHasScores) {
             const color = frontSeg.units > 0 ? "#137333" : frontSeg.units < 0 ? "#b3261e" : "#6b7280";
             const value = frontSeg.resultLabel || fmtResult(frontSeg.units, "match").label;
-            items.push({ key: "f", label: "Front", value, color });
+            items.push({ key: "f", label: "Front", value, color, dollars: frontSeg.dollars || 0 });
           }
           if (backSeg && backHasScores) {
             const color = backSeg.units > 0 ? "#137333" : backSeg.units < 0 ? "#b3261e" : "#6b7280";
             const value = backSeg.resultLabel || fmtResult(backSeg.units, "match").label;
-            items.push({ key: "b", label: "Back", value, color });
+            items.push({ key: "b", label: "Back", value, color, dollars: backSeg.dollars || 0 });
           }
           if (totalSeg && (frontSeg || backSeg) && frontHasScores) {
             const color = totalSeg.units > 0 ? "#137333" : totalSeg.units < 0 ? "#b3261e" : "#6b7280";
             const value = totalSeg.resultLabel || fmtResult(totalSeg.units, "match").label;
-            items.push({ key: "t", label: "Total", value, color });
+            items.push({ key: "t", label: "Total", value, color, dollars: totalSeg.dollars || 0 });
           }
           if (totalSeg && !frontSeg && !backSeg) {
             const color = totalSeg.units > 0 ? "#137333" : totalSeg.units < 0 ? "#b3261e" : "#6b7280";
             const value = totalSeg.resultLabel || fmtResult(totalSeg.units, "match").label;
-            items.push({ key: "t", label: "Full Match", value, color });
+            items.push({ key: "t", label: "Match", value, color, dollars: totalSeg.dollars || 0 });
           }
           if (!items.length) return null;
+          const netTotal = items.reduce((s, item) => s + item.dollars, 0);
+          const netColor = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#6b7280";
           return (
-            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               {items.map((item, i) => (
                 <span key={item.key}>
                   {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
                   <span style={{ color: "#555" }}>{item.label} </span>
                   <span style={{ color: item.color, fontWeight: 700 }}>{item.value}</span>
+                  <span style={{ color: item.color, fontSize: 11 }}> ({item.dollars > 0 ? `+$${item.dollars}` : item.dollars < 0 ? `-$${Math.abs(item.dollars)}` : "$0"})</span>
                 </span>
               ))}
+              {items.length > 1 && <span style={{ color: netColor, fontWeight: 700 }}>{netTotal > 0 ? `+$${netTotal}` : netTotal < 0 ? `-$${Math.abs(netTotal)}` : "$0"}</span>}
             </div>
           );
         }
@@ -1520,21 +1532,36 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const frontSeg = segs.find(s => s.key === "front");
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
+          const isDiff = result.strokePayoutMode === "differential";
+          const p1First = playerA.name.split(" ")[0];
+          const p2First = playerB.name.split(" ")[0];
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.diff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
-          if (backSeg) { const b = fmtResult(backSeg.diff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
-          if (totalSeg && !strokeTotalEnabled) { const t = fmtResult(totalSeg.diff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.diff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
+          const makeStrokeItem = (seg, label) => {
+            const u = seg.units ?? 0;
+            const value = isDiff
+              ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`)
+              : (u > 0 ? p1First : u < 0 ? p2First : "Push");
+            const color = u > 0 ? "#137333" : u < 0 ? "#b3261e" : "#6b7280";
+            return { key: seg.key, label, value, color, dollars: seg.dollars || 0 };
+          };
+          if (frontSeg) items.push(makeStrokeItem(frontSeg, "Front"));
+          if (backSeg) items.push(makeStrokeItem(backSeg, "Back"));
+          if (totalSeg && !strokeTotalEnabled) items.push(makeStrokeItem(totalSeg, "Total"));
+          if (totalSeg && !frontSeg && !backSeg) items.push(makeStrokeItem(totalSeg, "Match"));
           if (!items.length) return null;
+          const netTotal = items.reduce((s, item) => s + item.dollars, 0);
+          const netColor = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#6b7280";
           return (
-            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               {items.map((item, i) => (
                 <span key={item.key}>
                   {i > 0 && <span style={{ color: "#ccc" }}> · </span>}
                   <span style={{ color: "#555" }}>{item.label} </span>
                   <span style={{ color: item.color, fontWeight: 700 }}>{item.value}</span>
+                  <span style={{ color: item.color, fontSize: 11 }}> ({item.dollars > 0 ? `+$${item.dollars}` : item.dollars < 0 ? `-$${Math.abs(item.dollars)}` : "$0"})</span>
                 </span>
               ))}
+              {items.length > 1 && <span style={{ color: netColor, fontWeight: 700 }}>{netTotal > 0 ? `+$${netTotal}` : netTotal < 0 ? `-$${Math.abs(netTotal)}` : "$0"}</span>}
             </div>
           );
         }
@@ -1548,12 +1575,19 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const playedHoles = p1Won + p2Won + pushed;
           if (playedHoles === 0) return null;
           const netColor = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
-          const netLabel = net === 0 ? "All square (even)"
-            : net > 0 ? `${playerA.name.split(" ")[0]} won +${net} holes (net)`
-            : `${playerB.name.split(" ")[0]} won +${Math.abs(net)} holes (net)`;
+          const p1First = playerA.name.split(" ")[0];
+          const netLabel = net === 0
+            ? "All square (even)"
+            : net > 0
+            ? `${p1First} +${net} holes (net)`
+            : `${p1First} -${Math.abs(net)} holes (net)`;
+          const matchTotal = result?.total || 0;
           return (
             <div style={{ fontSize: 13, padding: "8px 2px", borderTop: "1px solid #eee" }}>
-              <div style={{ fontWeight: 600, color: netColor, marginBottom: 6 }}>{netLabel}</div>
+              <div style={{ fontWeight: 600, color: netColor, marginBottom: 6 }}>
+                {netLabel}
+                <span style={{ fontWeight: 700, marginLeft: 8 }}>{matchTotal !== 0 && `(${matchTotal > 0 ? "+" : ""}$${Math.abs(matchTotal)})`}</span>
+              </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ background: "#f0fdf4", color: "#137333", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerA.name.split(" ")[0]} {p1Won}W</span>
                 <span style={{ background: "#fef2f2", color: "#b3261e", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerB.name.split(" ")[0]} {p2Won}W</span>
