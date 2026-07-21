@@ -433,20 +433,11 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey, noStorage = false }) {
-  // CRITICAL_GUARDS.md Guard #28: inner match/hole rows (individual 1v1
-  // matches, Wolf per-hole drill-ins, team game matchups) must NOT persist
-  // open/closed state to localStorage — only the outer, top-level sections
-  // (Team Game, 1v1 Matches, Wolf overall, 9-Point, Total Scorecard) do.
-  // Root cause of the "everything auto-expands" bug: once a leaf row is
-  // opened, localStorage remembered it forever, and leaf rows accumulate
-  // (up to 18 Wolf holes, N 1v1 matches, N team matchups per round).
+function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey }) {
   const baseKey = storageId || (typeof title === "string" ? title : "");
   const storageKey = `scorecard-section:${sessionKey ? `${sessionKey}:` : ""}${baseKey}`;
 
   const [open, setOpen] = useState(() => {
-    if (noStorage) return defaultOpen;
-
     try {
       const saved = window.localStorage.getItem(storageKey);
 
@@ -463,12 +454,10 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
     setOpen((current) => {
       const next = !current;
 
-      if (!noStorage) {
-        try {
-          window.localStorage.setItem(storageKey, next ? "open" : "closed");
-        } catch {
-          // ignore localStorage issues
-        }
+      try {
+        window.localStorage.setItem(storageKey, next ? "open" : "closed");
+      } catch {
+        // ignore localStorage issues
       }
 
       return next;
@@ -637,7 +626,6 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   storageId={`onevone-match-${entryIndex}`}
   defaultOpen={false}
   sessionKey={sessionKey}
-  noStorage
 >
   <OneVOneScorecard
     match={match}
@@ -1008,12 +996,25 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   let backRunning = 0;
   let cumulativeRunning = 0;
 
+  let strokeFrontRunning = 0;
+  let strokeBackRunning = 0;
+
   const holeData = holes.map((hole) => {
     if (isStroke) {
       const cumulative = strokeRunningDiffs[hole - 1] ?? null;
       const prev = hole > 1 ? (strokeRunningDiffs[hole - 2] ?? null) : 0;
       const holeDiff = (cumulative !== null && prev !== null) ? cumulative - prev : null;
-      return { hole, res: holeDiff, running: cumulative, totalRunning: cumulative, segment: null, frontRunning: null, backRunning: null };
+      if (holeDiff !== null) {
+        if (hole <= 9) strokeFrontRunning += holeDiff;
+        else strokeBackRunning += holeDiff;
+      }
+      return {
+        hole, res: holeDiff,
+        running: hole <= 9 ? (cumulative !== null ? strokeFrontRunning : null) : (cumulative !== null ? strokeBackRunning : null),
+        totalRunning: cumulative,
+        segment: null, frontRunning: null, backRunning: null,
+        afterFrontDecided: false, afterBackDecided: false,
+      };
     }
 
     const aScore = getRawScore(scores, hole, playerA.id);
@@ -1103,7 +1104,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     return { [playerA.id]: countA, [playerB.id]: countB };
   })();
 
-  const renderSection = (label, sectionHoles) => {
+  const renderSection = (label, sectionHoles, showTotal = false) => {
     const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
 
     // Find if match was decided within this section
@@ -1194,7 +1195,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
             {sectionData.map(({ hole, res, afterFrontDecided, afterBackDecided }) => {
-              const afterDecided = !isNetHoles && (
+              const afterDecided = !isNetHoles && !isStroke && (
                 (label === "Front 9" && afterFrontDecided) ||
                 (label === "Back 9" && afterBackDecided) ||
                 (!isFBT && decidedInSection && hole > decidedHole)
@@ -1221,10 +1222,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           <tr>
             <td style={scorecardLabelCellStyle}>
-              {isNetHoles ? "Net Holes" : label}
+              {isNetHoles ? "Net Holes" : isStroke ? (label === "Front 9" ? "Front" : "Back") : label}
             </td>
             {sectionData.map(({ hole, running, segment, afterFrontDecided, afterBackDecided }) => {
-              const afterDecided = !isNetHoles && (
+              const afterDecided = !isNetHoles && !isStroke && (
                 (label === "Front 9" && afterFrontDecided) ||
                 (label === "Back 9" && afterBackDecided) ||
                 (!isFBT && decidedInSection && hole > decidedHole)
@@ -1341,6 +1342,25 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               </tr>
             );
           })()}
+          {/* Stroke Total row — Back 9 only when F+B selected */}
+          {showTotal && isStroke && (() => {
+            return (
+              <tr>
+                <td style={{ ...scorecardLabelCellStyle, fontWeight: 700 }}>Total</td>
+                {sectionData.map(({ hole, totalRunning }) => {
+                  const aScore = getRawScore(scores, hole, playerA.id);
+                  const bScore = getRawScore(scores, hole, playerB.id);
+                  if (aScore == null || bScore == null || totalRunning == null) {
+                    return <td key={hole} style={{ ...scorecardCellStyle, color: "#ccc" }}>-</td>;
+                  }
+                  const color = totalRunning > 0 ? "#137333" : totalRunning < 0 ? "#b3261e" : "#6b7280";
+                  const lbl = totalRunning === 0 ? "Even" : totalRunning > 0 ? `+${totalRunning}` : `${totalRunning}`;
+                  return <td key={hole} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>{lbl}</td>;
+                })}
+                <td style={{ ...scorecardCellStyle, borderLeft: "1px solid #ddd" }}></td>
+              </tr>
+            );
+          })()}
         </tbody>
       </table>
       </div>
@@ -1350,27 +1370,19 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const birdieCountA = wonBirdieCounts[playerA.id];
   const birdieCountB = wonBirdieCounts[playerB.id];
 
+  // Determine which segments are active for stroke
+  const strokeFrontEnabled = isStroke && !!match.strokeFront;
+  const strokeBackEnabled = isStroke && !!match.strokeBack;
+  const strokeTotalEnabled = isStroke && strokeFrontEnabled && strokeBackEnabled;
+
   return (
     <div style={{ marginTop: 8 }}>
-      {renderSection("Front 9", front, true)}
-      {renderSection("Back 9", back, false)}
-
+      {renderSection("Front 9", front, false)}
+      {renderSection("Back 9", back, strokeTotalEnabled)}
 
       {/* Match Play F+B+T — Total row now inside table above */}
 
-      {/* Stroke F+B+T — Total row */}
-      {isStroke && result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back") && (() => {
-        const totalDiff = strokeRunningDiffs[17] ?? null;
-        if (totalDiff === null) return null;
-        const color = totalDiff > 0 ? "#137333" : totalDiff < 0 ? "#b3261e" : "#6b7280";
-        const label = totalDiff === 0 ? "Even" : totalDiff > 0 ? `+${totalDiff}` : `${totalDiff}`;
-        return (
-          <div style={{ fontSize: 13, fontWeight: 700, padding: "7px 4px", borderTop: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#555" }}>Total</span>
-            <span style={{ color }}>{label} strokes</span>
-          </div>
-        );
-      })()}
+      {/* Stroke F+B+T — Total row now inside Back 9 table above */}
       {/* Total Pts per player */}
       {(() => {
         const totals = result?.totalsByPlayerId || {};
@@ -1472,10 +1484,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const items = [];
-          if (frontSeg) { const f = fmtResult(frontSeg.strokeDiff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
-          if (backSeg) { const b = fmtResult(backSeg.strokeDiff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
-          if (totalSeg && (frontSeg || backSeg)) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
-          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.strokeDiff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
+          if (frontSeg) { const f = fmtResult(frontSeg.diff ?? frontSeg.units, "stroke"); items.push({ key: "f", label: "Front", value: f.label, color: f.color }); }
+          if (backSeg) { const b = fmtResult(backSeg.diff ?? backSeg.units, "stroke"); items.push({ key: "b", label: "Back", value: b.label, color: b.color }); }
+          if (totalSeg && !strokeTotalEnabled) { const t = fmtResult(totalSeg.diff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Total", value: t.label, color: t.color }); }
+          if (totalSeg && !frontSeg && !backSeg) { const t = fmtResult(totalSeg.diff ?? totalSeg.units, "stroke"); items.push({ key: "t", label: "Full Match", value: t.label, color: t.color }); }
           if (!items.length) return null;
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -1794,7 +1806,7 @@ function WolfAudit({
         }
 
         return (
-          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey} noStorage>
+          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
             {isSuperWolf && rankedStandings && rankedStandings.length > 0 && (
               <div style={{ background: "#fef2f2", border: "1px solid #b3261e", borderRadius: 8, padding: 8, marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#b3261e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -2193,7 +2205,6 @@ function TeamGameAudit({
                   storageId={`matchup-${gameIndex}-${matchupIndex}`}
                   defaultOpen={false}
                   sessionKey={sessionKey}
-                  noStorage
                 >
                   {isNonPress && (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
