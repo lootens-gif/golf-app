@@ -433,11 +433,20 @@ function parseTeamKeys(label = "") {
   };
 }
 
-function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey }) {
+function AuditSection({ title, subtitle, children, defaultOpen = false, storageId, sessionKey, noStorage = false }) {
+  // CRITICAL_GUARDS.md Guard #28: inner match/hole rows (individual 1v1
+  // matches, Wolf per-hole drill-ins, team game matchups) must NOT persist
+  // open/closed state to localStorage — only the outer, top-level sections
+  // (Team Game, 1v1 Matches, Wolf overall, 9-Point, Total Scorecard) do.
+  // Root cause of the "everything auto-expands" bug: once a leaf row is
+  // opened, localStorage remembered it forever, and leaf rows accumulate
+  // (up to 18 Wolf holes, N 1v1 matches, N team matchups per round).
   const baseKey = storageId || (typeof title === "string" ? title : "");
   const storageKey = `scorecard-section:${sessionKey ? `${sessionKey}:` : ""}${baseKey}`;
 
   const [open, setOpen] = useState(() => {
+    if (noStorage) return defaultOpen;
+
     try {
       const saved = window.localStorage.getItem(storageKey);
 
@@ -454,10 +463,12 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
     setOpen((current) => {
       const next = !current;
 
-      try {
-        window.localStorage.setItem(storageKey, next ? "open" : "closed");
-      } catch {
-        // ignore localStorage issues
+      if (!noStorage) {
+        try {
+          window.localStorage.setItem(storageKey, next ? "open" : "closed");
+        } catch {
+          // ignore localStorage issues
+        }
       }
 
       return next;
@@ -630,6 +641,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
   storageId={`onevone-match-${entryIndex}`}
   defaultOpen={false}
   sessionKey={sessionKey}
+  noStorage
 >
   <OneVOneScorecard
     match={match}
@@ -980,7 +992,21 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const toyRule = !!match.toyRule;
 
   // Pre-compute hole results and running totals for all 18 holes
-  const isFBT = !!(result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back"));
+  //
+  // Front/Back/Total are three independently toggleable segments in Setup —
+  // "T only", "F only", "F+T", "B+T" are all legal configs, not just "all
+  // three" or "F+B". isFBT now means "this is a segmented match_fbt result,
+  // in whatever combination of segments is enabled" (previously required
+  // BOTH front and back, which silently broke every other combination —
+  // confirmed independently in two separate chats hitting this from
+  // different angles: isTotalOnly correctly covers the pure "T only" case,
+  // but Front-only/Back-only/F+T/B+T fell all the way through to a
+  // continuous no-cutoff fallback with no decided-hole logic at all).
+  // Each half (Front 9 / Back 9) falls back to the Total segment's own
+  // decidedOn when that half has no dedicated segment of its own — a
+  // "T only" or "F+T" config still has exactly one real bet covering that
+  // half, it's just carried by Total instead of a dedicated Front/Back bet.
+  const isFBT = !!result?.segments;
   const hasFrontSeg = !!result?.segments?.find(s => s.key === "front");
   const hasBackSeg = !!result?.segments?.find(s => s.key === "back");
   const hasTotalSeg = !!result?.segments?.find(s => s.key === "total");
@@ -988,6 +1014,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const totalDecidedOn = result?.segments?.find(s => s.key === "total")?.decidedOn ?? null;
   const frontDecidedOn = result?.segments?.find(s => s.key === "front")?.decidedOn ?? null;
   const backDecidedOn = result?.segments?.find(s => s.key === "back")?.decidedOn ?? null;
+  const frontGovernedByTotal = !hasFrontSeg && hasTotalSeg;
+  const backGovernedByTotal = !hasBackSeg && hasTotalSeg;
 
   // Helper: format a match conclusion correctly
   // X&Y if decided before last hole, X up if decided on last hole, AS if tied
@@ -1061,8 +1089,16 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
     if (isFBT) {
       const isFrontHole = hole <= 9;
-      const afterFrontDecided = frontDecidedOn != null && hole > frontDecidedOn;
-      const afterBackDecided = !isFrontHole && backDecidedOn != null && hole > backDecidedOn;
+      const afterFrontDecided = isFrontHole && (
+        hasFrontSeg ? (frontDecidedOn != null && hole > frontDecidedOn)
+        : frontGovernedByTotal ? (totalDecidedOn != null && hole > totalDecidedOn)
+        : false
+      );
+      const afterBackDecided = !isFrontHole && (
+        hasBackSeg ? (backDecidedOn != null && hole > backDecidedOn)
+        : backGovernedByTotal ? (totalDecidedOn != null && hole > totalDecidedOn)
+        : false
+      );
 
       if (isFrontHole && !afterFrontDecided && holePlayed && res != null) {
         if (res > 0) frontRunning += 1;
@@ -1073,12 +1109,18 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
         if (res < 0) backRunning -= 1;
       }
 
+      // Displayed running value: this half's own segment accumulator if it
+      // has one, else the continuous 18-hole Total tally (never resets at
+      // hole 10 — there is no dedicated Front/Back bet to reset).
+      const frontDisplay = hasFrontSeg ? frontRunning : cumulativeRunning;
+      const backDisplay = hasBackSeg ? backRunning : cumulativeRunning;
+
       return {
         hole, res,
-        running: holePlayed ? (isFrontHole ? frontRunning : backRunning) : null,
+        running: holePlayed ? (isFrontHole ? frontDisplay : backDisplay) : null,
         totalRunning,
-        afterFrontDecided: isFrontHole && afterFrontDecided,
-        afterBackDecided: !isFrontHole && afterBackDecided,
+        afterFrontDecided,
+        afterBackDecided,
         segment: null,
       };
     }
@@ -1117,16 +1159,24 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
     const sectionData = holeData.filter(d => sectionHoles.includes(d.hole));
 
     // Find if match was decided within this section
-    // For FBT, each segment has its own decidedOn — never bleed across segments
+    // For FBT, each segment has its own decidedOn — never bleed across segments.
+    // A half with no dedicated segment (e.g. Back 9 in a "T only" or "F+T"
+    // config) falls back to the Total segment's decidedOn instead.
     const decidedHole = isFBT
       ? (label === "Front 9"
-          ? (frontDecidedOn != null && sectionHoles.includes(frontDecidedOn) ? frontDecidedOn : null)
+          ? (hasFrontSeg
+              ? (frontDecidedOn != null && sectionHoles.includes(frontDecidedOn) ? frontDecidedOn : null)
+              : frontGovernedByTotal
+                ? (totalDecidedOn != null && sectionHoles.includes(totalDecidedOn) ? totalDecidedOn : null)
+                : null)
           : label === "Back 9"
-            ? (backDecidedOn != null && sectionHoles.includes(backDecidedOn) ? backDecidedOn : null)
+            ? (hasBackSeg
+                ? (backDecidedOn != null && sectionHoles.includes(backDecidedOn) ? backDecidedOn : null)
+                : backGovernedByTotal
+                  ? (totalDecidedOn != null && sectionHoles.includes(totalDecidedOn) ? totalDecidedOn : null)
+                  : null)
             : null)
-      : isTotalOnly
-        ? (totalDecidedOn != null && sectionHoles.includes(totalDecidedOn) ? totalDecidedOn : null)
-        : (result?.decidedOn ?? null);
+      : (result?.decidedOn ?? null);
     const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
 
     // Gross totals per player for this section (all scored holes)
@@ -1289,15 +1339,21 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 }
               }
 
-              // On the deciding hole: show conclusion format
-              const isFrontDeciding = label === "Front 9" && isFBT && frontDecidedOn === hole;
-              const isBackDeciding = label === "Back 9" && isFBT && backDecidedOn === hole;
+              // On the deciding hole: show conclusion format.
+              // Front 9 / Back 9 deciding also fires off the Total segment's
+              // decidedOn when that half has no dedicated segment of its own.
+              const isFrontDeciding = label === "Front 9" && isFBT && (
+                (hasFrontSeg && frontDecidedOn === hole) || (frontGovernedByTotal && totalDecidedOn === hole)
+              );
+              const isBackDeciding = label === "Back 9" && isFBT && (
+                (hasBackSeg && backDecidedOn === hole) || (backGovernedByTotal && totalDecidedOn === hole)
+              );
               const isTotalDeciding = isTotalOnly && totalDecidedOn === hole && sectionHoles.includes(hole);
               const isDeciding = isFrontDeciding || isBackDeciding || isTotalDeciding || (!isFBT && !isTotalOnly && decidedInSection && decidedHole === hole);
 
               if (isDeciding) {
-                const seg = isFrontDeciding ? result?.segments?.find(s => s.key === "front")
-                           : isBackDeciding ? result?.segments?.find(s => s.key === "back")
+                const seg = isFrontDeciding ? (result?.segments?.find(s => s.key === "front") || result?.segments?.find(s => s.key === "total"))
+                           : isBackDeciding ? (result?.segments?.find(s => s.key === "back") || result?.segments?.find(s => s.key === "total"))
                            : isTotalDeciding ? result?.segments?.find(s => s.key === "total")
                            : null;
                 const segUnits = seg ? seg.units : running;
@@ -1885,7 +1941,7 @@ function WolfAudit({
         }
 
         return (
-          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey}>
+          <AuditSection key={hole} title={level1Title} defaultOpen={false} storageId={`wolf-hole-${hole}`} sessionKey={sessionKey} noStorage>
             {isSuperWolf && rankedStandings && rankedStandings.length > 0 && (
               <div style={{ background: "#fef2f2", border: "1px solid #b3261e", borderRadius: 8, padding: 8, marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#b3261e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -2284,6 +2340,7 @@ function TeamGameAudit({
                   storageId={`matchup-${gameIndex}-${matchupIndex}`}
                   defaultOpen={false}
                   sessionKey={sessionKey}
+                  noStorage
                 >
                   {isNonPress && (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>

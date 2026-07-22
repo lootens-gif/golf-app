@@ -163,7 +163,7 @@ test("Guard #38: Running row keeps accumulating after hole 14, ending at +1 (not
 
 test("Guard #38: match summary reflects the real 18-hole outcome (Alice +1), not the frozen 5&4 clinch", () => {
   renderNetHolesScorecard();
-  expect(screen.getByText(/Alice won \+1 holes \(net\)/)).toBeInTheDocument();
+  expect(screen.getByText(/Alice \+1 holes \(net\)/)).toBeInTheDocument();
   // The stale clinch label should not appear anywhere as the final word on
   // the match — it's a valid intermediate label but must not be the summary.
   expect(screen.queryByText("5&4")).not.toBeInTheDocument();

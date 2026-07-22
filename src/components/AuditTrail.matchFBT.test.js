@@ -101,12 +101,14 @@ describe("T only (Front and Back both disabled — the exact reported config)", 
 
   test("Back 9 running row stops at the deciding hole instead of continuing through 14-18", () => {
     renderMatch(tOnly);
-    const backRunningRow = screen.getAllByText("Back 9").map((el) => el.closest("tr"))[1]; // [0]=label row wrapper isn't a row; getAllByText("Back 9") hits the section header div too
-    // The section header div also contains the text "Back 9" — find the
-    // actual table row whose first cell is the row label "Back 9".
-    const runningRow = Array.from(document.querySelectorAll("tr")).find(
-      (tr) => tr.querySelector("td")?.textContent === "Back 9"
-    );
+    // T-only ("just Total") labels this row "Total" instead of "Back 9" —
+    // there's no dedicated Back bet, only the one Total bet spanning all
+    // 18, so "Total" is the accurate label for what's actually being shown.
+    // Both Front 9's and Back 9's tables render a row with this label; the
+    // second one is Back 9's (holes 10-18).
+    const runningRow = Array.from(document.querySelectorAll("tr")).filter(
+      (tr) => tr.querySelector("td")?.textContent === "Total"
+    )[1];
     const cells = Array.from(runningRow.querySelectorAll("td")).slice(1, -1).map((td) => td.textContent);
     const [h10, h11, h12, h13, h14, h15, h16, h17, h18] = cells;
 
@@ -136,9 +138,11 @@ describe("T only (Front and Back both disabled — the exact reported config)", 
 
   test("Front 9 is unaffected — the match didn't decide until hole 13, which is outside Front 9's range", () => {
     renderMatch(tOnly);
-    const frontRunningRow = Array.from(document.querySelectorAll("tr")).find(
-      (tr) => tr.querySelector("td")?.textContent === "Front 9"
-    );
+    // Same "Total" labeling as the Back 9 test above — this is the first
+    // of the two "Total"-labeled rows (Front 9's, holes 1-9).
+    const frontRunningRow = Array.from(document.querySelectorAll("tr")).filter(
+      (tr) => tr.querySelector("td")?.textContent === "Total"
+    )[0];
     const cells = Array.from(frontRunningRow.querySelectorAll("td")).slice(1, -1).map((td) => td.textContent);
     expect(cells).toEqual(["1 up", "2 up", "3 up", "4 up", "5 up", "6 up", "6 up", "6 up", "6 up"]);
     expect(cells).not.toContain("-");
