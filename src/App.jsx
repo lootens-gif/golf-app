@@ -131,6 +131,23 @@ export function getStaleCompletedRoundInfo(snapshot, remoteUpdatedAt) {
   return { hoursSince, completedAt: ts };
 }
 
+// CRITICAL_GUARDS.md Guard #42: true when `savedSnapshot` (the persisted
+// AUTO_ROUND_KEY blob for whatever round is currently loaded) still
+// represents the SAME format the person has configured right now in
+// Setup. Used by startRound()'s "round already complete, go back to Live"
+// shortcut — that shortcut is only safe to take if nothing about the
+// round's format actually changed since it finished. If it has (Press ->
+// Wolf, team game toggled off, etc.), the completed round's leftover
+// scores/wolfHoles must NOT be treated as "this round, continue viewing
+// it" — they belong to a different round entirely.
+export function isSameRoundFormat(savedSnapshot, currentTeamGameFormat, currentEnableTeamGame) {
+  if (!savedSnapshot) return false;
+  return (
+    savedSnapshot.teamGameFormat === currentTeamGameFormat &&
+    !!savedSnapshot.enableTeamGame === !!currentEnableTeamGame
+  );
+}
+
 // Safely get net units from a team game matchup result (handles both press array and non-press object)
 function getMatchUnits(result) {
   if (Array.isArray(result)) {
@@ -2698,11 +2715,39 @@ if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && tota
     if (!confirmed) return;
   }
 
-  // Round already complete: go back to Live so user can view/edit scorecard
+  // Round already complete: go back to Live so user can view/edit scorecard —
+  // but ONLY if the round's actual format hasn't changed since it was last
+  // saved. CRITICAL_GUARDS.md Guard #42: this check used to fire purely on
+  // lastHoleSaved >= 18, with no awareness that the person may have just
+  // changed teamGameFormat/enableTeamGame in Setup (e.g. Press -> Wolf)
+  // before hitting Start again. That silently routed them to Live with the
+  // OLD round's scores/wolfHoles still sitting in state, rendering under
+  // the NEW format as if already played — confirmed directly: a finished
+  // Press round's scores made Wolf look fully pre-filled in, wolf
+  // selections included. Confirmed this is a real risk, not just a
+  // testing artifact: the ordinary way a new round gets configured is by
+  // opening Setup and editing straight from wherever the app last left
+  // off, not by an explicit reset step every time.
   if (lastHoleSaved != null && lastHoleSaved >= 18) {
-    setPendingNextGameIndex(null);
-    setScreen("live");
-    return;
+    const savedSnapshot = safeReadJsonStorage(AUTO_ROUND_KEY, null);
+
+    if (isSameRoundFormat(savedSnapshot, teamGameFormat, enableTeamGame)) {
+      setPendingNextGameIndex(null);
+      setScreen("live");
+      return;
+    }
+
+    // Format changed since the round completed — this is a new round, not
+    // a revisit of the old one. The finished round's real data is already
+    // safely saved (Supabase + saved-rounds history); clear the local
+    // in-progress fields so they can't leak into what's being started now.
+    setScores({});
+    setWolfHoles({});
+    setLastHoleSaved(null);
+    setRoundCode(null);
+    localStorage.removeItem(AUTO_ROUND_KEY);
+    localStorage.removeItem(ROUND_CODE_KEY);
+    // fall through to the normal round-start logic below
   }
 
   const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
