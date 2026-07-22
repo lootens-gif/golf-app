@@ -36,6 +36,15 @@ const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
 const ROUND_CODE_KEY = "golf-betting-round-code-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
+// CRITICAL_GUARDS.md Guard #41: a completed round (lastHoleSaved >= 18)
+// that hasn't been touched in this many hours is treated as "stale" on
+// mount — gated behind an explicit acknowledgment instead of silently
+// landing the device on Live/Results as if it were current. 24h was
+// chosen deliberately: same-day/next-morning score-fix revisits (the
+// intentional post-completion-fix workflow) stay frictionless, while a
+// device reopened days later (the round-9194 incident) gets caught. See
+// getStaleCompletedRoundInfo() below.
+const STALE_ROUND_HOURS = 24;
 
 function safeReadJsonStorage(key, fallbackValue = null) {
   try {
@@ -102,6 +111,24 @@ function isUsableRoundSnapshot(value) {
     Array.isArray(value.teamGames) &&
     Array.isArray(value.matches)
   );
+}
+
+// CRITICAL_GUARDS.md Guard #41: returns null if `snapshot` isn't a
+// completed-and-stale round, otherwise { hoursSince, completedAt }.
+// Prefers the snapshot's own `completedAt` (stamped locally the instant a
+// round reaches hole 18 — see the onSaveHole handler); falls back to the
+// Supabase row's `updated_at` for rounds completed before this field
+// existed, or completed on a different device than the one restoring.
+// Deliberately returns null (no gate) when neither timestamp is available
+// rather than guessing — false positives here block a legitimate
+// score-fix workflow, which is worse than an occasional missed stale case.
+export function getStaleCompletedRoundInfo(snapshot, remoteUpdatedAt) {
+  if (!snapshot || (snapshot.lastHoleSaved ?? -1) < 18) return null;
+  const ts = snapshot.completedAt || remoteUpdatedAt;
+  if (!ts) return null;
+  const hoursSince = (Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60);
+  if (!Number.isFinite(hoursSince) || hoursSince < STALE_ROUND_HOURS) return null;
+  return { hoursSince, completedAt: ts };
 }
 
 // Safely get net units from a team game matchup result (handles both press array and non-press object)
@@ -395,6 +422,13 @@ export default function App() {
   const [templateStatus, setTemplateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "loading"
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
+  // CRITICAL_GUARDS.md Guard #41: set (instead of applying the restored
+  // snapshot immediately) when mount-time restore finds a completed round
+  // stale by STALE_ROUND_HOURS+. Shape: { snapshot, successMessage,
+  // hoursSince, completedAt }. Screen switches to "stale-gate" until the
+  // person explicitly acknowledges it (see the stale-gate render branch
+  // and resolveStaleRoundGate()).
+  const [staleRoundGate, setStaleRoundGate] = useState(null);
   const [roundCode, setRoundCode] = useState(null);
   const [roundName, setRoundName] = useState("");
   const [syncChannel] = useState(null);
@@ -2410,6 +2444,23 @@ useEffect(() => {
   }
 }, []);
 
+// CRITICAL_GUARDS.md Guard #41: checks a snapshot about to be applied at
+// mount for staleness; if stale, gates it behind the stale-round
+// interstitial instead of applying it, and returns true so the caller
+// skips its normal follow-up (roundCode/justRestoredRef/etc — the gate's
+// resolve handler runs those once the person acknowledges). Returns false
+// (nothing gated) for a live/current round, which is the normal case.
+function gateOrApplySnapshot(snapshotData, successMessage, remoteUpdatedAt, code) {
+  const staleInfo = getStaleCompletedRoundInfo(snapshotData, remoteUpdatedAt);
+  if (staleInfo) {
+    setStaleRoundGate({ snapshot: snapshotData, successMessage, code, ...staleInfo });
+    setScreen("stale-gate");
+    return true;
+  }
+  applyRoundSnapshot(snapshotData, successMessage);
+  return false;
+}
+
 useEffect(() => {
   // Restore isJoiner state from localStorage (survives iOS Safari page reload)
   if (localStorage.getItem("golf-betting-is-joiner-v1") === "true") {
@@ -2419,16 +2470,21 @@ useEffect(() => {
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
 
   if (round && isUsableRoundSnapshot(round)) {
-    applyRoundSnapshot(round, "Autosaved round restored.");
     const savedRoundCode = localStorage.getItem(ROUND_CODE_KEY);
-    if (savedRoundCode) setRoundCode(savedRoundCode);
-    justRestoredRef.current = true;
-    restoreTimeRef.current = Date.now();
+    const gated = gateOrApplySnapshot(round, "Autosaved round restored.", null, savedRoundCode);
+    if (!gated) {
+      if (savedRoundCode) setRoundCode(savedRoundCode);
+      justRestoredRef.current = true;
+      restoreTimeRef.current = Date.now();
+    }
 
     // CRITICAL: After restoring from localStorage, verify against Supabase.
     // If Supabase has newer data (higher lastHoleSaved), apply it instead
     // to prevent stale local data from overwriting a completed round.
-    if (savedRoundCode) {
+    // Skipped entirely if the local snapshot was already gated above —
+    // the gate's own resolve handler is the single source of truth for
+    // what gets applied once the person acknowledges it.
+    if (savedRoundCode && !gated) {
       fetchRound(savedRoundCode)
         .then(result => {
           if (result?.data) {
@@ -2436,13 +2492,13 @@ useEffect(() => {
             const localHole = round.lastHoleSaved ?? -1;
             if (remoteHole > localHole) {
               // Remote is further ahead — use it
-              applyRoundSnapshot(result.data, "Cloud data is newer — restored from cloud ☁️");
+              gateOrApplySnapshot(result.data, "Cloud data is newer — restored from cloud ☁️", result.updated_at, savedRoundCode);
             } else if (remoteHole === localHole && remoteHole >= 0) {
               // Same progress — compare scores. Remote wins on conflict.
               const remoteScores = JSON.stringify(result.data.scores || {});
               const localScores = JSON.stringify(round.scores || {});
               if (remoteScores !== localScores) {
-                applyRoundSnapshot(result.data, "Cloud data restored ☁️");
+                gateOrApplySnapshot(result.data, "Cloud data restored ☁️", result.updated_at, savedRoundCode);
               }
             }
           }
@@ -2459,10 +2515,12 @@ useEffect(() => {
       fetchRound(savedCode)
         .then(result => {
           if (result?.data && isUsableRoundSnapshot(result.data)) {
-            applyRoundSnapshot(result.data, "Round restored from cloud ☁️");
-            justRestoredRef.current = true;
-            restoreTimeRef.current = Date.now();
-            setRoundCode(savedCode);
+            const gated = gateOrApplySnapshot(result.data, "Round restored from cloud ☁️", result.updated_at, savedCode);
+            if (!gated) {
+              justRestoredRef.current = true;
+              restoreTimeRef.current = Date.now();
+              setRoundCode(savedCode);
+            }
           } else {
             // Code exists but stale — show recent rounds picker
             return fetchRecentRounds().then(rounds => {
@@ -2829,6 +2887,28 @@ if (!enableTeamGame && !skinsEnabled) {
 
 function backToSetup() {
   setScreen("setup");
+}
+
+// CRITICAL_GUARDS.md Guard #41: resolves the stale-round interstitial.
+// "acknowledge" applies the gated snapshot exactly as a normal restore
+// would have (same follow-up as the ungated path — roundCode,
+// justRestoredRef, restoreTimeRef) and proceeds to whatever screen the
+// snapshot itself specifies (almost always Results for a completed
+// round). "startFresh" discards the gated snapshot entirely and sends the
+// person to a clean Setup screen instead, without ever loading the old
+// round into state.
+function resolveStaleRoundGate(action) {
+  const gate = staleRoundGate;
+  if (!gate) return;
+  setStaleRoundGate(null);
+  if (action === "acknowledge") {
+    applyRoundSnapshot(gate.snapshot, gate.successMessage);
+    if (gate.code) setRoundCode(gate.code);
+    justRestoredRef.current = true;
+    restoreTimeRef.current = Date.now();
+  } else {
+    setScreen("setup");
+  }
 }
 
 async function shareCurrentRound() {
@@ -3265,6 +3345,50 @@ return (
   </div>
 </div>
 
+    {screen === "stale-gate" && staleRoundGate && (
+      <div style={{ padding: "40px 20px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>⏱️</div>
+        <h2 style={{ marginBottom: 12 }}>This Round Already Finished</h2>
+        <p style={{ color: "#555", marginBottom: 8 }}>
+          {(() => {
+            const hrs = staleRoundGate.hoursSince;
+            const days = Math.floor(hrs / 24);
+            const when = days >= 1
+              ? `${days} day${days === 1 ? "" : "s"} ago`
+              : `${Math.floor(hrs)} hours ago`;
+            return `This round was completed ${when}. Reopening it now will land you back on that finished round.`;
+          })()}
+        </p>
+        <p style={{ color: "#777", fontSize: 13, marginBottom: 24 }}>
+          If you meant to check the final scorecard or fix a score, continue below.
+          If you meant to start a new round, start fresh instead — your finished
+          round's data is safe either way.
+        </p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={() => resolveStaleRoundGate("acknowledge")}
+            style={{
+              background: "#1b7a3d",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 20px",
+              fontSize: 15,
+              cursor: "pointer",
+            }}
+          >
+            Continue to This Round
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => resolveStaleRoundGate("startFresh")}
+          >
+            Start Fresh Instead
+          </button>
+        </div>
+      </div>
+    )}
+
     {screen === "preview" && (() => {
       // Determine where to go back: if round is in progress go to live, else setup
       const returnTo = lastHoleSaved != null || Object.keys(scores).length > 0 ? "live" : "setup";
@@ -3692,6 +3816,12 @@ setSaveMessage(`Hole ${currentHole} saved`);
         safeMergeWriteJsonStorage(AUTO_ROUND_KEY, {
           lastHoleSaved: currentHole,
           currentHole: nextHole,
+          // CRITICAL_GUARDS.md Guard #41: stamp the moment this round
+          // actually reaches 18 holes, so a later mount-time restore can
+          // tell how long ago it genuinely finished, independent of
+          // Supabase's updated_at (which can't be trusted alone — it
+          // reflects the last write to the row for any reason).
+          ...(currentHole >= 18 ? { completedAt: new Date().toISOString() } : {}),
         }, buildCurrentRoundSnapshot);
       }
 
