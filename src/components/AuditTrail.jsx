@@ -1421,8 +1421,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const birdieCountB = wonBirdieCounts[playerB.id];
 
   // Determine which segments are active for stroke - use engine result not match flags
-  const strokeFrontEnabled = isStroke && hasFrontSeg;
-  const strokeBackEnabled = isStroke && hasBackSeg;
+
   const strokeTotalEnabled = isStroke && hasFrontSeg && hasBackSeg && hasTotalSeg;
 
   return (
