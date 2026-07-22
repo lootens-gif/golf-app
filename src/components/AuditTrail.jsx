@@ -562,7 +562,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
               <span>
                 {segs.map((seg, i) => {
                   const u = seg.units || 0;
-                  const lbl = u === 0 ? "AS" : `${Math.abs(u)}${u > 0 ? "UP" : "DN"}`;
+                  const lbl = seg.resultLabel || (u === 0 ? "AS" : `${Math.abs(u)}${u > 0 ? "UP" : "DN"}`);
                   return (
                     <span key={seg.key}>
                       {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
@@ -1421,7 +1421,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const birdieCountB = wonBirdieCounts[playerB.id];
 
   // Determine which segments are active for stroke - use engine result not match flags
-
+  const strokeFrontEnabled = isStroke && hasFrontSeg;
+  const strokeBackEnabled = isStroke && hasBackSeg;
   const strokeTotalEnabled = isStroke && hasFrontSeg && hasBackSeg && hasTotalSeg;
 
   return (
