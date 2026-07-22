@@ -142,9 +142,21 @@ export async function fetchRecentRounds(deviceId) {
 }
 
 // Share a round with device ID tagged
-export async function shareRoundWithDevice(code, roundData, deviceId) {
-  // Guard: only overwrite Supabase if our data is genuinely newer or identical.
-  // Prevents a stale device from overwriting a completed round.
+// Shared staleness/conflict guard for every function that writes a round's
+// `data` to Supabase. Prevents a stale or out-of-sync device from clobbering
+// a round that's already further along — or already complete — remotely.
+//
+// Found July 2026: this guard originally lived ONLY inside
+// shareRoundWithDevice. saveRoundToStats (below) is a second, completely
+// separate write path to the exact same `rounds` row, upserting
+// unconditionally with no check at all. A device sitting on a stale,
+// already-completed round (e.g. reopening a bookmarked URL days later,
+// silently auto-restoring an old finished round — see CRITICAL_GUARDS.md)
+// could hit "Save Round" and blow away the real completed data in Supabase
+// with whatever was in local state, no staleness check, no scores-differ
+// check, nothing. Confirmed as the likely mechanism behind round 9194
+// showing an unexplained partial data change days after it was completed.
+async function shouldBlockRoundWrite(code, roundData) {
   try {
     const { data: existing } = await supabase
       .from("rounds")
@@ -159,7 +171,7 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
       // Local is behind — never overwrite
       if (localHole < remoteHole) {
         console.warn(`[sync] Skipping save: local lastHoleSaved=${localHole} < remote=${remoteHole}`);
-        return;
+        return true;
       }
 
       // Same hole count — compare scores. If remote has scores and they differ,
@@ -169,13 +181,19 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
         const localScores = JSON.stringify(roundData.scores || {});
         if (remoteScores !== localScores) {
           console.warn(`[sync] Skipping save: completed round scores differ — keeping remote`);
-          return;
+          return true;
         }
       }
     }
   } catch {
     // If we can't fetch, proceed with save (don't block on network error)
   }
+
+  return false;
+}
+
+export async function shareRoundWithDevice(code, roundData, deviceId) {
+  if (await shouldBlockRoundWrite(code, roundData)) return;
 
   const { error } = await supabase
     .from("rounds")
@@ -192,6 +210,8 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
 
 // Save a round to Supabase stats (called when "Save to History & Stats" is checked)
 export async function saveRoundToStats(code, roundData, deviceId) {
+  if (await shouldBlockRoundWrite(code, roundData)) return;
+
   const { error } = await supabase
     .from("rounds")
     .upsert({

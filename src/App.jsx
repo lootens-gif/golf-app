@@ -2270,6 +2270,16 @@ async function resetSetup() {
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
   localStorage.removeItem(ROUND_CODE_KEY);
+  // CRITICAL: also clear the autosaved round snapshot itself. Without this,
+  // the OLD round's scores/matches/players stay sitting in AUTO_ROUND_KEY —
+  // the general autosave effect deliberately excludes scores/matches/
+  // wolfHoles/currentHole/lastHoleSaved from what it rewrites (those are
+  // only ever touched by the score-entry functions directly), so nothing
+  // ever overwrites them back to empty until the very first new score is
+  // entered. Any page reload in that window (iOS Safari backgrounding a
+  // tab is routine) resurrects the entire "reset" round on mount, silently
+  // undoing the reset from the user's perspective. Found July 2026.
+  localStorage.removeItem(AUTO_ROUND_KEY);
   setSetupMessage("Setup reset.");
 }
 

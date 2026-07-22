@@ -981,6 +981,11 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
   // Pre-compute hole results and running totals for all 18 holes
   const isFBT = !!(result?.segments?.find(s => s.key === "front") && result?.segments?.find(s => s.key === "back"));
+  const hasFrontSeg = !!result?.segments?.find(s => s.key === "front");
+  const hasBackSeg = !!result?.segments?.find(s => s.key === "back");
+  const hasTotalSeg = !!result?.segments?.find(s => s.key === "total");
+  const isTotalOnly = hasTotalSeg && !hasFrontSeg && !hasBackSeg;
+  const totalDecidedOn = result?.segments?.find(s => s.key === "total")?.decidedOn ?? null;
   const frontDecidedOn = result?.segments?.find(s => s.key === "front")?.decidedOn ?? null;
   const backDecidedOn = result?.segments?.find(s => s.key === "back")?.decidedOn ?? null;
 
@@ -1119,7 +1124,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           : label === "Back 9"
             ? (backDecidedOn != null && sectionHoles.includes(backDecidedOn) ? backDecidedOn : null)
             : null)
-      : (result?.decidedOn ?? null);
+      : isTotalOnly
+        ? (totalDecidedOn != null && sectionHoles.includes(totalDecidedOn) ? totalDecidedOn : null)
+        : (result?.decidedOn ?? null);
     const decidedInSection = decidedHole != null && sectionHoles.includes(decidedHole);
 
     // Gross totals per player for this section (all scored holes)
@@ -1226,7 +1233,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           <tr>
             <td style={scorecardLabelCellStyle}>
-              {isNetHoles ? "Net Holes" : isStroke ? (label === "Front 9" ? "Front" : "Back") : isLongShort ? "Long" : label}
+              {isNetHoles ? "Net Holes" : isStroke ? (isTotalOnly ? "Total" : (label === "Front 9" ? "Front" : "Back")) : isLongShort ? "Long" : isTotalOnly ? "Total" : label}
             </td>
             {sectionData.map(({ hole, running, segment, afterFrontDecided, afterBackDecided }) => {
               const afterDecided = !isNetHoles && !isStroke && (
@@ -1285,11 +1292,13 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
               // On the deciding hole: show conclusion format
               const isFrontDeciding = label === "Front 9" && isFBT && frontDecidedOn === hole;
               const isBackDeciding = label === "Back 9" && isFBT && backDecidedOn === hole;
-              const isDeciding = isFrontDeciding || isBackDeciding || (!isFBT && decidedInSection && decidedHole === hole);
+              const isTotalDeciding = isTotalOnly && totalDecidedOn === hole && sectionHoles.includes(hole);
+              const isDeciding = isFrontDeciding || isBackDeciding || isTotalDeciding || (!isFBT && !isTotalOnly && decidedInSection && decidedHole === hole);
 
               if (isDeciding) {
                 const seg = isFrontDeciding ? result?.segments?.find(s => s.key === "front")
                            : isBackDeciding ? result?.segments?.find(s => s.key === "back")
+                           : isTotalDeciding ? result?.segments?.find(s => s.key === "total")
                            : null;
                 const segUnits = seg ? seg.units : running;
                 const label2 = seg?.resultLabel || (segUnits === 0 ? "Even" : segUnits > 0 ? `${Math.abs(segUnits)} up` : `${Math.abs(segUnits)} dn`);
@@ -1411,10 +1420,10 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const birdieCountA = wonBirdieCounts[playerA.id];
   const birdieCountB = wonBirdieCounts[playerB.id];
 
-  // Determine which segments are active for stroke
-  const strokeFrontEnabled = isStroke && !!match.strokeFront;
-  const strokeBackEnabled = isStroke && !!match.strokeBack;
-  const strokeTotalEnabled = isStroke && strokeFrontEnabled && strokeBackEnabled;
+  // Determine which segments are active for stroke - use engine result not match flags
+  const strokeFrontEnabled = isStroke && hasFrontSeg;
+  const strokeBackEnabled = isStroke && hasBackSeg;
+  const strokeTotalEnabled = isStroke && hasFrontSeg && hasBackSeg && hasTotalSeg;
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -1546,8 +1555,9 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           };
           if (frontSeg) items.push(makeStrokeItem(frontSeg, "Front"));
           if (backSeg) items.push(makeStrokeItem(backSeg, "Back"));
-          if (totalSeg && !strokeTotalEnabled) items.push(makeStrokeItem(totalSeg, "Total"));
-          if (totalSeg && !frontSeg && !backSeg) items.push(makeStrokeItem(totalSeg, "Match"));
+          if (totalSeg && strokeTotalEnabled) items.push(makeStrokeItem(totalSeg, "Total"));
+          else if (totalSeg && !frontSeg && !backSeg) items.push(makeStrokeItem(totalSeg, "Match"));
+          else if (totalSeg && !strokeTotalEnabled && (frontSeg || backSeg)) items.push(makeStrokeItem(totalSeg, "Total"));
           if (!items.length) return null;
           const netTotal = items.reduce((s, item) => s + item.dollars, 0);
           const netColor = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#6b7280";
