@@ -599,13 +599,13 @@ export function getStrokeValueForHole(
   course,
   scores,
   handicapMode,
-  strokeScoring
+  strokeScoring,
+  getHandicapStrokesFn
 ) {
   if (strokeScoring === "gross") {
     return getRawScore(scores, hole, playerId);
   }
-
-  return getNetScore(playerId, hole, players, course, scores, handicapMode);
+  return getNetScore(playerId, hole, players, course, scores, handicapMode, false, getHandicapStrokesFn);
 }
 
 function sumStrokeSegment({
@@ -617,6 +617,7 @@ function sumStrokeSegment({
   scores,
   handicapMode,
   strokeScoring,
+  getHandicapStrokesFn,
 }) {
   let total = 0;
 
@@ -628,7 +629,8 @@ function sumStrokeSegment({
       course,
       scores,
       handicapMode,
-      strokeScoring
+      strokeScoring,
+      getHandicapStrokesFn
     );
 
     if (value === null || value === undefined) {
@@ -869,6 +871,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
         scores,
         handicapMode,
         strokeScoring,
+        getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
       });
 
       const b = sumStrokeSegment({
@@ -880,6 +883,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
         scores,
         handicapMode,
         strokeScoring,
+        getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
       });
 
       const settlement = settleStrokeSegment(
