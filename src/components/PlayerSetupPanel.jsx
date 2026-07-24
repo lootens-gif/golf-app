@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function PlayerSetupPanel({
   mode,
@@ -8,6 +8,21 @@ export default function PlayerSetupPanel({
 }) {
   const [activeHcpIndex, setActiveHcpIndex] = useState(null);
   const [freshEntry, setFreshEntry] = useState(false); // true = next digit replaces
+  // Auto-advance targets: after finishing a player's HCP, we jump straight
+  // to the next active player — their own HCP keypad if they already have
+  // a real name (the "type all names first, then all HCPs" flow), or their
+  // Name field if they don't (the "name, HCP, name, HCP" flow). This ref
+  // holds each row's Name <input> so we can .focus() it programmatically.
+  const nameRefs = useRef({});
+  // Tracks each Name field's value at the moment it was focused, so blur
+  // can tell "this was still a placeholder (P1/P2/blank) and just became
+  // a real name" (fresh setup — auto-open the keypad) apart from "this
+  // was already a real name and got tweaked" (a correction, e.g. fixing
+  // "John" to "Jon" mid-round — don't interrupt with the keypad). Default
+  // players ship with sample HCP values already filled in, so checking
+  // whether HCP is blank doesn't distinguish these two cases — the name's
+  // own placeholder-ness at focus time is the reliable signal.
+  const nameAtFocusRef = useRef({});
 
   function displayHcp(hcp) {
     if (hcp === "" || hcp == null) return "";
@@ -77,12 +92,31 @@ export default function PlayerSetupPanel({
                 {index + 1}.
               </span>
               <input
+                ref={(el) => { nameRefs.current[index] = el; }}
                 type="text"
                 value={player.name}
                 placeholder="Name"
-                onFocus={(e) => { setActiveHcpIndex(null); setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0); }}
+                onFocus={(e) => {
+                  nameAtFocusRef.current[index] = player.name;
+                  setActiveHcpIndex(null);
+                  setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0);
+                }}
                 onClick={(e) => setTimeout(() => e.target.setSelectionRange(0, e.target.value.length), 0)}
-                onBlur={() => { if (player.name && player.name.trim()) openKeypad(index); }}
+                onBlur={() => {
+                  // Only auto-open the HCP keypad if this name was still a
+                  // placeholder (blank, or "P1"/"P2"/etc) when this field
+                  // was focused, and now has a real name typed in — that's
+                  // unambiguously fresh setup. If it was already a real
+                  // name before this edit, this blur is a correction (e.g.
+                  // fixing "John" to "Jon" mid-round), and the keypad
+                  // popping open would be an unwanted interruption.
+                  const before = nameAtFocusRef.current[index];
+                  const wasPlaceholder = !before || !before.trim() || /^P\d+$/.test(before.trim());
+                  const nowHasRealName = player.name && player.name.trim() && !/^P\d+$/.test(player.name.trim());
+                  if (wasPlaceholder && nowHasRealName) {
+                    openKeypad(index);
+                  }
+                }}
                 onChange={(e) => onPlayerChange(index, "name", e.target.value)}
                 style={{ fontSize: 15, padding: "5px 8px", flex: 1, minWidth: 0, maxWidth: 160 }}
               />
@@ -121,7 +155,25 @@ export default function PlayerSetupPanel({
                   <KeypadButton label="back" onPress={() => handleKeypad(index, "back")} color="#666" />
                 </div>
                 <button
-                  onPointerDown={(e) => { e.preventDefault(); setActiveHcpIndex(null); }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    // Smart-advance: jump straight to whatever the next
+                    // active player still needs. Already has a real name
+                    // (not blank, not still "P1"/"P2" etc) -> their HCP
+                    // is what's missing, open their keypad directly. No
+                    // real name yet -> focus their Name field instead so
+                    // typing can continue right away. Last active player
+                    // (no next one) -> just close, nothing to advance to.
+                    const nextPlayer = players[index + 1];
+                    const nextHasRealName =
+                      nextPlayer && nextPlayer.name && nextPlayer.name.trim() && !nextPlayer.name.match(/^P\d+$/);
+                    if (nextHasRealName) {
+                      openKeypad(index + 1);
+                    } else {
+                      setActiveHcpIndex(null);
+                      if (nextPlayer) nameRefs.current[index + 1]?.focus();
+                    }
+                  }}
                   style={{ width: "100%", padding: "10px 0", fontSize: 14, fontWeight: 600, color: "#1a5c35", background: "#f0fdf4", border: "none", borderTop: "0.5px solid #e5e7eb", cursor: "pointer", fontFamily: "inherit" }}
                 >
                   Done

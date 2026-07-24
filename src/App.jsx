@@ -2745,6 +2745,15 @@ if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && tota
     setWolfHoles({});
     setLastHoleSaved(null);
     setRoundCode(null);
+    // currentHole gets stamped to 19 as a "round is done" sentinel when a
+    // round completes (see the onSaveHole handler) — reset it back to 1
+    // so the new round doesn't open on a stale, out-of-range hole number.
+    setCurrentHole(1);
+    // Team assignments are tied to the OLD round's player count/mode —
+    // stale team1/team2/etc selections can reference slots or players
+    // that don't apply under the new format (e.g. switching from 5-player
+    // to 3-player), so they're cleared the same way scores/wolfHoles are.
+    setTeamGames((prev) => prev.map((g) => ({ ...g, teams: {} })));
     localStorage.removeItem(AUTO_ROUND_KEY);
     localStorage.removeItem(ROUND_CODE_KEY);
     // fall through to the normal round-start logic below
