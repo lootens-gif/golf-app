@@ -2058,7 +2058,7 @@ export function computeWolfRoundBalances(holeResults, playerIds = []) {
  * to the best gross score among the winning side's players.
  * 1 = none, 2 = birdie, 3 = eagle, 4 = albatross or better.
  */
-export function getWolfBirdieMultiplier(winningSide, hole, course, scores) {
+export function getWolfBirdieMultiplier(winningSide, hole, course, scores, losingSide = []) {
   const par = course?.pars?.[hole - 1];
   if (par == null) return 1;
   let bestGross = null;
@@ -2070,10 +2070,26 @@ export function getWolfBirdieMultiplier(winningSide, hole, course, scores) {
   });
   if (bestGross == null) return 1;
   const under = par - bestGross;
+  if (under < 1) return 1; // winning side didn't gross-birdie at all — no bonus possible
+
+  // Confirmed rule (Biro, July 2026 — real bug found by testing): the
+  // multiplier only rewards a genuinely EXCLUSIVE gross achievement. If
+  // the LOSING side also made any gross birdie/eagle/albatross — any
+  // tier, it doesn't need to match — the bonus is fully canceled,
+  // regardless of who actually wins the hole on net. The hole's winner
+  // and payout are completely untouched; only this bonus disappears.
+  // Confirmed real bug: two gross birdies, hole won by net eagle, still
+  // applied a 2x bonus before this fix existed.
+  const losingSideHasGrossBEA = (losingSide || []).some((id) => {
+    const raw = scores?.[hole]?.[id];
+    if (raw == null) return false;
+    return (par - Number(raw)) >= 1;
+  });
+  if (losingSideHasGrossBEA) return 1;
+
   if (under >= 3) return 4;
   if (under === 2) return 3;
-  if (under === 1) return 2;
-  return 1;
+  return 2; // under === 1
 }
 
 /**
@@ -2202,7 +2218,7 @@ export function resolveWolfHoleFromConfig({
     const losingSide = provisional.winner === "small" ? bigSide : smallSide;
 
     if (birdieEnabled) {
-      birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores);
+      birdieMultiplier = getWolfBirdieMultiplier(winningSide, hole, course, scores, losingSide);
     }
 
     // Never applies on a hole that ended by Hammer rejection — no scores

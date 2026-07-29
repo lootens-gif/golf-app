@@ -8,7 +8,7 @@
  * "what happened on this Wolf hole, in words."
  */
 
-import { getWolfHoleSides, getWolfHoleNarrative, resolveWolfHoleFromConfig } from '../engine/scoringEngine';
+import { getWolfHoleSides, getWolfHoleNarrative, resolveWolfHoleFromConfig, getWolfBirdieMultiplier } from '../engine/scoringEngine';
 import { getWolfFormat } from '../components/live/WolfHoleCard';
 
 function makePlayer(id) { return { id, name: id, hcp: 0 }; }
@@ -136,5 +136,52 @@ describe('getWolfHoleNarrative', () => {
       getFormat: getWolfFormat, course: COURSE, scores, handicapMode: 'full', betAmount: 5,
     });
     expect(result.lines[0]).toBe('A — shucked by B, alone vs. everyone');
+  });
+});
+
+describe('getWolfBirdieMultiplier — gross-covers-gross (confirmed by Biro, July 2026)', () => {
+  const COURSE_P4 = { pars: [4] };
+
+  test('winning side gross-birdies, losing side does NOT — bonus applies normally', () => {
+    const scores = { 1: { A: 3, B: 5 } };
+    const mult = getWolfBirdieMultiplier(['A'], 1, COURSE_P4, scores, ['B']);
+    expect(mult).toBe(2);
+  });
+
+  test('REAL BUG, CONFIRMED BY TIM: both sides gross-birdie - hole still won on net, but the bonus must be fully canceled', () => {
+    const scores = { 1: { RF: 3, Harrison: 3 } };
+    const mult = getWolfBirdieMultiplier(['RF'], 1, COURSE_P4, scores, ['Harrison']);
+    expect(mult).toBe(1);
+  });
+
+  test('cancellation does not require matching tiers - a mere losing-side birdie cancels even a winning-side albatross', () => {
+    const scores = { 1: { A: 1, B: 3 } };
+    const mult = getWolfBirdieMultiplier(['A'], 1, COURSE_P4, scores, ['B']);
+    expect(mult).toBe(1);
+  });
+
+  test('losing side has more than one player - any single one of them gross-BEA-ing cancels it', () => {
+    const scores = { 1: { A: 3, B: 5, C: 4, D: 3, E: 6 } };
+    const mult = getWolfBirdieMultiplier(['A'], 1, COURSE_P4, scores, ['B', 'C', 'D', 'E']);
+    expect(mult).toBe(1);
+  });
+
+  test('losing side pars or worse across the board - bonus applies at full tier', () => {
+    const scores = { 1: { A: 2, B: 5, C: 4, D: 6, E: 5 } };
+    const mult = getWolfBirdieMultiplier(['A'], 1, COURSE_P4, scores, ['B', 'C', 'D', 'E']);
+    expect(mult).toBe(3);
+  });
+
+  test('full integration: real handicap stroke produces the exact Hole 12 scenario end to end', () => {
+    const players5 = ['RF', 'Harrison', 'C', 'D', 'E'].map((id, i) => ({ id, name: id, hcp: i === 0 ? 10 : 0 }));
+    const course = { pars: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4], hcp: [5, 6, 7, 8, 9, 10, 11, 12, 2, 3, 4, 1] };
+    const scores = { 12: { RF: 3, Harrison: 3, C: 5, D: 6, E: 5 } };
+    const result = resolveWolfHoleFromConfig({
+      hole: 12, activePlayers: players5, wolfHoles: {}, getFormat: getWolfFormat,
+      course, scores, handicapMode: 'full', betAmount: 5, birdieEnabled: true,
+      overrideWolfId: 'RF', // force RF as Wolf directly — avoids rotation math
+    });
+    expect(result.resolved.winner).toBe('small');
+    expect(result.resolved.deltas.RF).toBe(20);
   });
 });
