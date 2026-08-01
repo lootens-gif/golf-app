@@ -447,6 +447,15 @@ export default function App() {
   // and resolveStaleRoundGate()).
   const [staleRoundGate, setStaleRoundGate] = useState(null);
   const [roundCode, setRoundCode] = useState(null);
+  // Always mirrors the current roundCode — used by async fetch callbacks
+  // (mount-time restore, background polls) to verify the round they were
+  // fetching for is STILL the one currently active before applying
+  // anything. Confirmed real bug: without this, a fetch kicked off for
+  // whatever round code happened to be in storage when the app opened
+  // could resolve AFTER the user reset and set up a genuinely new round,
+  // silently overwriting it with an unrelated old round's data.
+  const roundCodeRef = useRef(null);
+  useEffect(() => { roundCodeRef.current = roundCode; }, [roundCode]);
   const [roundName, setRoundName] = useState("");
   const [syncChannel] = useState(null);
 const lastSyncedAt = useRef(null);
@@ -618,6 +627,21 @@ function notifyRound(event, code) {
     // Generate round code early when first player name is entered
     // so Supabase backup starts immediately (protects against iOS localStorage loss)
     if (field === "name" && value.trim() && !roundCode) {
+      // CRITICAL FIX (Aug 2026): !roundCode can only mean no round identity
+      // exists yet for this session — there is no legitimate scenario
+      // where real scores or Wolf selections should already be present at
+      // this exact moment. Confirmed real bug: leftover scores/wolfHoles
+      // from an earlier session (restored automatically on app mount, or
+      // simply never cleared) silently survived underneath a genuinely
+      // new round's player setup, since there was no dedicated "New
+      // Round" action guaranteeing a clean slate — starting to type new
+      // player names was the only real signal available. Round 7472:
+      // real scores and real player identities from two DIFFERENT rounds
+      // ended up merged under one code, confirmed via direct Supabase
+      // inspection (a single row, not a duplicate — this was a stale
+      // in-state merge, not a round-code collision).
+      setScores({});
+      setWolfHoles({});
       const earlyCode = generateRoundCode();
       setRoundCode(earlyCode); // set immediately — typing must stay instant
       localStorage.setItem(ROUND_CODE_KEY, earlyCode);
@@ -2504,6 +2528,14 @@ useEffect(() => {
     if (savedRoundCode && !gated) {
       fetchRound(savedRoundCode)
         .then(result => {
+          // CRITICAL: this fetch was kicked off for savedRoundCode at
+          // MOUNT time. If the person has since reset and started a
+          // genuinely new round (a real, confirmed scenario — round
+          // 7472, Aug 2026), roundCodeRef.current will have moved on to
+          // a different code by the time this resolves. Applying stale
+          // data at that point would silently overwrite the new round
+          // with an unrelated old one's scores. Refuse if it's stale.
+          if (roundCodeRef.current !== savedRoundCode) return;
           if (result?.data) {
             const remoteHole = result.data.lastHoleSaved ?? -1;
             const localHole = round.lastHoleSaved ?? -1;
@@ -2531,6 +2563,9 @@ useEffect(() => {
     if (savedCode) {
       fetchRound(savedCode)
         .then(result => {
+          // Same guard as above — refuse if the person has since reset
+          // or started a different round while this was in flight.
+          if (roundCodeRef.current !== null && roundCodeRef.current !== savedCode) return;
           if (result?.data && isUsableRoundSnapshot(result.data)) {
             const gated = gateOrApplySnapshot(result.data, "Round restored from cloud ☁️", result.updated_at, savedCode);
             if (!gated) {
@@ -2662,8 +2697,10 @@ useEffect(() => {
 useEffect(() => {
   function handleVisibilityChange() {
     if (document.visibilityState === "visible" && roundCode && isJoiner) {
+      const fetchedFor = roundCode;
       fetchRound(roundCode)
         .then(result => {
+          if (roundCodeRef.current !== fetchedFor) return; // stale — round changed while in flight
           if (result?.data) {
           if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
             lastSyncedAt.current = result.updated_at;
@@ -2680,8 +2717,10 @@ useEffect(() => {
 useEffect(() => {
   if (!roundCode || !isJoiner) return;
   const interval = setInterval(() => {
+    const fetchedFor = roundCode;
     fetchRound(roundCode)
       .then(result => {
+        if (roundCodeRef.current !== fetchedFor) return; // stale — round changed while in flight
         if (result?.data) {
           if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
             lastSyncedAt.current = result.updated_at;
@@ -4325,8 +4364,10 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
     isJoiner={isJoiner}
     onRefresh={() => {
       if (roundCode) {
+        const fetchedFor = roundCode;
         fetchRound(roundCode)
           .then(result => {
+            if (roundCodeRef.current !== fetchedFor) return; // stale — round changed while in flight
             if (result?.data) {
               if (!lastSyncedAt.current || result.updated_at > lastSyncedAt.current) {
                 lastSyncedAt.current = result.updated_at;
