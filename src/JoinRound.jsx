@@ -93,6 +93,14 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [joinedCode, setJoinedCode] = useState(null);
   const currentCodeRef = useRef(null);
+  // Always mirrors joinedCode — guaranteed by the effect below rather than
+  // set manually at each call site, which is exactly how this went stale
+  // relative to joinedCode in the first place. Same fix applied in
+  // App.jsx (roundCodeRef) for the identical underlying risk: async
+  // fetches (polling, visibility refetch, manual refresh) resolving
+  // after the person has moved to a different round, silently applying
+  // stale data over the top of a genuinely different one.
+  useEffect(() => { currentCodeRef.current = joinedCode; }, [joinedCode]);
 
   useEffect(() => {
     return () => {
@@ -104,8 +112,10 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   useEffect(() => {
     if (!joinedCode) return;
     const interval = setInterval(() => {
+      const fetchedFor = joinedCode;
       fetchRound(joinedCode)
         .then(result => {
+          if (currentCodeRef.current !== fetchedFor) return; // stale — joined round changed while in flight
           if (result?.data) {
             setRoundData(result.data);
             setLastUpdated(result.updated_at);
@@ -120,8 +130,10 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.visibilityState === "visible" && currentCodeRef.current) {
-        fetchRound(currentCodeRef.current)
+        const fetchedFor = currentCodeRef.current;
+        fetchRound(fetchedFor)
           .then(result => {
+            if (currentCodeRef.current !== fetchedFor) return; // stale — joined round changed while in flight
             if (result?.data) {
               setRoundData(result.data);
               setLastUpdated(result.updated_at);
@@ -145,8 +157,6 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
       setRoundData(result.data);
       setLastUpdated(result.updated_at);
       setStatus("joined");
-      currentCodeRef.current = trimmed;
-      setJoinedCode(trimmed);
       setJoinedCode(trimmed);
 
       // Notify App so it can load the round and set isJoiner
@@ -368,7 +378,13 @@ export default function JoinRound({ onBack, onJoinSuccess }) {
           skinsConfig={computed.skinsConfig}
           isJoiner={true}
           onRefresh={() => {
-            if (joinedCode) fetchRound(joinedCode).then(r => { if (r?.data) { setRoundData(r.data); setLastUpdated(r.updated_at); } }).catch(() => {});
+            if (joinedCode) {
+              const fetchedFor = joinedCode;
+              fetchRound(joinedCode).then(r => {
+                if (currentCodeRef.current !== fetchedFor) return; // stale — joined round changed while in flight
+                if (r?.data) { setRoundData(r.data); setLastUpdated(r.updated_at); }
+              }).catch(() => {});
+            }
           }}
         />
       </div>

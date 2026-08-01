@@ -700,6 +700,14 @@ const getTeamGameSelection = useCallback((index) => {
     mode
   );
 }, [teamGames, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  // NOT a simple fix: getDefaultTeamSelection/sanitizeGameSelection close
+  // over players/mode/activePlayerIds (real component state), so they're
+  // correctly NOT stable references. Adding them directly to this array
+  // would defeat the useCallback's memoization entirely. A real fix means
+  // wrapping getDefaultTeamSelection, getTeamValues, dedupePreserveOrder,
+  // and sanitizeGameSelection each in their own correctly-scoped
+  // useCallback first — a genuine 4-function refactor, not a one-line
+  // change. Backlogged as its own careful pass, not rushed here.
 
 
 function applyPreset(preset) {
@@ -1489,7 +1497,7 @@ birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
     matches: teamMatches,
   };
   }); // end press format map
-  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, birdiesEnabled, getTeamGameSelection, context, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, getTeamGameSelection, context, mode]);
 
 
 
@@ -2585,6 +2593,7 @@ useEffect(() => {
         })
         .catch(() => {
           // Fetch recent rounds as fallback
+          if (roundCodeRef.current !== null && roundCodeRef.current !== savedCode) return; // stale — round changed while in flight
           fetchRecentRounds().then(rounds => {
             if (rounds.length > 0) {
               setRecentRounds(rounds);
@@ -2597,6 +2606,10 @@ useEffect(() => {
       // No saved code — check for recent rounds
       fetchRecentRounds()
         .then(rounds => {
+          // If the person has since started typing into a new round
+          // (roundCode is no longer null), don't interrupt them with an
+          // unrelated "recent rounds" picker popping up mid-setup.
+          if (roundCodeRef.current !== null) return;
           if (rounds.length > 0) {
             setRecentRounds(rounds);
             setShowRecentRounds(true);
@@ -2607,7 +2620,14 @@ useEffect(() => {
     }
   }
 }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+// NOT a simple fix: wants gateOrApplySnapshot added, but that's a plain
+// function recreated every render, not memoized. Adding it directly
+// would turn this mount-ONCE effect into one that reruns on every
+// render — a major behavioral change to the exact function this
+// session's stale-fetch fixes depend on. A real fix means wrapping
+// gateOrApplySnapshot (and the applyRoundSnapshot it calls internally)
+// in properly-scoped useCallback first. Backlogged as its own careful,
+// dedicated pass — not safe to rush at the end of this session.
 useEffect(() => {
   if (roundCode) {
     localStorage.setItem(ROUND_CODE_KEY, roundCode);
@@ -2662,8 +2682,21 @@ useEffect(() => {
   buildCurrentRoundSnapshot,
 ]);
 
-// Auto-sync to Supabase whenever scores change (debounced 800ms)
-// Only runs when a round code exists (i.e. Start Round was tapped)
+// Auto-sync to Supabase whenever scores, matches, or team assignments
+// change (debounced 800ms). Only runs when a round code exists (i.e.
+// Start Round was tapped).
+//
+// CONFIRMED REAL BUG (Aug 2026): matches and teamGames were never listed
+// here directly — the assumption was that depending on
+// buildCurrentRoundSnapshot alone was enough, since IT depends on both.
+// In practice, adding 1v1 matches without also touching a score never
+// triggered a sync at all — a live round on the course had 6 real 1v1
+// matches sitting only in local state, completely absent from Supabase
+// (confirmed directly: `matches: []` in the database while local state
+// had 6 real entries). A second device joining the same round code saw
+// only the team game, nothing else. Listing both explicitly here closes
+// the gap regardless of whether the indirect dependency chain through
+// buildCurrentRoundSnapshot was actually propagating correctly.
 const syncTimerRef = useRef(null);
 useEffect(() => {
   if (!roundCode || !autoRestoreComplete) return;
@@ -2683,7 +2716,7 @@ useEffect(() => {
   }, 800);
 
   return () => clearTimeout(syncTimerRef.current);
-}, [scores, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
+}, [scores, matches, teamGames, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
 
 // Cleanup sync channel on unmount
 useEffect(() => {
@@ -2714,6 +2747,8 @@ useEffect(() => {
   document.addEventListener("visibilitychange", handleVisibilityChange);
   return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
 }, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
+// Same reasoning as above: wants applyRoundSnapshot added, but it's a
+// plain function recreated every render. Backlogged with the other two.
 useEffect(() => {
   if (!roundCode || !isJoiner) return;
   const interval = setInterval(() => {
@@ -2732,6 +2767,10 @@ useEffect(() => {
   }, 30000);
   return () => clearInterval(interval);
 }, [roundCode, isJoiner]); // eslint-disable-line react-hooks/exhaustive-deps
+// Same reasoning as the two above: wants applyRoundSnapshot added, but
+// it's a plain function recreated every render, not memoized. All three
+// applyRoundSnapshot/gateOrApplySnapshot warnings backlogged together as
+// one dedicated refactor (see StoppedCounting_Decisions_and_Rules.md).
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 

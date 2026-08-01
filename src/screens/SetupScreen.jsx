@@ -180,7 +180,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   // Load all courses once on mount
   useEffect(() => {
     searchCourses("%").then(r => setAllCourses(r || [])).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchCourses]);
 
   const filteredCourses = allCourses.filter(c =>
     !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

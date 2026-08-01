@@ -5,41 +5,48 @@ export function generateRoundCode() {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
 
-// Checks whether a round code is already in use. Returns false ONLY when
-// Supabase confirms zero rows exist (PGRST116) — any other error (network
-// down, auth issue, etc.) is treated as "couldn't verify," not "it's free,"
-// since silently proceeding on an unknown error is exactly how the
-// original collision bug slipped through undetected.
-async function isRoundCodeTaken(code) {
+// Atomically claims a round code by attempting a real INSERT — not a
+// SELECT-then-decide check. This is the actual fix for a real gap found
+// during a post-incident audit: the previous check-then-use approach had
+// a genuine window between "confirmed free" and "actually saved" where a
+// second attempt could theoretically slip through, since nothing had
+// actually claimed the code yet at the moment it was handed back as safe.
+// A plain insert either succeeds (code is now genuinely claimed, atomically,
+// in the same operation as the check) or fails with a real, unambiguous
+// 23505 unique-violation error if another process claimed it first —
+// there's no gap between "looks free" and "is free" for a second caller
+// to land in. Returns true if claimed, false if genuinely taken.
+async function claimRoundCode(code) {
   const { error } = await supabase
     .from("rounds")
-    .select("code")
-    .eq("code", code.toUpperCase())
-    .single();
-  if (error && error.code === "PGRST116") return false; // confirmed: no round with this code
-  if (error) throw error; // some other real error — don't guess either way
-  return true; // a round genuinely exists under this code
+    .insert({ id: code, code: code.toUpperCase(), data: {} });
+  if (!error) return true; // claimed — this row is now genuinely ours
+  if (error.code === "23505") return false; // genuinely taken by someone else
+  throw error; // some other real error — don't guess either way
 }
 
-// Generates a round code and verifies it isn't already in use before
-// handing it back — this is the actual fix for a real, confirmed bug: a
-// brand new round silently colliding with an old leftover round sharing
-// the same random 4-digit code, corrupting a live scored round with old
+// Generates a round code and atomically claims it before handing it
+// back — this is the actual fix for a real, confirmed bug: a brand new
+// round silently colliding with an old leftover round sharing the same
+// random 4-digit code, corrupting a live scored round with old
 // placeholder players and sample scores. Retries a handful of times; if
 // Supabase can't be reached at all to verify, falls back to the plain
 // random code rather than blocking someone from starting a round over a
 // connectivity hiccup — matching the previous behavior as a safe floor,
-// not a regression.
+// not a regression. The initial placeholder row this claims gets fully
+// overwritten by the app's first real autosave moments later — this
+// function's only job is guaranteeing the code itself is genuinely,
+// atomically owned before anything else happens.
 export async function generateUniqueRoundCode(maxAttempts = 20, preferredCode = null) {
   // If a specific code is already showing on screen (e.g. optimistically
-  // set the instant someone starts typing), verify THAT one first rather
-  // than always generating a fresh one — otherwise the visible code would
-  // flicker to a different number moments later even when the original
-  // was completely fine all along.
+  // set the instant someone starts typing), try claiming THAT one first
+  // rather than always generating a fresh one — otherwise the visible
+  // code would flicker to a different number moments later even when the
+  // original was completely fine all along.
   if (preferredCode) {
     try {
-      const taken = await isRoundCodeTaken(preferredCode);
-      if (!taken) return preferredCode;
+      const claimed = await claimRoundCode(preferredCode);
+      if (claimed) return preferredCode;
     } catch (error) {
       return preferredCode;
     }
@@ -47,8 +54,8 @@ export async function generateUniqueRoundCode(maxAttempts = 20, preferredCode = 
   for (let i = 0; i < maxAttempts; i++) {
     const code = generateRoundCode();
     try {
-      const taken = await isRoundCodeTaken(code);
-      if (!taken) return code;
+      const claimed = await claimRoundCode(code);
+      if (claimed) return code;
     } catch (error) {
       return code; // couldn't verify — don't block starting a round over it
     }

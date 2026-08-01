@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchActiveRounds } from "../lib/roundSync";
 
 const ADMIN_PIN = "1234"; // change this to whatever you want
@@ -30,7 +30,7 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
     }
   }
 
-  async function loadRounds() {
+  const loadRounds = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchActiveRounds(hoursAgo);
@@ -40,11 +40,11 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [hoursAgo]);
 
   useEffect(() => {
     if (authed) loadRounds();
-  }, [authed, hoursAgo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authed, loadRounds]);
 
   if (!authed) {
     return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { settleSkinsRound } from "../engine/scoringEngine";
 import {
   createTrip, fetchMyTrips, fetchTrip,
@@ -110,13 +110,29 @@ function TripSetupView({ deviceId, trip, onBack, onSaved }) {
   const [status, setStatus] = useState("");
   const [courseResults, setCourseResults] = useState([]);
   const [activeRoundIdx, setActiveRoundIdx] = useState(null);
+  // Mirrors trip?.id — guards against a fetch for a previously-viewed
+  // trip resolving after the person has already navigated to a
+  // different one, which would otherwise silently apply the wrong
+  // trip's players/rounds/games. Same underlying risk and fix pattern
+  // as roundCodeRef in App.jsx and currentCodeRef in JoinRound.jsx,
+  // found during the same post-incident audit.
+  const tripIdRef = useRef(null);
+  useEffect(() => { tripIdRef.current = trip?.id ?? null; }, [trip?.id]);
 
   // Load existing data
   useEffect(() => {
     if (!trip?.id) return;
-    fetchTripPlayers(trip.id).then(setPlayers);
-    fetchTripRounds(trip.id).then(setRounds);
+    const fetchedFor = trip.id;
+    fetchTripPlayers(trip.id).then(data => {
+      if (tripIdRef.current !== fetchedFor) return;
+      setPlayers(data);
+    });
+    fetchTripRounds(trip.id).then(data => {
+      if (tripIdRef.current !== fetchedFor) return;
+      setRounds(data);
+    });
     fetchTripGames(trip.id).then(data => {
+      if (tripIdRef.current !== fetchedFor) return;
       if (data.length) setGames(data);
     });
   }, [trip?.id]);
