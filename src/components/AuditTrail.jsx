@@ -10,6 +10,9 @@ import {
   computeWolfRoundResult,
   computeWolfCarryoverSchedule,
   getNetScore,
+  getTeamNetScore,
+  getTeamStrokeScore,
+  formatScoreWithStrokeDots,
   formatMatchPlayRunning,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
@@ -213,6 +216,24 @@ function TeamGameScorecard({
   const shortDecidedOn = matchup?.result?.shortDecidedOn ?? null;
   const shortStart = longDecidedOn ? longDecidedOn + 1 : 19;
 
+  // Net Holes — per Guard #38 in CRITICAL_GUARDS.md: a continuous 18-hole
+  // game, NO "decided" concept at all, every hole counts toward the
+  // final tally regardless of margin. Running row must be a real numeric
+  // differential ("+2"/"-1"/"Even"), never up/dn match-play notation,
+  // and its label must read "Net Holes" specifically, not a hole range.
+  const isNetHoles = matchup?.result?.type === "standard";
+  let netHolesRunning = 0;
+
+  // Stroke — also segment-based (front/back/total per strokeFront/
+  // strokeBack/strokeTotal toggles), same structural shape as Match
+  // Play, but a real numeric stroke differential per hole, never up/dn,
+  // and per Guard #38 also has no "decided" concept — holes keep
+  // counting all the way through regardless of margin.
+  const isStroke = matchup?.result?.type === "stroke";
+  const strokeSegments = isStroke ? (matchup.result.segments || []) : [];
+  const strokeRunning = {};
+  strokeSegments.forEach(seg => { strokeRunning[seg.key] = 0; });
+
   // Accumulators keyed by segment key for Match Play (front/back/total),
   // and separately for Long/Short — each reset to 0 and built up hole by
   // hole as rows are computed below, exactly mirroring how 1v1 walks its
@@ -299,16 +320,59 @@ function TeamGameScorecard({
       }
     }
 
+    // Net Holes — continuous, no decided concept at all (Guard #38).
+    // holeResult is already the correct per-hole unit (+1/-1/0, "pays $X
+    // per hole won") — just accumulate straight through every hole.
+    let netHolesLabel = null;
+    if (isNetHoles) {
+      if (holeResult != null) netHolesRunning += holeResult;
+      netHolesLabel = netHolesRunning === 0 ? "Even" : netHolesRunning > 0 ? `+${netHolesRunning}` : `${netHolesRunning}`;
+    }
+
+    // Stroke — segment-based like Match Play, but a real numeric stroke
+    // differential per hole, and per Guard #38 also has no decided
+    // concept — holes keep counting the whole way through regardless of
+    // margin (unlike Match Play, which stops once clinched).
+    const strokeCells = {};
+    if (isStroke) {
+      const strokeCombined = !!matchup.result.strokeCombined;
+      const strokeScoring = matchup.result.strokeScoring || "net";
+      strokeSegments.forEach(seg => {
+        const segStart = seg.key === "back" ? 10 : 1;
+        const segEnd = seg.key === "front" ? 9 : 18;
+        if (hole < segStart || hole > segEnd) {
+          strokeCells[seg.key] = null;
+          return;
+        }
+        const aScore = getTeamStrokeScore(teamA, hole, players, course, scores, handicapMode, strokeScoring, strokeCombined, getHandicapStrokesFn);
+        const bScore = getTeamStrokeScore(teamB, hole, players, course, scores, handicapMode, strokeScoring, strokeCombined, getHandicapStrokesFn);
+        if (aScore != null && bScore != null) {
+          strokeRunning[seg.key] += (bScore - aScore); // positive = teamA ahead (lower is better in golf)
+        }
+        const diff = strokeRunning[seg.key];
+        strokeCells[seg.key] = {
+          label: diff === 0 ? "Even" : diff > 0 ? `+${diff}` : `${diff}`,
+          color: diff > 0 ? "#137333" : diff < 0 ? "#b3261e" : "#6b7280",
+        };
+      });
+    }
+
     return {
       hole,
-      teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
-      teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
+      teamAValue: (isStroke && matchup.result.strokeCombined)
+        ? teamA.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
+        : getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
+      teamBValue: (isStroke && matchup.result.strokeCombined)
+        ? teamB.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
+        : getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue), // Press only — Match Play/Long-Short use matchPlayCells/longCell/shortCell below
       runningValue,
       matchPlayCells,
       longCell,
       shortCell,
+      netHolesLabel,
+      strokeCells,
       pressDetail: formatPressDetail(statuses),
       resultValue: holeResult,
     };
@@ -506,7 +570,41 @@ function TeamGameScorecard({
             </tr>
           ))}
 
-          {!isMatchPlay && !isLongShort && (
+          {isNetHoles && (
+            <tr>
+              <td style={scorecardLabelCellStyle}>Net Holes</td>
+              {sectionRows.map((row) => {
+                const val = row.netHolesLabel;
+                const color = val === "Even" ? "#6b7280" : (val && val.startsWith("+")) ? "#137333" : "#b3261e";
+                return (
+                  <td key={`netholes-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color, fontWeight: 700 }}>
+                    {val ?? ""}
+                  </td>
+                );
+              })}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          )}
+
+          {isStroke && strokeSegments.map(seg => (
+            <tr key={`stroke-seg-${seg.key}`}>
+              <td style={scorecardLabelCellStyle}>{seg.label}</td>
+              {sectionRows.map((row) => {
+                const cell = row.strokeCells?.[seg.key];
+                return (
+                  <td
+                    key={`stroke-${seg.key}-${gameIndex}-${matchupIndex}-${row.hole}`}
+                    style={{ ...scorecardCellStyle, color: cell?.color || "#555", fontWeight: 700 }}
+                  >
+                    {cell ? cell.label : ""}
+                  </td>
+                );
+              })}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          ))}
+
+          {!isMatchPlay && !isLongShort && !isNetHoles && !isStroke && (
             <tr>
               <td style={scorecardLabelCellStyle}>{`Holes ${game.start}–${game.end}`}</td>
               {sectionRows.map((row) => (
@@ -2545,6 +2643,24 @@ function TeamGameAudit({
                   sessionKey={sessionKey}
                   noStorage
                 >
+                  <TeamGameScorecard
+                    game={game}
+                    matchup={matchup}
+                    gameIndex={gameIndex}
+                    matchupIndex={matchupIndex}
+                    teamA={teamA}
+                    teamB={teamB}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    players={players}
+                    course={course}
+                    scores={scores}
+                    handicapMode={handicapMode}
+                    teamGameFormat={teamGameFormat}
+                    showPressDetail={!isNonPress}
+                    noPar3Strokes={noPar3TeamGame}
+                    getHandicapStrokesFn={getHandicapStrokesFn}
+                  />
                   {isNonPress && (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
                       {result.type === "match_fbt" && (result.segments || []).map(s => (
@@ -2572,24 +2688,6 @@ function TeamGameAudit({
                       )}
                     </div>
                   )}
-                  <TeamGameScorecard
-                    game={game}
-                    matchup={matchup}
-                    gameIndex={gameIndex}
-                    matchupIndex={matchupIndex}
-                    teamA={teamA}
-                    teamB={teamB}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                    players={players}
-                    course={course}
-                    scores={scores}
-                    handicapMode={handicapMode}
-                    teamGameFormat={teamGameFormat}
-                    showPressDetail={!isNonPress}
-                    noPar3Strokes={noPar3TeamGame}
-                    getHandicapStrokesFn={getHandicapStrokesFn}
-                  />
                 </AuditSection>
               );
             })}

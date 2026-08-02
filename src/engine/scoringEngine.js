@@ -211,6 +211,23 @@ export function isNetBirdie(playerId, hole, players, course, scores, handicapMod
   return net < par;
 }
 
+// Team stroke score for a single hole — correctly respects BOTH the
+// Combined (sum both players) vs Low Net (best ball) toggle AND
+// strokeScoring (net/gross), by reusing sumStrokeSegment for a
+// single-hole range rather than duplicating its logic. Built because
+// getTeamNetScore has neither of these — it's always best-ball, always
+// net, with no awareness of either Stroke-specific setting. Single
+// source of truth for both the per-hole running differential and the
+// per-hole display cell, so they can't drift apart from each other.
+export function getTeamStrokeScore(team, hole, players, course, scores, handicapMode, strokeScoring, combined, getHandicapStrokesFn) {
+  const perPlayer = team.map(playerId =>
+    sumStrokeSegment({ playerId, startHole: hole, endHole: hole, players, course, scores, handicapMode, strokeScoring, getHandicapStrokesFn })
+  );
+  if (perPlayer.some(p => p.total === null)) return null;
+  if (combined) return perPlayer.reduce((sum, p) => sum + p.total, 0);
+  return Math.min(...perPlayer.map(p => p.total));
+}
+
 export function getTeamNetScore(
   team,
   hole,
@@ -639,7 +656,7 @@ export function getStrokeValueForHole(
   return getNetScore(playerId, hole, players, course, scores, handicapMode, false, getHandicapStrokesFn);
 }
 
-function sumStrokeSegment({
+export function sumStrokeSegment({
   playerId,
   startHole,
   endHole,
