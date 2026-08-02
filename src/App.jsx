@@ -3227,9 +3227,6 @@ if (!enableTeamGame) {
   const playerName = (id) =>
     players.find((p) => p.id === id)?.name || id;
 
-  const teamName = (ids = []) =>
-    ids.filter(Boolean).map(playerName).join(" / ");
-
  const holeHcp = Number(course?.hcp?.[holeNumber - 1]);
 
 const lowestPlayerHcp = Math.min(
