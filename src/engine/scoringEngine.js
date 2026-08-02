@@ -548,6 +548,20 @@ function sumResults(holes, startHole, endHole) {
   return { total, completed };
 }
 
+// Formats a running match-play total (from computeHoleResult's +1/-1/0
+// per-hole output, summed so far) into the correct sign-aware "up"/"dn"
+// label and color — same convention as fmtConclusion/decideMatchPlaySegment,
+// extracted as its own small function specifically so it's directly
+// testable without needing to render the Team Game scorecard component
+// that consumes it.
+export function formatMatchPlayRunning(runningTotal) {
+  if (runningTotal === 0) return { label: "AS", color: "#555" };
+  const abs = Math.abs(runningTotal);
+  return runningTotal > 0
+    ? { label: `${abs} up`, color: "#137333" }
+    : { label: `${abs} dn`, color: "#b3261e" };
+}
+
 function decideMatchPlaySegment(holes, startHole, endHole) {
   let running = 0;
   let decidedOn = null;
