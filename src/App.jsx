@@ -13,6 +13,7 @@ import {
   buildBirdieResults,
   settleSkinsRound,
   getBestBallDisplay,
+  formatScoreWithStrokeDots,
   computeWolfRoundResult,
   getWolfHoleNarrative,
 } from "./engine/scoringEngine";
@@ -3276,7 +3277,32 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
 // status those formats each compute differently — that already lives
 // correctly in "Round Match Status" below, and duplicating it here with
 // wrong logic was the actual bug.
-const team1Name = teamName(selection?.team1 || []);
+//
+// Also shows each player's own gross score with their own stroke dots
+// — a real, direct sanity check that both the stroke/dot logic and
+// whoever entered the scores got it right, visible immediately after
+// saving the hole rather than only in Results.
+
+// "Harrison Biro" -> "HB". Falls back gracefully for single-word names.
+const initials = (name) => {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Builds "HB 5• / RF 6" — each player's own gross score with their own
+// stroke dots, exactly the same "gross + dots" convention used
+// everywhere else in this app (1v1 and team scorecards on Results) — not
+// a new notation invented just for this card. Uses
+// formatScoreWithStrokeDots directly, the same shared, tested function
+// those other views already rely on, so this can't drift from them.
+const teamScoreLine = (team) => {
+  const ids = team.filter(Boolean);
+  return ids
+    .map(id => `${initials(playerName(id))} ${formatScoreWithStrokeDots(id, holeNumber, players, course, scores, handicapMode, context.getHandicapStrokesFn, noPar3TeamGame)}`)
+    .join(" / ");
+};
 
 matchups.forEach(([a, b]) => {
   const A = selection?.[a] || [];
@@ -3287,10 +3313,11 @@ matchups.forEach(([a, b]) => {
   const scoreB = teamBestScore(B, holeScores);
   if (scoreA == null || scoreB == null) return;
 
-  const opponentName = teamName(B);
-  if (scoreA < scoreB) holeLines.push(`${team1Name} won vs ${opponentName}`);
-  else if (scoreB < scoreA) holeLines.push(`${team1Name} lost vs ${opponentName}`);
-  else holeLines.push(`${team1Name} pushed vs ${opponentName}`);
+  const teamALine = teamScoreLine(A);
+  const teamBLine = teamScoreLine(B);
+  if (scoreA < scoreB) holeLines.push(`${teamALine} won vs ${teamBLine}`);
+  else if (scoreB < scoreA) holeLines.push(`${teamALine} lost vs ${teamBLine}`);
+  else holeLines.push(`${teamALine} pushed vs ${teamBLine}`);
 });
 
 // --- BIRDIES ---
