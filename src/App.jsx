@@ -4186,48 +4186,6 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
     </div>
   );
 })()}
-{enableTeamGame && (
-  <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 16 }}>Team Game Standing</div>
-    {activePlayers.map((player) => {
-      // Wolf: teamGameResults is never populated (Wolf has no fixed matchups
-      // to iterate) — read straight from the already-correct ledger instead
-      // of re-deriving from data that doesn't exist for this format.
-      let netTotal = teamGameFormat === "wolf"
-        ? Number(computedResults.playerLedger.find((r) => r.playerId === player.id)?.mainGame || 0)
-        : 0;
-
-      if (teamGameFormat !== "wolf") {
-        teamGames.forEach((game, gameIndex) => {
-          const gameResult = teamGameResults.find((r) => r.index === gameIndex);
-          const selection = getTeamGameSelection(gameIndex);
-          (gameResult?.matches || []).forEach((matchup) => {
-            const parts = matchup.label.split(" ");
-            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
-            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
-            const teamAPlayers = selection?.[teamAKey] || [];
-            const teamBPlayers = selection?.[teamBKey] || [];
-            const units = getMatchUnits(matchup.result);
-            if (teamAPlayers.includes(player.id)) netTotal += units;
-            if (teamBPlayers.includes(player.id)) netTotal -= units;
-          });
-        });
-      }
-
-      const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
-      const label = teamGameFormat === "wolf"
-        ? (netTotal > 0 ? `+$${netTotal.toFixed(2)}` : netTotal < 0 ? `-$${Math.abs(netTotal).toFixed(2)}` : "even")
-        : (netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even");
-      return (
-        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <span style={{ fontSize: 15 }}>{player.name}</span>
-          <span style={{ fontWeight: "bold", color, fontSize: 15 }}>{label}</span>
-        </div>
-      );
-    })}
-  </div>
-)}
-
 {/* ── MATCH STATUS ── */}
 {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && (
   <div className="app-card" style={{ marginBottom: 12 }}>
@@ -4270,6 +4228,48 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
               </div>
             );
           })}
+        </div>
+      );
+    })}
+  </div>
+)}
+
+{enableTeamGame && (
+  <div className="app-card" style={{ marginBottom: 12 }}>
+    <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 16 }}>Team Game Standing</div>
+    {activePlayers.map((player) => {
+      // Wolf: teamGameResults is never populated (Wolf has no fixed matchups
+      // to iterate) — read straight from the already-correct ledger instead
+      // of re-deriving from data that doesn't exist for this format.
+      let netTotal = teamGameFormat === "wolf"
+        ? Number(computedResults.playerLedger.find((r) => r.playerId === player.id)?.mainGame || 0)
+        : 0;
+
+      if (teamGameFormat !== "wolf") {
+        teamGames.forEach((game, gameIndex) => {
+          const gameResult = teamGameResults.find((r) => r.index === gameIndex);
+          const selection = getTeamGameSelection(gameIndex);
+          (gameResult?.matches || []).forEach((matchup) => {
+            const parts = matchup.label.split(" ");
+            const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+            const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+            const teamAPlayers = selection?.[teamAKey] || [];
+            const teamBPlayers = selection?.[teamBKey] || [];
+            const units = getMatchUnits(matchup.result);
+            if (teamAPlayers.includes(player.id)) netTotal += units;
+            if (teamBPlayers.includes(player.id)) netTotal -= units;
+          });
+        });
+      }
+
+      const color = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#666";
+      const label = teamGameFormat === "wolf"
+        ? (netTotal > 0 ? `+$${netTotal.toFixed(2)}` : netTotal < 0 ? `-$${Math.abs(netTotal).toFixed(2)}` : "even")
+        : (netTotal > 0 ? `+${netTotal} bets` : netTotal < 0 ? `${netTotal} bets` : "even");
+      return (
+        <div key={player.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 15 }}>{player.name}</span>
+          <span style={{ fontWeight: "bold", color, fontSize: 15 }}>{label}</span>
         </div>
       );
     })}
