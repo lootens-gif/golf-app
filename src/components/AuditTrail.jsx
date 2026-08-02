@@ -1018,12 +1018,18 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const backGovernedByTotal = !hasBackSeg && hasTotalSeg;
 
   // Helper: format a match conclusion correctly
-  // X&Y if decided before last hole, X up if decided on last hole, AS if tied
+  // X&Y if decided before last hole, X up/dn if decided on last hole (sign
+  // matters — always P1 perspective), AS if tied
   function fmtConclusion(units, decidedOn, lastHole) {
     if (units === 0) return { label: "AS", color: "#6b7280" };
     const abs = Math.abs(units);
     const remaining = lastHole - decidedOn;
-    const label = remaining === 0 ? `${abs} up` : `${abs}&${remaining}`;
+    // CONFIRMED REAL BUG (Aug 2026), third occurrence of the same flaw
+    // already fixed twice in scoringEngine.js: hardcoded "up" regardless
+    // of sign whenever decided exactly on the last hole. The color right
+    // below was already correctly sign-aware — only the text label
+    // wasn't. Always P1 perspective, same as everywhere else in this app.
+    const label = remaining === 0 ? `${abs} ${units > 0 ? "up" : "dn"}` : `${abs}&${remaining}`;
     return { label, color: units > 0 ? "#137333" : "#b3261e" };
   }
 

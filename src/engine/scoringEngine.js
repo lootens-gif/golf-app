@@ -579,9 +579,26 @@ function decideMatchPlaySegment(holes, startHole, endHole) {
 
     const margin = Math.abs(clinchScore);
     const remaining = endHole - decidedOn;
-    label = remaining === 0 ? `${margin} up` : `${margin}&${remaining}`;
+    // CONFIRMED REAL BUG (Aug 2026): "X up" was hardcoded here regardless
+    // of clinchScore's actual sign, whenever the match was decided with
+    // zero holes remaining (i.e., settled exactly on the final hole of
+    // the segment). This only shows correctly when clinchScore is
+    // positive; a negative score at this exact point means a LOSS, which
+    // must read "X dn," not "X up." The X&Y clinch notation on other
+    // lines doesn't have this problem — it's inherently a shared,
+    // winner-side notation, not a per-player "up/down" claim.
+    label = remaining === 0
+      ? (clinchScore > 0 ? `${margin} up` : `${margin} dn`)
+      : `${margin}&${remaining}`;
   } else if (total !== 0) {
-    label = `${Math.abs(total)} up`;
+    // Same fix, same reasoning — see the comment above. Confirmed live,
+    // real report: a match that went the full distance and was lost by
+    // 1 showed "1 up" instead of "1 dn," reading as a win when it was a
+    // loss. The display layer already has correct, sign-aware fallback
+    // logic for exactly this ("up" if positive, "dn" if negative) — but
+    // it was permanently dead code, since this label is never empty and
+    // always took precedence over that fallback.
+    label = total > 0 ? `${Math.abs(total)} up` : `${Math.abs(total)} dn`;
   }
 
   return {

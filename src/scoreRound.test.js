@@ -958,6 +958,33 @@ test('50b_longshort_no_short_while_long_still_mid_round (real bug, Aug 2026)', (
   expect(result.shortLabel == null || result.shortLabel === "Tie").toBe(true);
 });
 
+// ── "X up" vs "X dn" SIGN TESTS (real bug, Aug 2026) ────────────────────────
+// Zero-handicap players so gross always equals net — full, direct control
+// over exactly who wins each hole, with no stroke allocation to account for.
+const zeroHcpPlayers = round6341Players.map(p => ({ ...p, hcp: 0 }));
+const zeroHcpCourse = round6341Course;
+const evenMatch = { id: "test-updn", p1Id: "p1", p2Id: "p2", type: "longshort", bet: 10, toyRule: false, birdieEnabled: false, noPar3Strokes: false };
+
+test('50c_match_decided_on_final_hole_shows_dn_when_p1_loses (real bug, Aug 2026 - was showing "up" for a loss)', () => {
+  // All 17 holes tied, p1 loses hole 18 outright — match is decided
+  // exactly on the final hole (remaining=0), p1 lost by 1.
+  const scores = {};
+  for (let h = 1; h <= 17; h++) scores[h] = { p1: 4, p2: 4, p3: 4, p4: 4, p5: 4 };
+  scores[18] = { p1: 5, p2: 3, p3: 4, p4: 4, p5: 4 }; // p1 loses hole 18
+  const result = playIndividualMatch(evenMatch, { players: zeroHcpPlayers, course: zeroHcpCourse, scores, handicapMode: "relative" });
+  expect(result.long).toBeLessThan(0); // confirms this is genuinely a loss for p1, not a win
+  expect(result.longLabel).toBe("1 dn"); // must NOT be "1 up" — that would read as a win
+});
+
+test('50d_match_decided_on_final_hole_shows_up_when_p1_wins (confirms the fix did not break the winning case)', () => {
+  const scores = {};
+  for (let h = 1; h <= 17; h++) scores[h] = { p1: 4, p2: 4, p3: 4, p4: 4, p5: 4 };
+  scores[18] = { p1: 3, p2: 5, p3: 4, p4: 4, p5: 4 }; // p1 wins hole 18
+  const result = playIndividualMatch(evenMatch, { players: zeroHcpPlayers, course: zeroHcpCourse, scores, handicapMode: "relative" });
+  expect(result.long).toBeGreaterThan(0);
+  expect(result.longLabel).toBe("1 up");
+});
+
 // ── MATCH PLAY F/B/T TESTS ───────────────────────────────────────────────────
 const fbtMatch = {
   id: "test-fbt",
