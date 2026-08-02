@@ -3269,81 +3269,29 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
         ]
       : [["team1", "team2"]];
 
-// --- HOLE RESULT (GOLFER SUMMARY) ---
-let wins = 0;
-let losses = 0;
-let ties = 0;
+// --- HOLE RESULT (Team 1 perspective, per matchup) ---
+// Simple, always-true win/lose/push per matchup — format-independent,
+// since "who had the better best-ball score on this hole" is true
+// regardless of whether the actual game is Press, Match Play, Net
+// Holes, Long/Short, or Stroke. Deliberately NOT the detailed running
+// status those formats each compute differently — that already lives
+// correctly in "Round Match Status" below, and duplicating it here with
+// wrong logic was the actual bug.
+const team1Name = teamName(selection?.team1 || []);
 
 matchups.forEach(([a, b]) => {
   const A = selection?.[a] || [];
   const B = selection?.[b] || [];
+  if (A.filter(Boolean).length === 0 || B.filter(Boolean).length === 0) return;
 
   const scoreA = teamBestScore(A, holeScores);
   const scoreB = teamBestScore(B, holeScores);
-
   if (scoreA == null || scoreB == null) return;
 
-  if (scoreA < scoreB) wins += 1;
-  else if (scoreB < scoreA) losses += 1;
-  else ties += 1;
-});
-
-const team1Name = teamName(selection?.team1 || []);
-
-// build natural language summary
-if (wins === 3) {
-  holeLines.push(`${team1Name} won all 3`);
-} else if (wins === 2 && ties === 1) {
-  holeLines.push(`${team1Name} won 2, tied 1`);
-} else if (wins === 1 && ties === 2) {
-  holeLines.push(`${team1Name} won 1, tied 2`);
-} else if (ties === 3) {
-  holeLines.push(`${team1Name} tied all 3`);
-} else if (losses === 3) {
-  holeLines.push(`${team1Name} lost all 3`);
-} else if (losses === 2 && ties === 1) {
-  holeLines.push(`${team1Name} lost 2, tied 1`);
-} else if (losses === 1 && ties === 2) {
-  holeLines.push(`${team1Name} lost 1, tied 2`);
-} else if (wins === 1 && losses === 1 && ties === 1) {
-  holeLines.push(`Split: ${team1Name} won 1, lost 1, tied 1`);
-} else if (wins === 2 && losses === 1) {
-  holeLines.push(`Split: ${team1Name} won 2, lost 1`);
-} else if (losses === 2 && wins === 1) {
-  holeLines.push(`Split: ${team1Name} lost 2, won 1`);
-}
-
-// --- MATCH STATUS WITH PRESSES ---
-matchups.forEach(([a, b]) => {
-  const A = selection?.[a] || [];
-  const B = selection?.[b] || [];
-
-  if (A.filter(Boolean).length === 0 || B.filter(Boolean).length === 0) return;
-
-  const pressResults = playPressMatch({
-    teamA: A,
-    teamB: B,
-    start: range.start,
-    end: holeNumber,
-    trigger: teamGames[activeGameIndex]?.pressTrigger ?? 1,
-    context,
-  });
-
-  const betScore = (pressResults || []).reduce((sum, bet) => {
-    const score = Number(bet.score || 0);
-    if (score > 0) return sum + 1;
-    if (score < 0) return sum - 1;
-    return sum;
-  }, 0);
-
-  const betScores = (pressResults || []).map(bet => Number(bet.score || 0));
-
-  matchLines.push({
-    teamAName: teamName(A),
-    teamBName: teamName(B),
-    netUnits: betScore,
-    betScores,
-  });
+  const opponentName = teamName(B);
+  if (scoreA < scoreB) holeLines.push(`${team1Name} won vs ${opponentName}`);
+  else if (scoreB < scoreA) holeLines.push(`${team1Name} lost vs ${opponentName}`);
+  else holeLines.push(`${team1Name} pushed vs ${opponentName}`);
 });
 
 // --- BIRDIES ---
