@@ -911,20 +911,51 @@ test('49_longshort_money_balances', () => {
 });
 
 test('50_longshort_no_short_if_long_goes_all_18', () => {
-  // If long match is never decided, short never starts
-  // Use scores where nobody wins decisively
-  const tiedScores = {};
-  for (let h = 1; h <= 18; h++) {
-    tiedScores[h] = { p1: 4, p2: 4, p3: 4, p4: 4, p5: 4 };
-  }
+  // Genuinely discriminating version — holes 1-9 favor p2 enough that the
+  // FULL 18-hole match ties overall, but holes 10-18 specifically favor
+  // p1 clearly. The original version of this test used a fully uniform
+  // tie (every hole 4-4), which could NOT actually catch a real,
+  // confirmed bug: shortStart defaulted to hole 10 whenever
+  // longSegment.decidedOn was null, instead of correctly suppressing
+  // Short entirely. With a uniform tie, holes 10-18 are ALSO tied, so
+  // the buggy "default to 10" path and the correct "suppress" path both
+  // produced short: 0 — passing the assertion for the wrong reason. This
+  // version fails on the buggy code, since holes 10-18 alone would
+  // produce a real, non-zero Short result if shortStart incorrectly
+  // defaulted to 10.
+  const scores = {};
+  for (let h = 1; h <= 9; h++) scores[h] = { p1: 5, p2: 3, p3: 4, p4: 4, p5: 4 }; // p2 wins front 9
+  for (let h = 10; h <= 18; h++) scores[h] = { p1: 3, p2: 5, p3: 4, p4: 4, p5: 4 }; // p1 wins back 9 — overall 18-hole match ties
   const result = playIndividualMatch(longShortMatch, {
     players: round6341Players,
     course: round6341Course,
-    scores: tiedScores,
+    scores,
     handicapMode: "relative",
   });
-  // Long tied = 0, short should not exist or be 0
-  expect(result.short || 0).toBe(0);
+  expect(result.longDecidedOn).toBeNull(); // confirms Long genuinely tied through all 18, never closed early
+  expect(result.short || 0).toBe(0); // Short must not exist — Long never closed early, tying isn't closing
+});
+
+test('50b_longshort_no_short_while_long_still_mid_round (real bug, Aug 2026)', () => {
+  // Exact reproduction of a real report: Long still genuinely in
+  // progress (only 15 of 18 holes played, nothing decided yet) showed a
+  // real Short result in the summary anyway. Same root cause as the test
+  // above — decidedOn null defaulted shortStart to hole 10 instead of
+  // correctly suppressing Short until Long actually closes (or the round
+  // ends in a tie).
+  const scores = {};
+  for (let h = 1; h <= 9; h++) scores[h] = { p1: 5, p2: 3, p3: 4, p4: 4, p5: 4 }; // p2 up through the front
+  for (let h = 10; h <= 15; h++) scores[h] = { p1: 3, p2: 5, p3: 4, p4: 4, p5: 4 }; // p1 clawing back, match still alive
+  // holes 16-18 intentionally left unplayed — round is genuinely mid-progress
+  const result = playIndividualMatch(longShortMatch, {
+    players: round6341Players,
+    course: round6341Course,
+    scores,
+    handicapMode: "relative",
+  });
+  expect(result.longDecidedOn).toBeNull(); // Long hasn't closed — still mathematically alive
+  expect(result.short || 0).toBe(0); // Short must not show a result while Long is still undecided
+  expect(result.shortLabel == null || result.shortLabel === "Tie").toBe(true);
 });
 
 // ── MATCH PLAY F/B/T TESTS ───────────────────────────────────────────────────

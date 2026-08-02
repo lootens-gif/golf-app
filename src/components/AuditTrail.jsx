@@ -1531,7 +1531,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const netColor = netTotal > 0 ? "#137333" : netTotal < 0 ? "#b3261e" : "#6b7280";
           return (
             <div style={{ fontSize: 13, padding: "6px 2px", borderTop: "1px solid #eee", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longColor, fontWeight: 700 }}>{longLabel}</span><span style={{ color: longColor }}> ({longColor === "#137333" ? "+" : ""}{result.long > 0 ? `+$${result.long}` : result.long < 0 ? `-$${Math.abs(result.long)}` : "$0"})</span></span>
+              <span><span style={{ color: "#555" }}>Long </span><span style={{ color: longColor, fontWeight: 700 }}>{longLabel}</span><span style={{ color: longColor }}> ({result.long > 0 ? `+$${result.long}` : result.long < 0 ? `-$${Math.abs(result.long)}` : "$0"})</span></span>
               {shortLabel && (
                 <span><span style={{ color: "#555" }}>Short </span><span style={{ color: shortColor, fontWeight: 700 }}>{shortLabel}</span><span style={{ color: shortColor }}> ({result.short > 0 ? `+$${result.short}` : result.short < 0 ? `-$${Math.abs(result.short)}` : "$0"})</span></span>
               )}

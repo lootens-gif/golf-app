@@ -778,7 +778,15 @@ const matchPlayers = [p1, p2].filter(Boolean);
     const longUnits = signUnit(longSegment.score);
     const longResult = longUnits * match.bet;
 
-    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 10;
+    // CONFIRMED REAL BUG (Aug 2026), regression of a previously-fixed
+    // issue: when longSegment.decidedOn is null — meaning Long is either
+    // still ongoing mid-round, or genuinely tied through all 18 — this
+    // must NOT default to hole 10. Defaulting to 10 treated "not decided
+    // yet" as if it meant "Long closed right after the front 9," which
+    // computed a real Short result even while Long was still mid-round
+    // and undecided. Using 19 (out of range) here correctly suppresses
+    // Short in BOTH cases: still in progress, and tied after 18.
+    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 19;
     if (shortStart > 18) shortStart = 19;
 
     let shortSegment = {
@@ -1026,7 +1034,11 @@ export function playTeamMatch(match, context) {
     const longSegment = decideMatchPlaySegment(holeResults, 1, 18);
     const longUnits = signUnit(longSegment.score);
     const longResult = longUnits * bet;
-    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 10;
+    // Same fix as the other longshort implementation above — see that
+    // comment for the full explanation. Duplicate logic here is very
+    // likely why this exact bug has resurfaced more than once: a past
+    // fix probably only touched one of these two copies.
+    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 19;
     if (shortStart > 18) shortStart = 19;
     let shortSegment = { score: 0, units: 0, label: "Tie", decidedOn: null };
     if (shortStart <= 18) shortSegment = decideMatchPlaySegment(holeResults, shortStart, 18);
