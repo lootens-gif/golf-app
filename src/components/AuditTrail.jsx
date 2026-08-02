@@ -10,7 +10,6 @@ import {
   computeWolfRoundResult,
   computeWolfCarryoverSchedule,
   getNetScore,
-  getTeamNetScore,
   getTeamStrokeScore,
   formatScoreWithStrokeDots,
   formatMatchPlayRunning,

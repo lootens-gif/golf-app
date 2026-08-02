@@ -3220,7 +3220,6 @@ if (!enableTeamGame) {
     };
   }
 
-  const range = getTeamGameRange(teamGames, activeGameIndex);
   const selection = getTeamGameSelection(activeGameIndex);
   const holeScores = scores[holeNumber] || {};
 
