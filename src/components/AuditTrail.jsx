@@ -10,6 +10,7 @@ import {
   computeWolfRoundResult,
   computeWolfCarryoverSchedule,
   getNetScore,
+  formatMatchPlayRunning,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -160,6 +161,7 @@ function TeamGameScorecard({
   course,
   scores,
   handicapMode,
+  teamGameFormat,
   showPressDetail = false,
   noPar3Strokes = false,
   getHandicapStrokesFn,
@@ -173,6 +175,19 @@ function TeamGameScorecard({
     count + holes.filter(h => isGrossBirdie(scores, course, h, playerId)).length, 0);
   const teamBBirdies = teamB.filter(Boolean).reduce((count, playerId) =>
     count + holes.filter(h => isGrossBirdie(scores, course, h, playerId)).length, 0);
+
+  // CONFIRMED REAL BUG (Aug 2026), Chunk 1 of the Team Game rendering
+  // audit: the running-status row below was built entirely around
+  // getNetActiveBetCountForHole — a PRESS-specific concept (count of
+  // active press bets). For every non-Press format, matchup.result isn't
+  // a press-bet array at all, so this silently defaulted to 0 for every
+  // hole — "Even" the entire way through, regardless of what actually
+  // happened. Match Play is a real match-play format and needs the
+  // actual running "X up/dn" status, the same sign-aware logic already
+  // fixed in fmtConclusion/decideMatchPlaySegment — not a borrowed
+  // concept from a different format that doesn't apply here.
+  const isMatchPlay = matchup?.result?.type === "match_fbt";
+  let matchPlayRunning = 0;
 
   const rows = holes.map((hole) => {
     const holeResult = computeHoleResult({
@@ -190,12 +205,22 @@ function TeamGameScorecard({
     const statuses = getBetStatusesForHole(pressResult, hole);
     const runningValue = getNetActiveBetCountForHole(pressResult, hole);
 
+    // Match Play running status — real accumulation, sign-aware label.
+    // Always teamA perspective, same convention as everywhere else in
+    // this app. holeResult is null for a not-yet-scored hole; running
+    // total simply holds at its last known value in that case.
+    if (isMatchPlay && holeResult != null) {
+      matchPlayRunning += holeResult;
+    }
+    const matchPlayLabel = isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).label : null;
+
     return {
       hole,
       teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
-      running: formatRunningUnits(runningValue),
+      running: isMatchPlay ? (matchPlayLabel ?? "") : formatRunningUnits(runningValue),
+      runningColor: isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).color : null,
       pressDetail: formatPressDetail(statuses),
       resultValue: holeResult,
       runningValue,
@@ -368,18 +393,19 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>Holes {game.start}–{game.end}</td>
+            <td style={scorecardLabelCellStyle}>{isMatchPlay ? "Match Status" : `Holes ${game.start}–${game.end}`}</td>
             {rows.map((row) => (
               <td
                 key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
                 style={{
                   ...scorecardCellStyle,
-                  color:
-                    row.runningValue > 0
-                      ? "#137333"
-                      : row.runningValue < 0
-                        ? "#b3261e"
-                        : "#555",
+                  color: isMatchPlay
+                    ? (row.runningColor || "#555")
+                    : (row.runningValue > 0
+                        ? "#137333"
+                        : row.runningValue < 0
+                          ? "#b3261e"
+                          : "#555"),
                   fontWeight: 700,
                 }}
               >
@@ -2054,6 +2080,7 @@ function WolfAudit({
 function TeamGameAudit({
   players,
   teamGames,
+  teamGameFormat,
   teamGameResults,
   getTeamGameSelection,
   scores,
@@ -2378,6 +2405,7 @@ function TeamGameAudit({
                     course={course}
                     scores={scores}
                     handicapMode={handicapMode}
+                    teamGameFormat={teamGameFormat}
                     showPressDetail={!isNonPress}
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
@@ -2763,6 +2791,7 @@ export default function AuditTrail({
 <TeamGameAudit
   players={players}
   teamGames={teamGames}
+  teamGameFormat={teamGameFormat}
   teamGameResults={teamGameResults}
   getTeamGameSelection={getTeamGameSelection}
   getHandicapStrokesFn={getHandicapStrokesFn}

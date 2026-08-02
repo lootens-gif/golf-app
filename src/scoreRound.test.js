@@ -955,7 +955,7 @@ test('50b_longshort_no_short_while_long_still_mid_round (real bug, Aug 2026)', (
   });
   expect(result.longDecidedOn).toBeNull(); // Long hasn't closed — still mathematically alive
   expect(result.short || 0).toBe(0); // Short must not show a result while Long is still undecided
-  expect(result.shortLabel == null || result.shortLabel === "Tie").toBe(true);
+  expect(result.shortLabel == null || result.shortLabel === "N/A").toBe(true); // never started — not a real "Tie"
 });
 
 // ── "X up" vs "X dn" SIGN TESTS (real bug, Aug 2026) ────────────────────────

@@ -1218,6 +1218,9 @@ export default function SetupScreen({
                     }}
                   >
                     {opt.label}
+                    {opt.value === "match_fbt" && (
+                      <div style={{ fontSize: 9, marginTop: 1, fontWeight: 400 }}>Nassau</div>
+                    )}
                   </button>
                 );
               })}
