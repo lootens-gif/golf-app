@@ -189,6 +189,15 @@ function TeamGameScorecard({
   const isMatchPlay = matchup?.result?.type === "match_fbt";
   let matchPlayRunning = 0;
 
+  // Long/Short — two separate running segments, not one. Short only
+  // starts once Long has actually closed (or never, if Long goes all 18
+  // or ties) — reusing longDecidedOn the engine already computed rather
+  // than recomputing decideMatchPlaySegment a second time here.
+  const isLongShort = matchup?.result?.type === "longshort";
+  const shortStart = matchup?.result?.longDecidedOn ? matchup.result.longDecidedOn + 1 : 19;
+  let longRunning = 0;
+  let shortRunning = 0;
+
   const rows = holes.map((hole) => {
     const holeResult = computeHoleResult({
       hole,
@@ -214,6 +223,19 @@ function TeamGameScorecard({
     }
     const matchPlayLabel = isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).label : null;
 
+    // Long/Short — Long accumulates across the whole match; Short only
+    // accumulates from shortStart onward, and shows nothing before that.
+    let longLabel = null;
+    let shortLabel = null;
+    if (isLongShort) {
+      if (holeResult != null) longRunning += holeResult;
+      longLabel = formatMatchPlayRunning(longRunning).label;
+      if (hole >= shortStart) {
+        if (holeResult != null) shortRunning += holeResult;
+        shortLabel = formatMatchPlayRunning(shortRunning).label;
+      }
+    }
+
     return {
       hole,
       teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
@@ -221,6 +243,10 @@ function TeamGameScorecard({
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: isMatchPlay ? (matchPlayLabel ?? "") : formatRunningUnits(runningValue),
       runningColor: isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).color : null,
+      longLabel,
+      longColor: isLongShort ? formatMatchPlayRunning(longRunning).color : null,
+      shortLabel,
+      shortColor: (isLongShort && hole >= shortStart) ? formatMatchPlayRunning(shortRunning).color : null,
       pressDetail: formatPressDetail(statuses),
       resultValue: holeResult,
       runningValue,
@@ -393,7 +419,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{isMatchPlay ? "Match Status" : `Holes ${game.start}–${game.end}`}</td>
+            <td style={scorecardLabelCellStyle}>{isMatchPlay ? "Match Status" : isLongShort ? "Long" : `Holes ${game.start}–${game.end}`}</td>
             {rows.map((row) => (
               <td
                 key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
@@ -401,19 +427,40 @@ function TeamGameScorecard({
                   ...scorecardCellStyle,
                   color: isMatchPlay
                     ? (row.runningColor || "#555")
-                    : (row.runningValue > 0
-                        ? "#137333"
-                        : row.runningValue < 0
-                          ? "#b3261e"
-                          : "#555"),
+                    : isLongShort
+                      ? (row.longColor || "#555")
+                      : (row.runningValue > 0
+                          ? "#137333"
+                          : row.runningValue < 0
+                            ? "#b3261e"
+                            : "#555"),
                   fontWeight: 700,
                 }}
               >
-                {row.running}
+                {isLongShort ? (row.longLabel ?? "") : row.running}
               </td>
             ))}
             <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
           </tr>
+
+          {isLongShort && (
+            <tr>
+              <td style={scorecardLabelCellStyle}>Short</td>
+              {rows.map((row) => (
+                <td
+                  key={`short-${gameIndex}-${matchupIndex}-${row.hole}`}
+                  style={{
+                    ...scorecardCellStyle,
+                    color: row.shortColor || "#555",
+                    fontWeight: 700,
+                  }}
+                >
+                  {row.shortLabel ?? ""}
+                </td>
+              ))}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          )}
 
           {showPressDetail && (
             <tr>
@@ -2291,8 +2338,16 @@ function TeamGameAudit({
               if (isNonPress) {
                 totalDollars = result.total || 0;
                 const winner = totalDollars > 0 ? teamAName : totalDollars < 0 ? teamBName : null;
-                if (result.type === "standard" || result.type === "longshort") {
+                if (result.type === "standard") {
                   matchSummaryLine = winner ? `${winner} wins — ${result.label || ""}` : "Tied";
+                } else if (result.type === "longshort") {
+                  // Real Long/Short summary — previously lumped in with
+                  // Net Holes' generic "winner + label" treatment, which
+                  // silently ignored the long/short breakdown the engine
+                  // was already correctly computing.
+                  const longWin = result.long > 0 ? teamAName : result.long < 0 ? teamBName : null;
+                  const shortWin = result.short > 0 ? teamAName : result.short < 0 ? teamBName : null;
+                  matchSummaryLine = `Long: ${longWin ? `${longWin} ${result.longLabel}` : (result.longLabel || "Tied")} · Short: ${shortWin ? `${shortWin} ${result.shortLabel}` : (result.shortLabel || "N/A")}`;
                 } else if (result.type === "match_fbt") {
                   matchSummaryLine = (result.segments || []).map(s => `${s.label}: ${s.resultLabel}`).join(" · ");
                 } else if (result.type === "stroke") {
@@ -2387,7 +2442,17 @@ function TeamGameAudit({
                           <strong>{s.label}:</strong> {teamAName} {s.aTotal ?? "–"} · {teamBName} {s.bTotal ?? "–"} — {formatMoney(s.dollars)}
                         </div>
                       ))}
-                      {(result.type === "standard" || result.type === "longshort") && (
+                      {result.type === "longshort" && (
+                        <div>
+                          <div style={{ marginBottom: 4 }}>
+                            <strong>Long:</strong> {result.longLabel || "Tied"} — {formatMoney(result.long || 0)}
+                          </div>
+                          <div>
+                            <strong>Short:</strong> {result.shortLabel || "N/A"} — {formatMoney(result.short || 0)}
+                          </div>
+                        </div>
+                      )}
+                      {result.type === "standard" && (
                         <div>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
                       )}
                     </div>
