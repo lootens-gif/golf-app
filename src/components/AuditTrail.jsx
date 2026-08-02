@@ -182,21 +182,65 @@ function TeamGameScorecard({
   // active press bets). For every non-Press format, matchup.result isn't
   // a press-bet array at all, so this silently defaulted to 0 for every
   // hole — "Even" the entire way through, regardless of what actually
-  // happened. Match Play is a real match-play format and needs the
-  // actual running "X up/dn" status, the same sign-aware logic already
-  // fixed in fmtConclusion/decideMatchPlaySegment — not a borrowed
-  // concept from a different format that doesn't apply here.
+  // happened.
+  //
+  // CORRECTED (Aug 2026, after a full line-by-line comparison against
+  // OneVOneScorecard, the actual 1v1 reference implementation): Team
+  // Match Play is NOT one continuous 18-hole match — the engine already
+  // computes it as up to three independent segments (Front 9, Back 9,
+  // Total 18 — see matchup.result.segments), exactly like 1v1's FBT. The
+  // first version of this fix treated it as one single accumulator
+  // running straight through all 18 holes, which is the wrong model, not
+  // just missing a detail. Rebuilt to render one row per enabled
+  // segment, each with its own independent close point.
+  //
+  // Also following CRITICAL_GUARDS.md Guard #34 precisely: never
+  // recompute a match play conclusion label in the renderer. Holes
+  // played after a segment's own decidedOn can differ from the clinch
+  // score, so at the deciding hole this uses the engine's own
+  // resultLabel/longLabel/shortLabel directly — not a value recomputed
+  // from the local running accumulator, which would risk showing "1&2"
+  // when the engine actually computed "3&2".
+  //
+  // Guard #38 also directly applies here: Net Holes and Stroke Play have
+  // NO "decided" concept at all — every hole counts toward a continuous
+  // tally, and must never be dashed out after any point.
   const isMatchPlay = matchup?.result?.type === "match_fbt";
-  let matchPlayRunning = 0;
+  const matchPlaySegments = isMatchPlay ? (matchup.result.segments || []) : [];
 
-  // Long/Short — two separate running segments, not one. Short only
-  // starts once Long has actually closed (or never, if Long goes all 18
-  // or ties) — reusing longDecidedOn the engine already computed rather
-  // than recomputing decideMatchPlaySegment a second time here.
   const isLongShort = matchup?.result?.type === "longshort";
-  const shortStart = matchup?.result?.longDecidedOn ? matchup.result.longDecidedOn + 1 : 19;
+  const longDecidedOn = matchup?.result?.longDecidedOn ?? null;
+  const shortDecidedOn = matchup?.result?.shortDecidedOn ?? null;
+  const shortStart = longDecidedOn ? longDecidedOn + 1 : 19;
+
+  // Accumulators keyed by segment key for Match Play (front/back/total),
+  // and separately for Long/Short — each reset to 0 and built up hole by
+  // hole as rows are computed below, exactly mirroring how 1v1 walks its
+  // own sectionData.
+  const segmentRunning = {};
+  matchPlaySegments.forEach(seg => { segmentRunning[seg.key] = 0; });
   let longRunning = 0;
   let shortRunning = 0;
+
+  // Given an already-computed engine segment (key/decidedOn/resultLabel)
+  // and the current hole, returns what that segment's row should show
+  // for this cell: the running tally while still open, the engine's own
+  // label exactly on the deciding hole, or a dash after — never
+  // recomputed, per Guard #34.
+  function segmentCellFor(seg, hole, holeResult, runningRef) {
+    if (seg.decidedOn != null && hole > seg.decidedOn) {
+      return { label: "-", color: "#ccc", closed: true };
+    }
+    if (holeResult != null) runningRef.value += holeResult;
+    if (seg.decidedOn === hole) {
+      const units = seg.units;
+      return {
+        label: seg.resultLabel || formatMatchPlayRunning(units).label,
+        color: units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280",
+      };
+    }
+    return formatMatchPlayRunning(runningRef.value);
+  }
 
   const rows = holes.map((hole) => {
     const holeResult = computeHoleResult({
@@ -214,25 +258,44 @@ function TeamGameScorecard({
     const statuses = getBetStatusesForHole(pressResult, hole);
     const runningValue = getNetActiveBetCountForHole(pressResult, hole);
 
-    // Match Play running status — real accumulation, sign-aware label.
-    // Always teamA perspective, same convention as everywhere else in
-    // this app. holeResult is null for a not-yet-scored hole; running
-    // total simply holds at its last known value in that case.
-    if (isMatchPlay && holeResult != null) {
-      matchPlayRunning += holeResult;
+    // Match Play — one cell per enabled segment (Front/Back/Total),
+    // each independently stopping at its own decidedOn.
+    const matchPlayCells = {};
+    if (isMatchPlay) {
+      matchPlaySegments.forEach(seg => {
+        // Only accumulate/show for holes actually within this segment's
+        // own range (front stays 1-9, back stays 10-18, total spans all).
+        const segStart = seg.key === "back" ? 10 : 1;
+        const segEnd = seg.key === "front" ? 9 : 18;
+        if (hole < segStart || hole > segEnd) {
+          matchPlayCells[seg.key] = null; // outside this segment's range entirely
+          return;
+        }
+        const ref = { value: segmentRunning[seg.key] };
+        const cell = segmentCellFor(seg, hole, holeResult, ref);
+        segmentRunning[seg.key] = ref.value;
+        matchPlayCells[seg.key] = cell;
+      });
     }
-    const matchPlayLabel = isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).label : null;
 
-    // Long/Short — Long accumulates across the whole match; Short only
-    // accumulates from shortStart onward, and shows nothing before that.
-    let longLabel = null;
-    let shortLabel = null;
+    // Long/Short — Long spans the whole match; Short only exists from
+    // shortStart onward. Both independently stop at their own decidedOn.
+    let longCell = null;
+    let shortCell = null;
     if (isLongShort) {
-      if (holeResult != null) longRunning += holeResult;
-      longLabel = formatMatchPlayRunning(longRunning).label;
+      const longRef = { value: longRunning };
+      longCell = segmentCellFor(
+        { decidedOn: longDecidedOn, units: matchup.result.long > 0 ? 1 : matchup.result.long < 0 ? -1 : 0, resultLabel: matchup.result.longLabel },
+        hole, holeResult, longRef
+      );
+      longRunning = longRef.value;
       if (hole >= shortStart) {
-        if (holeResult != null) shortRunning += holeResult;
-        shortLabel = formatMatchPlayRunning(shortRunning).label;
+        const shortRef = { value: shortRunning };
+        shortCell = segmentCellFor(
+          { decidedOn: shortDecidedOn, units: matchup.result.short > 0 ? 1 : matchup.result.short < 0 ? -1 : 0, resultLabel: matchup.result.shortLabel },
+          hole, holeResult, shortRef
+        );
+        shortRunning = shortRef.value;
       }
     }
 
@@ -241,15 +304,13 @@ function TeamGameScorecard({
       teamAValue: getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       teamBValue: getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
-      running: isMatchPlay ? (matchPlayLabel ?? "") : formatRunningUnits(runningValue),
-      runningColor: isMatchPlay ? formatMatchPlayRunning(matchPlayRunning).color : null,
-      longLabel,
-      longColor: isLongShort ? formatMatchPlayRunning(longRunning).color : null,
-      shortLabel,
-      shortColor: (isLongShort && hole >= shortStart) ? formatMatchPlayRunning(shortRunning).color : null,
+      running: formatRunningUnits(runningValue), // Press only — Match Play/Long-Short use matchPlayCells/longCell/shortCell below
+      runningValue,
+      matchPlayCells,
+      longCell,
+      shortCell,
       pressDetail: formatPressDetail(statuses),
       resultValue: holeResult,
-      runningValue,
     };
   });
 
@@ -427,30 +488,57 @@ function TeamGameScorecard({
             <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
           </tr>
 
-          <tr>
-            <td style={scorecardLabelCellStyle}>{isMatchPlay ? "Match Status" : isLongShort ? "Long" : `Holes ${game.start}–${game.end}`}</td>
-            {sectionRows.map((row) => (
-              <td
-                key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
-                style={{
-                  ...scorecardCellStyle,
-                  color: isMatchPlay
-                    ? (row.runningColor || "#555")
-                    : isLongShort
-                      ? (row.longColor || "#555")
-                      : (row.runningValue > 0
-                          ? "#137333"
-                          : row.runningValue < 0
-                            ? "#b3261e"
-                            : "#555"),
-                  fontWeight: 700,
-                }}
-              >
-                {isLongShort ? (row.longLabel ?? "") : row.running}
-              </td>
-            ))}
-            <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
-          </tr>
+          {isMatchPlay && matchPlaySegments.map(seg => (
+            <tr key={`seg-${seg.key}`}>
+              <td style={scorecardLabelCellStyle}>{seg.label}</td>
+              {sectionRows.map((row) => {
+                const cell = row.matchPlayCells?.[seg.key];
+                return (
+                  <td
+                    key={`seg-${seg.key}-${gameIndex}-${matchupIndex}-${row.hole}`}
+                    style={{ ...scorecardCellStyle, color: cell?.color || "#555", fontWeight: 700 }}
+                  >
+                    {cell ? cell.label : ""}
+                  </td>
+                );
+              })}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          ))}
+
+          {!isMatchPlay && !isLongShort && (
+            <tr>
+              <td style={scorecardLabelCellStyle}>{`Holes ${game.start}–${game.end}`}</td>
+              {sectionRows.map((row) => (
+                <td
+                  key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
+                  style={{
+                    ...scorecardCellStyle,
+                    color: row.runningValue > 0 ? "#137333" : row.runningValue < 0 ? "#b3261e" : "#555",
+                    fontWeight: 700,
+                  }}
+                >
+                  {row.running}
+                </td>
+              ))}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          )}
+
+          {isLongShort && (
+            <tr>
+              <td style={scorecardLabelCellStyle}>Long</td>
+              {sectionRows.map((row) => (
+                <td
+                  key={`long-${gameIndex}-${matchupIndex}-${row.hole}`}
+                  style={{ ...scorecardCellStyle, color: row.longCell?.color || "#555", fontWeight: 700 }}
+                >
+                  {row.longCell ? row.longCell.label : ""}
+                </td>
+              ))}
+              <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
+            </tr>
+          )}
 
           {isLongShort && (
             <tr>
@@ -458,13 +546,9 @@ function TeamGameScorecard({
               {sectionRows.map((row) => (
                 <td
                   key={`short-${gameIndex}-${matchupIndex}-${row.hole}`}
-                  style={{
-                    ...scorecardCellStyle,
-                    color: row.shortColor || "#555",
-                    fontWeight: 700,
-                  }}
+                  style={{ ...scorecardCellStyle, color: row.shortCell?.color || "#555", fontWeight: 700 }}
                 >
-                  {row.shortLabel ?? ""}
+                  {row.shortCell ? row.shortCell.label : ""}
                 </td>
               ))}
               <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
