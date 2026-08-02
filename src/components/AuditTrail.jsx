@@ -272,29 +272,38 @@ function TeamGameScorecard({
     borderRight: "2px solid #e5e7eb",
   };
 
-  return (
-    <div
-      className="scorecard-scroll"
-      style={{
-        border: "1px solid #e5e7eb",
-        borderRadius: 10,
-        marginBottom: 10,
-        overflowX: "scroll",
-      }}
-    >
-      <div style={{ padding: "10px 12px", fontSize: 13, background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-        <strong style={{ color: "#1a5c35" }}>Scorecard View</strong>
-        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-          Gross score shown. Dot means stroke received on that hole.
-        </div>
-      </div>
+  // CONFIRMED REAL ISSUE (Aug 2026): this table previously always rendered
+  // every hole in the game's range in one continuous row — for a segment
+  // spanning the full 18 holes (e.g. a Match Play game configured as
+  // "Total 18" rather than 6/6/6 or 9/9), that meant all 18 holes in one
+  // unbroken table, unusable on mobile without heavy horizontal
+  // scrolling. 1v1 always splits into Front 9 / Back 9 for exactly this
+  // reason. Team segments of 6 or 9 holes are already short enough and
+  // don't need further splitting — only split when the segment itself
+  // exceeds 9 holes.
+  const needsSplit = rows.length > 9;
+  const splitPoint = Math.ceil(rows.length / 2);
+  const firstRows = needsSplit ? rows.slice(0, splitPoint) : rows;
+  const secondRows = needsSplit ? rows.slice(splitPoint) : null;
+  // Use the familiar "Front 9"/"Back 9" labels specifically when this is
+  // genuinely the front and back of a full 18-hole round; otherwise use
+  // generic hole-range labels so a split 12-hole segment (for example)
+  // doesn't get a misleading "9" in its label.
+  const isFullRound = game.start === 1 && game.end === 18;
+  const firstLabel = isFullRound ? "Front 9" : `Holes ${firstRows[0]?.hole}–${firstRows[firstRows.length - 1]?.hole}`;
+  const secondLabel = secondRows ? (isFullRound ? "Back 9" : `Holes ${secondRows[0]?.hole}–${secondRows[secondRows.length - 1]?.hole}`) : null;
 
+  const renderTableSection = (sectionRows, label) => (
+    <div style={{ marginBottom: needsSplit ? 12 : 0 }}>
+      {needsSplit && (
+        <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+      )}
       <div className="scorecard-scroll" style={{ overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
-      <table style={{ borderCollapse: "collapse", minWidth: 500 }}>
+      <table style={{ borderCollapse: "collapse", minWidth: 320 }}>
         <tbody>
           <tr>
             <td style={scorecardLabelCellStyle}>Hole</td>
-            {rows.map((row) => (
+            {sectionRows.map((row) => (
               <td key={`hole-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
                 {row.hole}
               </td>
@@ -304,19 +313,19 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>Par</td>
-            {rows.map((row) => (
+            {sectionRows.map((row) => (
               <td key={`par-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#9ca3af" }}>
                 {course?.pars?.[row.hole - 1] ?? "-"}
               </td>
             ))}
             <td style={{ ...scorecardCellStyle, color: "#9ca3af", borderLeft: "2px solid #e5e7eb" }}>
-              {holes.reduce((s, h) => s + (Number(course?.pars?.[h - 1]) || 0), 0)}
+              {sectionRows.reduce((s, row) => s + (Number(course?.pars?.[row.hole - 1]) || 0), 0)}
             </td>
           </tr>
 
           <tr>
             <td style={scorecardLabelCellStyle}>HCP</td>
-            {rows.map((row) => (
+            {sectionRows.map((row) => (
               <td key={`hcp-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#9ca3af" }}>
                 {course?.hcp?.[row.hole - 1] ?? "-"}
               </td>
@@ -326,7 +335,7 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>{teamA.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
-            {rows.map((row) => {
+            {sectionRows.map((row) => {
               const teamAHasBirdie = teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
@@ -352,7 +361,7 @@ function TeamGameScorecard({
             <td style={{ ...scorecardCellStyle, fontWeight: 700, borderLeft: "2px solid #e5e7eb" }}>
               {(() => {
                 const bestBallTotal = teamA.filter(Boolean).reduce((best, id) => {
-                  const total = holes.reduce((s, h) => { const v = getRawScore(scores, h, id); return s + (v != null ? Number(v) : 0); }, 0);
+                  const total = sectionRows.reduce((s, row) => { const v = getRawScore(scores, row.hole, id); return s + (v != null ? Number(v) : 0); }, 0);
                   return best === null ? total : Math.min(best, total);
                 }, null);
                 return bestBallTotal || "-";
@@ -362,7 +371,7 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>{teamB.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
-            {rows.map((row) => {
+            {sectionRows.map((row) => {
               const teamBHasBirdie = teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
               );
@@ -388,7 +397,7 @@ function TeamGameScorecard({
             <td style={{ ...scorecardCellStyle, fontWeight: 700, borderLeft: "2px solid #e5e7eb" }}>
               {(() => {
                 const bestBallTotal = teamB.filter(Boolean).reduce((best, id) => {
-                  const total = holes.reduce((s, h) => { const v = getRawScore(scores, h, id); return s + (v != null ? Number(v) : 0); }, 0);
+                  const total = sectionRows.reduce((s, row) => { const v = getRawScore(scores, row.hole, id); return s + (v != null ? Number(v) : 0); }, 0);
                   return best === null ? total : Math.min(best, total);
                 }, null);
                 return bestBallTotal || "-";
@@ -398,7 +407,7 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>Result</td>
-            {rows.map((row) => (
+            {sectionRows.map((row) => (
               <td
                 key={`result-${gameIndex}-${matchupIndex}-${row.hole}`}
                 style={{
@@ -420,7 +429,7 @@ function TeamGameScorecard({
 
           <tr>
             <td style={scorecardLabelCellStyle}>{isMatchPlay ? "Match Status" : isLongShort ? "Long" : `Holes ${game.start}–${game.end}`}</td>
-            {rows.map((row) => (
+            {sectionRows.map((row) => (
               <td
                 key={`running-${gameIndex}-${matchupIndex}-${row.hole}`}
                 style={{
@@ -446,7 +455,7 @@ function TeamGameScorecard({
           {isLongShort && (
             <tr>
               <td style={scorecardLabelCellStyle}>Short</td>
-              {rows.map((row) => (
+              {sectionRows.map((row) => (
                 <td
                   key={`short-${gameIndex}-${matchupIndex}-${row.hole}`}
                   style={{
@@ -465,7 +474,7 @@ function TeamGameScorecard({
           {showPressDetail && (
             <tr>
               <td style={scorecardLabelCellStyle}>Press Detail</td>
-              {rows.map((row) => (
+              {sectionRows.map((row) => (
                 <td key={`press-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
                   {row.pressDetail}
                 </td>
@@ -476,6 +485,28 @@ function TeamGameScorecard({
         </tbody>
       </table>
       </div>
+    </div>
+  );
+
+  return (
+    <div
+      className="scorecard-scroll"
+      style={{
+        border: "1px solid #e5e7eb",
+        borderRadius: 10,
+        marginBottom: 10,
+        overflowX: "scroll",
+      }}
+    >
+      <div style={{ padding: "10px 12px", fontSize: 13, background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+        <strong style={{ color: "#1a5c35" }}>Scorecard View</strong>
+        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+          Gross score shown. Dot means stroke received on that hole.
+        </div>
+      </div>
+
+      {renderTableSection(firstRows, firstLabel)}
+      {needsSplit && renderTableSection(secondRows, secondLabel)}
 
       <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
         {!game.birdieEnabled
