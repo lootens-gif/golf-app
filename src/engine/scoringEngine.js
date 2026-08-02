@@ -809,7 +809,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
     let shortSegment = {
       score: 0,
       units: 0,
-      label: "Tie",
+      label: "N/A",
       decidedOn: null,
     };
 
@@ -1057,7 +1057,7 @@ export function playTeamMatch(match, context) {
     // fix probably only touched one of these two copies.
     let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 19;
     if (shortStart > 18) shortStart = 19;
-    let shortSegment = { score: 0, units: 0, label: "Tie", decidedOn: null };
+    let shortSegment = { score: 0, units: 0, label: "N/A", decidedOn: null };
     if (shortStart <= 18) shortSegment = decideMatchPlaySegment(holeResults, shortStart, 18);
     const shortResult = shortSegment.units * (bet / 2);
     return {
