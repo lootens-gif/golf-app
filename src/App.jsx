@@ -166,6 +166,79 @@ function getMatchUnits(result) {
   return 0;
 }
 
+// Shared by both "Round Match Status" (always visible) and
+// HoleResultCard's "See full detail" expand (Aug 2026) — one real
+// implementation of "how do we display a team matchup's current
+// status per format," not two separate copies that could drift apart
+// from each other, matching the exact concern raised about the
+// Scoring screen becoming a duplicate of Results.
+function renderTeamMatchupStatus(matchup, teamAName, teamBName, key) {
+  const col = (v) => v > 0 ? "#137333" : v < 0 ? "#b3261e" : "#6b7280";
+  const result = matchup.result;
+  const isMatchPlayOrStroke = result?.type === "match_fbt" || result?.type === "stroke";
+  const isLongShortResult = result?.type === "longshort";
+  const isPress = Array.isArray(result);
+
+  const netUnits = getMatchUnits(result);
+  const betScores = isPress ? result.map(bet => Number(bet.score || 0)) : [];
+  const color = col(netUnits);
+  const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
+  const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
+
+  if (isMatchPlayOrStroke) {
+    return (
+      <div key={key} style={{ marginBottom: 6, fontSize: 13 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>{teamAName} vs {teamBName}</div>
+        {(result.segments || []).map(seg => (
+          <div key={seg.key} style={{ display: "flex", justifyContent: "space-between", color: col(seg.units ?? seg.dollars) }}>
+            <span>{seg.label}</span>
+            <span>{seg.resultLabel || (seg.aTotal != null ? `${seg.aTotal} - ${seg.bTotal}` : "—")}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isLongShortResult) {
+    return (
+      <div key={key} style={{ marginBottom: 6, fontSize: 13 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>{teamAName} vs {teamBName}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", color: col(result.long || 0) }}>
+          <span>Long</span><span>{result.longLabel || "Tied"}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", color: col(result.short || 0) }}>
+          <span>Short</span><span>{result.shortLabel || "N/A"}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isPress && result?.type === "standard") {
+    return (
+      <div key={key} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: col(result.total || 0), fontSize: 13 }}>
+        <span>{teamAName} vs {teamBName}</span>
+        <span>{result.label || "Even"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div key={key} style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6,
+      color,
+      fontSize: 13,
+    }}>
+      <span>{teamAName} {netLabel} vs {teamBName}</span>
+      <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
+        {pressStr}
+      </span>
+    </div>
+  );
+}
+
 function createDefaultCourse() {
   return {
     name: "",
@@ -4063,6 +4136,10 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   matchResults={matchResults}
   players={players}
   mode={mode}
+  enableTeamGame={enableTeamGame}
+  teamGameResults={teamGameResults}
+  getTeamGameSelection={getTeamGameSelection}
+  renderTeamMatchupStatus={renderTeamMatchupStatus}
   pendingNextGameIndex={pendingNextGameIndex}
   onChooseTeams={pendingNextGameIndex != null ? () => {
     setFocusGameTarget({
@@ -4237,70 +4314,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
             const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
             const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
 
-            const col = (v) => v > 0 ? "#137333" : v < 0 ? "#b3261e" : "#6b7280";
-            const result = matchup.result;
-            const isMatchPlayOrStroke = result?.type === "match_fbt" || result?.type === "stroke";
-            const isLongShortResult = result?.type === "longshort";
-            const isPress = Array.isArray(result);
-
-            const netUnits = getMatchUnits(result);
-            const betScores = isPress ? result.map(bet => Number(bet.score || 0)) : [];
-            const color = col(netUnits);
-            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
-            const pressStr = betScores.map(s => s > 0 ? `+${s}` : `${s}`).join("/");
-
-            if (isMatchPlayOrStroke) {
-              return (
-                <div key={mIdx} style={{ marginBottom: 6, fontSize: 13 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{teamAName} vs {teamBName}</div>
-                  {(result.segments || []).map(seg => (
-                    <div key={seg.key} style={{ display: "flex", justifyContent: "space-between", color: col(seg.units ?? seg.dollars) }}>
-                      <span>{seg.label}</span>
-                      <span>{seg.resultLabel || (seg.aTotal != null ? `${seg.aTotal} - ${seg.bTotal}` : "—")}</span>
-                    </div>
-                  ))}
-                </div>
-              );
-            }
-
-            if (isLongShortResult) {
-              return (
-                <div key={mIdx} style={{ marginBottom: 6, fontSize: 13 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{teamAName} vs {teamBName}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: col(result.long || 0) }}>
-                    <span>Long</span><span>{result.longLabel || "Tied"}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: col(result.short || 0) }}>
-                    <span>Short</span><span>{result.shortLabel || "N/A"}</span>
-                  </div>
-                </div>
-              );
-            }
-
-            if (!isPress && result?.type === "standard") {
-              return (
-                <div key={mIdx} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: col(result.total || 0), fontSize: 13 }}>
-                  <span>{teamAName} vs {teamBName}</span>
-                  <span>{result.label || "Even"}</span>
-                </div>
-              );
-            }
-
-            return (
-              <div key={mIdx} style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 6,
-                color,
-                fontSize: 13,
-              }}>
-                <span>{teamAName} {netLabel} vs {teamBName}</span>
-                <span style={{ fontSize: 11, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
-                  {pressStr}
-                </span>
-              </div>
-            );
+            return renderTeamMatchupStatus(matchup, teamAName, teamBName, mIdx);
           })}
         </div>
       );

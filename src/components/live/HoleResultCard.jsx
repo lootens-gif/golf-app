@@ -1,12 +1,19 @@
+import { useState } from "react";
+
 export default function HoleResultCard({
   lastHoleSaved,
   buildRealHoleResultLines,
   matchResults = [],
   players = [],
   mode,
+  enableTeamGame = false,
+  teamGameResults = [],
+  getTeamGameSelection,
+  renderTeamMatchupStatus,
   pendingNextGameIndex,
   onChooseTeams,
 }) {
+  const [showDetail, setShowDetail] = useState(false);
   if (!lastHoleSaved) return null;
 
 
@@ -42,7 +49,6 @@ export default function HoleResultCard({
     players.find((player) => player.id === playerId)?.name || playerId;
 
   const holeLines = Array.isArray(result) ? result : result?.holeLines || [];
-  const matchLines = Array.isArray(result) ? [] : result?.matchLines || [];
   const birdieLines = Array.isArray(result) ? [] : result?.birdieLines || [];
 
   const shouldShowRegularHoleLines = !ninePointHole && holeLines.length > 0;
@@ -73,34 +79,44 @@ export default function HoleResultCard({
         </div>
       )}
 
-      {matchLines.length > 0 && (
-        <div style={{ marginTop: 10, marginBottom: 10 }}>
-          <strong>Current Match Status</strong>
-          {matchLines.map((line, index) => {
-            if (typeof line === "string") {
-              return <div key={`match-${index}`} style={{ marginTop: 4 }}>{line}</div>;
-            }
-            const { teamAName, teamBName, netUnits, betScores } = line;
-            const color = netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#666";
-            const netLabel = netUnits > 0 ? `+${netUnits}` : `${netUnits}`;
-            const pressStr = betScores.map(s => s > 0 ? `+${s}` : s === 0 ? `0` : `${s}`).join("/");
-
-            return (
-              <div key={`match-${index}`} style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginTop: 4,
-                color,
-                fontSize: 14,
-              }}>
-                <span>{teamAName} {netLabel} vs {teamBName}</span>
-                <span style={{ fontSize: 12, fontFamily: "monospace", marginLeft: 8, whiteSpace: "nowrap" }}>
-                  {pressStr} = {netLabel}
-                </span>
-              </div>
-            );
-          })}
+      {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && renderTeamMatchupStatus && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            onClick={() => setShowDetail(v => !v)}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#1a5c35",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {showDetail ? "Hide full detail ▴" : "See full detail ▾"}
+          </button>
+          {showDetail && (
+            <div style={{ marginTop: 8 }}>
+              {teamGameResults.map((game, gameIndex) => {
+                const selection = getTeamGameSelection(gameIndex);
+                if (!selection || !(game.matches || []).length) return null;
+                return (
+                  <div key={gameIndex} style={{ marginBottom: gameIndex < teamGameResults.length - 1 ? 12 : 0 }}>
+                    {(game.matches || []).map((matchup, mIdx) => {
+                      const parts = matchup.label.split(" ");
+                      const teamAKey = `team${parts[1] || ""}`.toLowerCase();
+                      const teamBKey = `team${parts[4] || ""}`.toLowerCase();
+                      const teamA = (selection?.[teamAKey] || []).filter(Boolean);
+                      const teamB = (selection?.[teamBKey] || []).filter(Boolean);
+                      const teamAName = teamA.map(id => getPlayerName(id)).join("/");
+                      const teamBName = teamB.map(id => getPlayerName(id)).join("/");
+                      return renderTeamMatchupStatus(matchup, teamAName, teamBName, mIdx);
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
