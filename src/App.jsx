@@ -1794,6 +1794,10 @@ const roundSummaryRows = activePlayers.map((player) => {
       setScores({});
       setWolfHoles({});
       setMatches([]);
+      // Same real bug as handleLoadTemplate (Aug 2026) - see that
+      // comment for the full explanation. Never cleared here either.
+      setLastHoleSaved(null);
+      setCurrentHole(1);
       setSetupMessage("Setup loaded. Round data reset.");
     } catch (error) {
       setSetupMessage("Could not load setup.");
@@ -2282,6 +2286,17 @@ async function handleLoadTemplate(template) {
     if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
     setScores({});
     setWolfHoles({});
+    // CONFIRMED REAL BUG (Aug 2026): this cleared scores/wolfHoles but
+    // never touched lastHoleSaved or currentHole. If the previously
+    // active round had already reached hole 18, that stale value
+    // survived a template load untouched — Start Round's own "already
+    // complete" guard (CRITICAL_GUARDS.md Guard #42) then saw
+    // lastHoleSaved >= 18 with a matching format and routed straight to
+    // viewing/editing hole 18 of a round whose scores had just been
+    // cleared out from under it. Same discipline resetSetup() already
+    // correctly follows.
+    setLastHoleSaved(null);
+    setCurrentHole(1);
     setLoadedTemplate(template);
     setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
     incrementTemplateUse(template.id).catch(() => {});
