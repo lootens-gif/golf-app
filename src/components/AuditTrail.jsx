@@ -2660,33 +2660,40 @@ function TeamGameAudit({
                     noPar3Strokes={noPar3TeamGame}
                     getHandicapStrokesFn={getHandicapStrokesFn}
                   />
-                  {isNonPress && (
+                  {isNonPress && (() => {
+                    // Same sign-based color convention as 1v1's own
+                    // summary (col() elsewhere in this file) — this
+                    // block never had any color coding at all before,
+                    // unlike every other summary line in the app.
+                    const col = (v) => v > 0 ? "#1a5c35" : v < 0 ? "#b3261e" : "#6b7280";
+                    return (
                     <div style={{ padding: "8px 0 4px", fontSize: 13 }}>
                       {result.type === "match_fbt" && (result.segments || []).map(s => (
-                        <div key={s.key} style={{ marginBottom: 4 }}>
+                        <div key={s.key} style={{ marginBottom: 4, color: col(s.units) }}>
                           <strong>{s.label}:</strong> {s.resultLabel} — {formatMoney(s.dollars)}
                         </div>
                       ))}
                       {result.type === "stroke" && (result.segments || []).map(s => (
-                        <div key={s.key} style={{ marginBottom: 4 }}>
+                        <div key={s.key} style={{ marginBottom: 4, color: col(s.dollars) }}>
                           <strong>{s.label}:</strong> {teamAName} {s.aTotal ?? "–"} · {teamBName} {s.bTotal ?? "–"} — {formatMoney(s.dollars)}
                         </div>
                       ))}
                       {result.type === "longshort" && (
                         <div>
-                          <div style={{ marginBottom: 4 }}>
+                          <div style={{ marginBottom: 4, color: col(result.long || 0) }}>
                             <strong>Long:</strong> {result.longLabel || "Tied"} — {formatMoney(result.long || 0)}
                           </div>
-                          <div>
+                          <div style={{ color: col(result.short || 0) }}>
                             <strong>Short:</strong> {result.shortLabel || "N/A"} — {formatMoney(result.short || 0)}
                           </div>
                         </div>
                       )}
                       {result.type === "standard" && (
-                        <div>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
+                        <div style={{ color: col(totalDollars) }}>{matchSummaryLine} — {formatMoney(totalDollars)}</div>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
                 </AuditSection>
               );
             })}

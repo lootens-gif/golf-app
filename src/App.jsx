@@ -491,6 +491,14 @@ function notifyRound(event, code) {
   const [currentHole, setCurrentHole] = useState(5);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
+  // CONFIRMED REAL BUG (Aug 2026): completedAt was only ever written
+  // directly to localStorage the moment a round reached hole 18 — it
+  // never existed as a React state variable at all, so
+  // buildCurrentRoundSnapshot (which only knows about React state) could
+  // never include it. It correctly showed up locally but never actually
+  // reached Supabase — completedAt stayed null in the database even
+  // after a round was genuinely finished and saved.
+  const [completedAt, setCompletedAt] = useState(null);
   const [focusGameTarget, setFocusGameTarget] = useState(null);
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
@@ -1771,6 +1779,7 @@ function loadLastRound() {
     if (round.wolfHoles) setWolfHoles(round.wolfHoles);
     setCurrentHole(Number(round.currentHole || 1));
     setLastHoleSaved(round.lastHoleSaved ?? null);
+  setCompletedAt(round.completedAt ?? null);
 
     if (["setup", "live", "results"].includes(round.screen)) setScreen(round.screen);
 
@@ -1839,6 +1848,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     screen: ["setup","live","results"].includes(screen) ? screen : "results",
     currentHole,
     lastHoleSaved,
+    completedAt,
   };
 }, [
   roundName,
@@ -1873,6 +1883,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   screen,
   currentHole,
   lastHoleSaved,
+  completedAt,
 ]);
 
 function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen = false) {
@@ -1946,6 +1957,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   }
   setCurrentHole(Number(round.currentHole || 1));
   setLastHoleSaved(round.lastHoleSaved ?? null);
+  setCompletedAt(round.completedAt ?? null);
   setPendingNextGameIndex(null);
   setFocusGameTarget(null);
   setShowProjectedSettlement(false);
@@ -2073,6 +2085,7 @@ function loadNamedRound() {
     if (round.wolfHoles) setWolfHoles(round.wolfHoles);
     setCurrentHole(Number(round.currentHole || 1));
     setLastHoleSaved(round.lastHoleSaved ?? null);
+  setCompletedAt(round.completedAt ?? null);
 
     if (["setup", "live", "results"].includes(round.screen)) setScreen(round.screen);
 
@@ -3928,6 +3941,8 @@ setSaveMessage(`Hole ${currentHole} saved`);
       // write for that specific hole never landed in localStorage. This
       // makes the critical moment (saving a hole) not depend on effect
       // timing at all.
+      if (currentHole >= 18) setCompletedAt(new Date().toISOString());
+
       if (roundCode) {
         safeMergeWriteJsonStorage(AUTO_ROUND_KEY, {
           lastHoleSaved: currentHole,
