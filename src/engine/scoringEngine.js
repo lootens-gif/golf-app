@@ -1068,10 +1068,18 @@ export function playTeamMatch(match, context) {
   // ── Standard (Net Holes) ──
   if (match.type === "standard") {
     const segment = decideMatchPlaySegment(holeResults, 1, 18);
+    // CONFIRMED REAL BUG (Aug 2026): this used signUnit(segment.score),
+    // discarding the actual margin and paying a flat amount regardless
+    // of how many holes were won by — directly contradicting the
+    // documented rule ("Net -2 holes at $5/bet = -$10, not -$5") and
+    // the 1v1 version of this exact same format, which already
+    // correctly uses the full running total (see `running * match.bet`
+    // above). Two duplicate implementations, only one built correctly —
+    // same pattern behind several other bugs tonight.
     return {
       type: "standard",
       holes: holeResults,
-      total: signUnit(segment.score) * bet,
+      total: segment.score * bet,
       label: segment.label,
       decidedOn: segment.decidedOn,
     };
