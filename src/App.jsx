@@ -2728,7 +2728,7 @@ const syncTimerRef = useRef(null);
 // polling reconciliation, since teamGames rarely changes during live
 // play unlike scores, which change constantly and shouldn't be
 // second-guessed against the server on every single save.
-const hasReconciledTeamGamesRef = useRef(false);
+const hasReconciledTeamGamesRef = useRef({});
 useEffect(() => {
   if (!roundCode || !autoRestoreComplete) return;
 
@@ -2736,8 +2736,8 @@ useEffect(() => {
   syncTimerRef.current = setTimeout(async () => {
     try {
       setIsSyncing(true);
-      if (!hasReconciledTeamGamesRef.current) {
-        hasReconciledTeamGamesRef.current = true;
+      if (!hasReconciledTeamGamesRef.current[roundCode]) {
+        hasReconciledTeamGamesRef.current[roundCode] = true;
         try {
           const remote = await fetchRound(roundCode);
           const remoteTeamGames = remote?.data?.teamGames;
