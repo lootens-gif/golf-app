@@ -2776,6 +2776,19 @@ useEffect(() => {
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
 async function startRound() {
+  // CONFIRMED REAL BUG (Aug 2026): startRound() never touched isJoiner at
+  // all — only one specific, separate button ever cleared it. If a
+  // device had isJoiner=true left over from previously joining a
+  // DIFFERENT round to view it, the completely normal Setup → Start
+  // Round flow would never clear that stale flag. The app would then
+  // treat a brand new round you're hosting as something you're only
+  // viewing, and could pull in an unrelated old round's data instead of
+  // your own fresh setup (explains a format silently reverting to
+  // something you never selected). Starting a round should always mean
+  // you're the host, regardless of whatever stale state exists.
+  setIsJoiner(false);
+  localStorage.removeItem("golf-betting-is-joiner-v1");
+
 if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
     setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
     alert(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
