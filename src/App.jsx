@@ -4464,6 +4464,18 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           setRoundCode(code);
           setIsJoiner(false); // admin gets full access
           setScreen("results");
+          // CONFIRMED REAL BUG (Aug 2026): a directly-fixed field
+          // (teamGames[0].holes) was reliably reverting the instant an
+          // admin joined a round — reproduced deliberately, isolated to
+          // this exact action, confirmed via direct Supabase checks with
+          // nothing else touched in between. Root race condition not
+          // fully isolated. Defensive fix: explicitly re-save the exact
+          // data just fetched, immediately, using the known-correct
+          // fetched object directly rather than relying on React state
+          // having propagated through the normal autosave path — this
+          // wins as the last write regardless of whatever else is racing
+          // it.
+          shareRoundWithDevice(code, result.data, deviceId).catch(() => {});
         }
       } catch {
         alert("Could not load round " + code);
