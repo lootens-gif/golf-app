@@ -2719,6 +2719,7 @@ useEffect(() => {
   syncTimerRef.current = setTimeout(async () => {
     try {
       setIsSyncing(true);
+      console.log("[DIAG] autosave write firing, teamGames:", JSON.stringify(teamGames), "roundCode:", roundCode);
       await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
       setSyncMessage(`Synced ✓`);
       setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
@@ -3306,11 +3307,13 @@ const teamBestScore = (ids = [], scoreMap = {}) => {
 // whoever entered the scores got it right, visible immediately after
 // saving the hole rather than only in Results.
 
-// "Harrison Biro" -> "HB". Falls back gracefully for single-word names.
+// "Harrison Biro" -> "HB". First-name-only players ("Harrison") show
+// their full name instead of an abbreviation like "HA" — only actually
+// helpful once there's a last name to abbreviate from.
 const initials = (name) => {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  if (parts.length === 1) return parts[0];
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
@@ -4476,6 +4479,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           // wins as the last write regardless of whatever else is racing
           // it.
           shareRoundWithDevice(code, result.data, deviceId).catch(() => {});
+          console.log("[DIAG] admin-join explicit write, teamGames:", JSON.stringify(result.data.teamGames));
         }
       } catch {
         alert("Could not load round " + code);

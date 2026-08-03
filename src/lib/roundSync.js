@@ -200,6 +200,8 @@ async function shouldBlockRoundWrite(code, roundData) {
 }
 
 export async function shareRoundWithDevice(code, roundData, deviceId) {
+  console.log("[DIAG] shareRoundWithDevice called, code:", code, "teamGames:", JSON.stringify(roundData?.teamGames));
+  console.trace("[DIAG] call stack");
   if (await shouldBlockRoundWrite(code, roundData)) return;
 
   const { error } = await supabase
