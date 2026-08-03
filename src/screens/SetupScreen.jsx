@@ -1206,7 +1206,20 @@ export default function SetupScreen({
                           { ...createDefaultTeamGame(3), teams: prev[2]?.teams || {} },
                         ]);
                       } else {
-                        setTeamGames(prev => [{ ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} }]);
+                        // CONFIRMED REAL BUG (Aug 2026): every non-Press
+                        // format creates exactly one team game, but left
+                        // `holes` at createDefaultTeamGame's default of
+                        // "" — which getTeamGameRange's `|| 6` fallback
+                        // silently treats as 6, not 18. A single Match
+                        // Play (or Long/Short, Net Holes, Stroke) game is
+                        // inherently a full 18-hole game, not a 6-hole
+                        // segment like Press's default assumes. This
+                        // made the game's own range calculation think it
+                        // only covered holes 1-6 — hole 7 then had no
+                        // matching game at all, and the same broken
+                        // range calculation also drove "Set teams for
+                        // Game 2" even though no second game exists.
+                        setTeamGames(prev => [{ ...createDefaultTeamGame(1), holes: 18, teams: prev[0]?.teams || {} }]);
                       }
                     }}
                     style={{
