@@ -2712,6 +2712,23 @@ useEffect(() => {
 // the gap regardless of whether the indirect dependency chain through
 // buildCurrentRoundSnapshot was actually propagating correctly.
 const syncTimerRef = useRef(null);
+// CONFIRMED REAL BUG (Aug 2026): the host's own app never re-fetches
+// from the server once mounted — it only ever pushes local state
+// outward via autosave. If the app was already open before a
+// server-side correction was made (e.g. a direct database fix applied
+// while the tab sat open), the host had no way to ever learn about it —
+// every subsequent autosave silently re-sent whatever stale value was
+// already sitting in memory from mount, overwriting the correction on
+// every single score save. Reproduced directly: round 7880, teamGames
+// holes reverted to 6 repeatedly despite a confirmed-correct SQL fix,
+// specifically because the app was already loaded before the fix ran.
+// Fix: before the very first autosave of a session specifically, fetch
+// the current server state once and prefer its teamGames if different
+// from what's in local state — narrow and one-time, not a general
+// polling reconciliation, since teamGames rarely changes during live
+// play unlike scores, which change constantly and shouldn't be
+// second-guessed against the server on every single save.
+const hasReconciledTeamGamesRef = useRef(false);
 useEffect(() => {
   if (!roundCode || !autoRestoreComplete) return;
 
@@ -2719,8 +2736,21 @@ useEffect(() => {
   syncTimerRef.current = setTimeout(async () => {
     try {
       setIsSyncing(true);
-      console.log("[DIAG] autosave write firing, teamGames:", JSON.stringify(teamGames), "roundCode:", roundCode);
+      if (!hasReconciledTeamGamesRef.current) {
+        hasReconciledTeamGamesRef.current = true;
+        try {
+          const remote = await fetchRound(roundCode);
+          const remoteTeamGames = remote?.data?.teamGames;
+          if (Array.isArray(remoteTeamGames) && JSON.stringify(remoteTeamGames) !== JSON.stringify(teamGames)) {
+            setTeamGames(remoteTeamGames);
+            return; // this state change re-triggers the effect with the reconciled value — let that save instead of this stale one
+          }
+        } catch {
+          // couldn't verify — proceed with local state rather than block saving
+        }
+      }
       await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      console.log("[DIAG] autosave write firing, teamGames:", JSON.stringify(teamGames), "roundCode:", roundCode);
       setSyncMessage(`Synced ✓`);
       setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
     } catch {
