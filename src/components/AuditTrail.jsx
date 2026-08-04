@@ -109,7 +109,7 @@ function formatRunningUnits(value) {
   return "Even";
 }
 
-function getBetStatusesForHole(bets = [], hole) {
+export function getBetStatusesForHole(bets = [], hole) {
   return bets
     .filter((bet) => {
       const startHole = Number(bet.startHole || 0);
@@ -137,7 +137,7 @@ function getBetStatusesForHole(bets = [], hole) {
     });
 }
 
-function getNetActiveBetCountForHole(bets = [], hole) {
+export function getNetActiveBetCountForHole(bets = [], hole) {
   return getBetStatusesForHole(bets, hole).reduce((total, status) => {
     if (status > 0) return total + 1;
     if (status < 0) return total - 1;
@@ -145,7 +145,7 @@ function getNetActiveBetCountForHole(bets = [], hole) {
   }, 0);
 }
 
-function formatPressDetail(statuses = []) {
+export function formatPressDetail(statuses = []) {
   if (!statuses.length) return "-";
   return statuses.map((status) => String(Number(status || 0))).join("/");
 }

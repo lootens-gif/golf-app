@@ -118,7 +118,7 @@ export default function HoleResultCard({
                       const subset = buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
                       if (!subset) return null;
                       return (
-                        <div key={mIdx} style={{ marginBottom: 8, overflowX: "auto" }}>
+                        <div key={mIdx} className="scorecard-scroll" style={{ marginBottom: 8, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
                           <table style={{ borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
                             <tbody>
                               <tr>

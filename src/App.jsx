@@ -19,6 +19,7 @@ import {
   getWolfHoleNarrative,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
+import { formatPressDetail } from "./components/AuditTrail";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from "./components/live/WolfHoleCard";
 import SetupScreen from "./screens/SetupScreen";
@@ -241,40 +242,116 @@ function renderTeamMatchupStatus(matchup, teamAName, teamBName, key) {
 }
 
 // "Option B" from the Aug 2026 mockup discussion — gross scores with
-// dots plus running status, for just the current 9-hole half, not the
-// full round. Genuinely different information than "Round Match
-// Status" (a snapshot of where things stand right now) or the full
-// Results scorecard (every hole, every row) — this is the recent
-// history leading up to right now, compact enough for a live glance.
-// Reuses the same engine functions (computeHoleResult,
-// formatScoreWithStrokeDots, formatMatchPlayRunning) the Results
-// screen's own scorecard already relies on, not a third
-// reimplementation of this math.
+// dots plus a running status row matching the actual game format, for
+// a recent window of holes, not the full round. Genuinely different
+// information than "Round Match Status" (a snapshot of where things
+// stand right now) or the full Results scorecard (every hole, every
+// row) — this is the recent history leading up to right now, compact
+// enough for a live glance.
+//
+// Reuses the same functions the Results screen's own scorecard and
+// Press detail already rely on (computeHoleResult,
+// formatScoreWithStrokeDots, formatMatchPlayRunning,
+// getBetStatusesForHole, formatPressDetail) rather than a fourth
+// reimplementation of any of this math.
+//
+// Confirmed per-format behavior (Aug 2026, after the first version was
+// found to be an oversimplified Front/Back split that didn't actually
+// hold for every format):
+// - Press: reuses the same bet-status/press-detail functions Results
+//   already uses — no separate reimplementation.
+// - Match Play / Stroke: only shows segments actually enabled
+//   (matchPlayFront/Back/Total, strokeFront/Back/Total) — a Total-only
+//   config never shows a fabricated "Front" row. When Front and/or Back
+//   are enabled, holes shown follow the current 9-hole half; if only
+//   Total is enabled, falls back to the most recent window since there's
+//   no real half boundary to anchor to.
+// - Long/Short: Short's real start is whichever hole longDecidedOn
+//   actually lands on (mathematically never earlier than hole 10 in an
+//   18-hole match — the earliest possible closeout is 10&8) — never a
+//   fixed hole-10 assumption.
+// - Net Holes: continuous, no segment concept at all, capped to the
+//   most recent 9 holes so the table doesn't grow unbounded by hole 15.
 function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame) {
   if (!lastHoleSaved) return null;
-  const halfStart = lastHoleSaved <= 9 ? 1 : 10;
-  const holes = [];
-  for (let h = halfStart; h <= lastHoleSaved; h++) holes.push(h);
+  const result = matchup.result;
+  const isPress = Array.isArray(result);
 
-  const isMatchPlayLike = matchup.result?.type === "match_fbt" || matchup.result?.type === "longshort";
-  let running = 0;
+  const scoreArgs = (id, hole) => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame);
 
-  const rows = holes.map(hole => {
-    const holeResult = computeHoleResult({ hole, teamA, teamB, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes: !!noPar3TeamGame });
-    if (holeResult != null) running += holeResult;
-    const runningLabel = isMatchPlayLike
-      ? formatMatchPlayRunning(running).label
-      : (running === 0 ? "Even" : running > 0 ? `+${running}` : `${running}`);
-    return {
+  // Press — reuse the existing, already-correct bet-status logic
+  // directly, not a new implementation of the same math.
+  if (isPress) {
+    const start = Math.max(1, lastHoleSaved - 8);
+    const holes = [];
+    for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
+    const rows = holes.map(hole => ({
       hole,
-      teamAScores: teamA.filter(Boolean).map(id => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame)),
-      teamBScores: teamB.filter(Boolean).map(id => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame)),
-      runningLabel,
-      runningColor: running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280",
-    };
-  });
+      teamAScores: teamA.filter(Boolean).map(id => scoreArgs(id, hole)),
+      teamBScores: teamB.filter(Boolean).map(id => scoreArgs(id, hole)),
+      runningLabel: formatPressDetail(getBetStatusesForHole(result, hole)),
+      runningColor: "#6b7280",
+    }));
+    return { halfLabel: "Press", rows };
+  }
 
-  return { halfLabel: halfStart === 1 ? "Front" : "Back", rows };
+  const buildRunningRows = (holes, isMatchPlayLike) => {
+    let running = 0;
+    return holes.map(hole => {
+      const holeResult = computeHoleResult({ hole, teamA, teamB, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes: !!noPar3TeamGame });
+      if (holeResult != null) running += holeResult;
+      const runningLabel = isMatchPlayLike
+        ? formatMatchPlayRunning(running).label
+        : (running === 0 ? "Even" : running > 0 ? `+${running}` : `${running}`);
+      return {
+        hole,
+        teamAScores: teamA.filter(Boolean).map(id => scoreArgs(id, hole)),
+        teamBScores: teamB.filter(Boolean).map(id => scoreArgs(id, hole)),
+        runningLabel,
+        runningColor: running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280",
+      };
+    });
+  };
+
+  // Long/Short — Short's real start is longDecidedOn, wherever it
+  // actually falls, never assumed to be hole 10.
+  if (result?.type === "longshort") {
+    const longDecidedOn = result.longDecidedOn;
+    const shortStarted = longDecidedOn != null && lastHoleSaved > longDecidedOn;
+    if (shortStarted) {
+      const holes = [];
+      for (let h = longDecidedOn + 1; h <= lastHoleSaved; h++) holes.push(h);
+      return { halfLabel: "Short", rows: buildRunningRows(holes, true) };
+    }
+    const holes = [];
+    for (let h = 1; h <= lastHoleSaved; h++) holes.push(h);
+    return { halfLabel: "Long", rows: buildRunningRows(holes, true) };
+  }
+
+  // Match Play / Stroke — only show a half-split if Front/Back are
+  // actually enabled; a Total-only setup falls back to a recent window
+  // since there's no real segment boundary to anchor to.
+  if (result?.type === "match_fbt" || result?.type === "stroke") {
+    const segments = result.segments || [];
+    const hasFrontBack = segments.some(s => s.key === "front" || s.key === "back");
+    if (hasFrontBack) {
+      const halfStart = lastHoleSaved <= 9 ? 1 : 10;
+      const holes = [];
+      for (let h = halfStart; h <= lastHoleSaved; h++) holes.push(h);
+      return { halfLabel: halfStart === 1 ? "Front" : "Back", rows: buildRunningRows(holes, result.type === "match_fbt") };
+    }
+    const start = Math.max(1, lastHoleSaved - 8);
+    const holes = [];
+    for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
+    return { halfLabel: "Total", rows: buildRunningRows(holes, result.type === "match_fbt") };
+  }
+
+  // Net Holes — continuous, no segment concept, capped to a recent
+  // window so it doesn't grow unbounded as the round goes on.
+  const start = Math.max(1, lastHoleSaved - 8);
+  const holes = [];
+  for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
+  return { halfLabel: "Net Holes", rows: buildRunningRows(holes, false) };
 }
 
 function createDefaultCourse() {
