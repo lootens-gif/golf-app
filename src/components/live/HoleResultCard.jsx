@@ -108,8 +108,10 @@ export default function HoleResultCard({
           });
           const currentGame = currentGameIndex >= 0 ? teamGameResults[currentGameIndex] : null;
           const firstMatchup = currentGame?.matches?.[0];
+          console.log("[DIAG-COLOR] displayHole:", displayHole, "currentGameIndex:", currentGameIndex, "currentGame:", JSON.stringify(currentGame), "firstMatchup:", JSON.stringify(firstMatchup));
           if (firstMatchup) {
             const units = getMatchUnits(firstMatchup.result);
+            console.log("[DIAG-COLOR] units:", units);
             toggleColor = units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280";
           }
         }
