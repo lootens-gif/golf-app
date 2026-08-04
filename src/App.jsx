@@ -272,7 +272,7 @@ function renderTeamMatchupStatus(matchup, teamAName, teamBName, key) {
 //   fixed hole-10 assumption.
 // - Net Holes: continuous, no segment concept at all, capped to the
 //   most recent 9 holes so the table doesn't grow unbounded by hole 15.
-function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame) {
+function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame, segmentStart) {
   if (!lastHoleSaved) return null;
   const result = matchup.result;
   const isPress = Array.isArray(result);
@@ -280,9 +280,15 @@ function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, co
   const scoreArgs = (id, hole) => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame);
 
   // Press — reuse the existing, already-correct bet-status logic
-  // directly, not a new implementation of the same math.
+  // directly, not a new implementation of the same math. Confirmed
+  // real bug (Aug 2026): this previously used a generic "last 9
+  // holes" fallback window instead of the actual segment boundary — on
+  // hole 8 of a 6/6/6 setup (segment 2 genuinely starts at hole 7), it
+  // incorrectly showed holes 1-8, the whole round so far, instead of
+  // just holes 7-8, the current segment. segmentStart is now the real
+  // boundary from getTeamGameRange, not a guess.
   if (isPress) {
-    const start = Math.max(1, lastHoleSaved - 8);
+    const start = segmentStart ?? Math.max(1, lastHoleSaved - 8);
     const holes = [];
     for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
     const rows = holes.map(hole => ({
@@ -340,15 +346,19 @@ function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, co
       for (let h = halfStart; h <= lastHoleSaved; h++) holes.push(h);
       return { halfLabel: halfStart === 1 ? "Front" : "Back", rows: buildRunningRows(holes, result.type === "match_fbt") };
     }
-    const start = Math.max(1, lastHoleSaved - 8);
+    // Total-only config (no Front/Back split) — real segment boundary
+    // when known (handles a custom-length Press-style segment too, not
+    // just 6/6/6 or 9/9), otherwise the same recent-window fallback.
+    const start = segmentStart ?? Math.max(1, lastHoleSaved - 8);
     const holes = [];
     for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
     return { halfLabel: "Total", rows: buildRunningRows(holes, result.type === "match_fbt") };
   }
 
-  // Net Holes — continuous, no segment concept, capped to a recent
-  // window so it doesn't grow unbounded as the round goes on.
-  const start = Math.max(1, lastHoleSaved - 8);
+  // Net Holes — continuous, no segment concept of its own, but still
+  // respects the real segment boundary when this game has one (custom
+  // Press-style length included), rather than an arbitrary window.
+  const start = segmentStart ?? Math.max(1, lastHoleSaved - 8);
   const holes = [];
   for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
   return { halfLabel: "Net Holes", rows: buildRunningRows(holes, false) };
@@ -4287,6 +4297,8 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   mode={mode}
   enableTeamGame={enableTeamGame}
   teamGameResults={teamGameResults}
+  teamGames={teamGames}
+  getTeamGameRange={getTeamGameRange}
   getTeamGameSelection={getTeamGameSelection}
   buildHoleResultSubset={buildHoleResultSubset}
   pendingNextGameIndex={pendingNextGameIndex}

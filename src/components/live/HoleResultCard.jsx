@@ -14,6 +14,8 @@ export default function HoleResultCard({
   mode,
   enableTeamGame = false,
   teamGameResults = [],
+  teamGames = [],
+  getTeamGameRange,
   getTeamGameSelection,
   buildHoleResultSubset,
   pendingNextGameIndex,
@@ -121,7 +123,8 @@ export default function HoleResultCard({
                       const teamB = (selection?.[teamBKey] || []).filter(Boolean);
                       const teamAInitials = teamA.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
                       const teamBInitials = teamB.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
-                      const subset = buildHoleResultSubset(matchup, teamA, teamB, displayHole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
+                      const segmentStart = getTeamGameRange ? getTeamGameRange(teamGames, gameIndex).start : undefined;
+                      const subset = buildHoleResultSubset(matchup, teamA, teamB, displayHole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame, segmentStart);
                       if (!subset) return null;
                       return (
                         <div key={mIdx} className="scorecard-scroll" style={{ marginBottom: 8, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
