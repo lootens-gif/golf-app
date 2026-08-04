@@ -17,6 +17,7 @@ export default function HoleResultCard({
   teamGames = [],
   getTeamGameRange,
   getTeamGameSelection,
+  getMatchUnits,
   buildHoleResultSubset,
   pendingNextGameIndex,
   onChooseTeams,
@@ -92,7 +93,27 @@ export default function HoleResultCard({
         </div>
       )}
 
-      {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && buildHoleResultSubset && (
+      {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && buildHoleResultSubset && (() => {
+        // Toggle color: Team 1 perspective, net across all active bets
+        // if this is Press (multiple simultaneous presses collapse to
+        // one net number, same as getMatchUnits already does
+        // elsewhere) — not per-bet, just the one overall up/down.
+        // Reads from whichever game/segment actually contains the
+        // displayed hole, matching the detail section below it.
+        let toggleColor = "#1a5c35";
+        if (getMatchUnits && getTeamGameRange) {
+          const currentGameIndex = teamGameResults.findIndex((g, idx) => {
+            const range = getTeamGameRange(teamGames, idx);
+            return displayHole >= range.start && displayHole <= range.end;
+          });
+          const currentGame = currentGameIndex >= 0 ? teamGameResults[currentGameIndex] : null;
+          const firstMatchup = currentGame?.matches?.[0];
+          if (firstMatchup) {
+            const units = getMatchUnits(firstMatchup.result);
+            toggleColor = units > 0 ? "#137333" : units < 0 ? "#b3261e" : "#6b7280";
+          }
+        }
+        return (
         <div style={{ marginTop: 10 }}>
           <button
             onClick={() => setShowDetail(v => !v)}
@@ -100,7 +121,7 @@ export default function HoleResultCard({
               background: "none",
               border: "none",
               padding: 0,
-              color: "#1a5c35",
+              color: toggleColor,
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
@@ -172,7 +193,8 @@ export default function HoleResultCard({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {pendingNextGameIndex != null && onChooseTeams && (
         <button

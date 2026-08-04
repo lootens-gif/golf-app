@@ -1024,9 +1024,18 @@ export function playPressMatch({
     }
 
     const latestBet = bets[bets.length - 1];
-    const hasRemainingHole = hole < end;
 
-    if (hasRemainingHole && Math.abs(latestBet.score) >= numericTrigger) {
+    // CONFIRMED REAL BUG (Aug 2026): this previously required a
+    // remaining hole in the segment before creating a new press —
+    // meaning a press triggered right on a segment's final hole was
+    // silently never created at all, not even for display. In real
+    // play, that press still gets called out loud ("2, 1, 0") even
+    // though it can never actually play a hole within this segment.
+    // Removing the remaining-hole requirement: the bet still gets
+    // created with an empty history, contributing exactly $0 to the
+    // total (nothing to ever multiply), so this only changes what
+    // gets shown, never what gets paid.
+    if (Math.abs(latestBet.score) >= numericTrigger) {
       pressCount += 1;
       bets.push({
         label: `Press ${pressCount}`,

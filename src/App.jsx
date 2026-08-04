@@ -4300,6 +4300,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   teamGames={teamGames}
   getTeamGameRange={getTeamGameRange}
   getTeamGameSelection={getTeamGameSelection}
+  getMatchUnits={getMatchUnits}
   buildHoleResultSubset={buildHoleResultSubset}
   pendingNextGameIndex={pendingNextGameIndex}
   onChooseTeams={pendingNextGameIndex != null ? () => {
