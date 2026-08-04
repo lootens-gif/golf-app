@@ -5,11 +5,16 @@ export default function HoleResultCard({
   buildRealHoleResultLines,
   matchResults = [],
   players = [],
+  course,
+  scores,
+  handicapMode,
+  getHandicapStrokesFn,
+  noPar3TeamGame = false,
   mode,
   enableTeamGame = false,
   teamGameResults = [],
   getTeamGameSelection,
-  renderTeamMatchupStatus,
+  buildHoleResultSubset,
   pendingNextGameIndex,
   onChooseTeams,
 }) {
@@ -79,7 +84,7 @@ export default function HoleResultCard({
         </div>
       )}
 
-      {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && renderTeamMatchupStatus && (
+      {enableTeamGame && teamGameResults.some(g => (g.matches || []).length > 0) && buildHoleResultSubset && (
         <div style={{ marginTop: 10 }}>
           <button
             onClick={() => setShowDetail(v => !v)}
@@ -108,9 +113,34 @@ export default function HoleResultCard({
                       const teamBKey = `team${parts[4] || ""}`.toLowerCase();
                       const teamA = (selection?.[teamAKey] || []).filter(Boolean);
                       const teamB = (selection?.[teamBKey] || []).filter(Boolean);
-                      const teamAName = teamA.map(id => getPlayerName(id)).join("/");
-                      const teamBName = teamB.map(id => getPlayerName(id)).join("/");
-                      return renderTeamMatchupStatus(matchup, teamAName, teamBName, mIdx);
+                      const teamAInitials = teamA.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
+                      const teamBInitials = teamB.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
+                      const subset = buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
+                      if (!subset) return null;
+                      return (
+                        <div key={mIdx} style={{ marginBottom: 8, overflowX: "auto" }}>
+                          <table style={{ borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap" }}>
+                            <tbody>
+                              <tr>
+                                <td style={{ padding: "4px 8px", color: "#666", textAlign: "left" }}>Hole</td>
+                                {subset.rows.map(r => <td key={r.hole} style={{ padding: "4px 8px", textAlign: "center" }}>{r.hole}</td>)}
+                              </tr>
+                              <tr>
+                                <td style={{ padding: "4px 8px", color: "#666", textAlign: "left", borderTop: "0.5px solid #ddd" }}>{teamAInitials}</td>
+                                {subset.rows.map(r => <td key={r.hole} style={{ padding: "4px 8px", textAlign: "center", borderTop: "0.5px solid #ddd" }}>{r.teamAScores.join(" ")}</td>)}
+                              </tr>
+                              <tr>
+                                <td style={{ padding: "4px 8px", color: "#666", textAlign: "left" }}>{teamBInitials}</td>
+                                {subset.rows.map(r => <td key={r.hole} style={{ padding: "4px 8px", textAlign: "center" }}>{r.teamBScores.join(" ")}</td>)}
+                              </tr>
+                              <tr>
+                                <td style={{ padding: "4px 8px", color: "#666", textAlign: "left", borderTop: "0.5px solid #ddd" }}>{subset.halfLabel}</td>
+                                {subset.rows.map(r => <td key={r.hole} style={{ padding: "4px 8px", textAlign: "center", borderTop: "0.5px solid #ddd", color: r.runningColor, fontWeight: 600 }}>{r.runningLabel}</td>)}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      );
                     })}
                   </div>
                 );

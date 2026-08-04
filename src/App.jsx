@@ -14,6 +14,7 @@ import {
   settleSkinsRound,
   getBestBallDisplay,
   formatScoreWithStrokeDots,
+  formatMatchPlayRunning,
   computeWolfRoundResult,
   getWolfHoleNarrative,
 } from "./engine/scoringEngine";
@@ -237,6 +238,43 @@ function renderTeamMatchupStatus(matchup, teamAName, teamBName, key) {
       </span>
     </div>
   );
+}
+
+// "Option B" from the Aug 2026 mockup discussion — gross scores with
+// dots plus running status, for just the current 9-hole half, not the
+// full round. Genuinely different information than "Round Match
+// Status" (a snapshot of where things stand right now) or the full
+// Results scorecard (every hole, every row) — this is the recent
+// history leading up to right now, compact enough for a live glance.
+// Reuses the same engine functions (computeHoleResult,
+// formatScoreWithStrokeDots, formatMatchPlayRunning) the Results
+// screen's own scorecard already relies on, not a third
+// reimplementation of this math.
+function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame) {
+  if (!lastHoleSaved) return null;
+  const halfStart = lastHoleSaved <= 9 ? 1 : 10;
+  const holes = [];
+  for (let h = halfStart; h <= lastHoleSaved; h++) holes.push(h);
+
+  const isMatchPlayLike = matchup.result?.type === "match_fbt" || matchup.result?.type === "longshort";
+  let running = 0;
+
+  const rows = holes.map(hole => {
+    const holeResult = computeHoleResult({ hole, teamA, teamB, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes: !!noPar3TeamGame });
+    if (holeResult != null) running += holeResult;
+    const runningLabel = isMatchPlayLike
+      ? formatMatchPlayRunning(running).label
+      : (running === 0 ? "Even" : running > 0 ? `+${running}` : `${running}`);
+    return {
+      hole,
+      teamAScores: teamA.filter(Boolean).map(id => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame)),
+      teamBScores: teamB.filter(Boolean).map(id => formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, !!noPar3TeamGame)),
+      runningLabel,
+      runningColor: running > 0 ? "#137333" : running < 0 ? "#b3261e" : "#6b7280",
+    };
+  });
+
+  return { halfLabel: halfStart === 1 ? "Front" : "Back", rows };
 }
 
 function createDefaultCourse() {
@@ -4150,11 +4188,16 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   buildRealHoleResultLines={buildRealHoleResultLines}
   matchResults={matchResults}
   players={players}
+  course={course}
+  scores={scores}
+  handicapMode={handicapMode}
+  getHandicapStrokesFn={context.getHandicapStrokesFn}
+  noPar3TeamGame={noPar3TeamGame}
   mode={mode}
   enableTeamGame={enableTeamGame}
   teamGameResults={teamGameResults}
   getTeamGameSelection={getTeamGameSelection}
-  renderTeamMatchupStatus={renderTeamMatchupStatus}
+  buildHoleResultSubset={buildHoleResultSubset}
   pendingNextGameIndex={pendingNextGameIndex}
   onChooseTeams={pendingNextGameIndex != null ? () => {
     setFocusGameTarget({
