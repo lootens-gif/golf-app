@@ -113,6 +113,21 @@ export default function HoleResultCard({
               {teamGameResults.map((game, gameIndex) => {
                 const selection = getTeamGameSelection(gameIndex);
                 if (!selection || !(game.matches || []).length) return null;
+                // CONFIRMED REAL BUG (Aug 2026): every segment was
+                // rendering as its own block regardless of which one
+                // displayHole actually falls in — on hole 10 of a 6/6/6
+                // Press setup, this showed segment 1 (already finished),
+                // segment 2 (the real current one), and an empty,
+                // useless block for segment 3 (not started), all at
+                // once. Press specifically allows different team
+                // pairings per segment, so showing the wrong segment's
+                // matchups isn't just noisy, it's actively the wrong
+                // teams. Only the segment actually containing the
+                // displayed hole should render.
+                if (getTeamGameRange) {
+                  const range = getTeamGameRange(teamGames, gameIndex);
+                  if (displayHole < range.start || displayHole > range.end) return null;
+                }
                 return (
                   <div key={gameIndex} style={{ marginBottom: gameIndex < teamGameResults.length - 1 ? 12 : 0 }}>
                     {(game.matches || []).map((matchup, mIdx) => {
