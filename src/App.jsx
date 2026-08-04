@@ -404,14 +404,27 @@ function formatRunningUnits(value) {
   return "Even";
 }
 
+// CONFIRMED REAL BUG (Aug 2026): this local copy was missing the
+// "-1" adjustment AuditTrail.jsx's version has, and the "if (hole <
+// startHole) return 0" branch that goes with it. That adjustment
+// exists specifically so a press triggered right on a segment's last
+// hole still shows its trailing zero — verbally announced ("2, 1, 0")
+// even though the press has no hole left to actually play within that
+// segment. Two copies of the same function had drifted apart; this one
+// silently dropped that zero while AuditTrail.jsx's correctly showed
+// it, which is why the same press could look different depending on
+// which screen displayed it. Reconciled to match the correct version.
 function getBetStatusesForHole(bets = [], hole) {
   return bets
     .filter((bet) => {
       const startHole = Number(bet.startHole || 0);
-      return startHole && hole >= startHole;
+      return startHole && hole >= startHole - 1;
     })
     .map((bet) => {
       const startHole = Number(bet.startHole || 0);
+      if (hole < startHole) {
+        return 0;
+      }
       const resultsThroughHole = (bet.history || []).slice(
         0,
         hole - startHole + 1
@@ -4262,6 +4275,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
 
 <HoleResultCard
   lastHoleSaved={lastHoleSaved}
+  currentHole={currentHole}
   buildRealHoleResultLines={buildRealHoleResultLines}
   matchResults={matchResults}
   players={players}

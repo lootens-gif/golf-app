@@ -2,6 +2,7 @@ import { useState } from "react";
 
 export default function HoleResultCard({
   lastHoleSaved,
+  currentHole,
   buildRealHoleResultLines,
   matchResults = [],
   players = [],
@@ -21,9 +22,14 @@ export default function HoleResultCard({
   const [showDetail, setShowDetail] = useState(false);
   if (!lastHoleSaved) return null;
 
+  // If the person has navigated back to an earlier hole that's already
+  // been saved, show that hole's result instead of always showing the
+  // most recently saved one — matching what's actually on screen rather
+  // than whatever happened most recently, per the Aug 2026 discussion
+  // about avoiding a confusing mismatch while reviewing earlier holes.
+  const displayHole = (currentHole != null && currentHole <= lastHoleSaved) ? currentHole : lastHoleSaved;
 
-
-  const result = buildRealHoleResultLines(lastHoleSaved);
+  const result = buildRealHoleResultLines(displayHole);
 
 
   const isMainNinePoint = mode === "3p";
@@ -38,7 +44,7 @@ export default function HoleResultCard({
 
   const ninePointHole = ninePointEntry?.result?.holes?.find(
   (hole) =>
-    Number(hole.hole) === Number(lastHoleSaved) &&
+    Number(hole.hole) === Number(displayHole) &&
     hole.pointsByPlayerId
 );
 
@@ -61,7 +67,7 @@ export default function HoleResultCard({
   return (
     <div className="app-card" style={{ marginBottom: 12 }}>
       <h3 style={{ marginTop: 0 }}>
-        Hole {lastHoleSaved}
+        Hole {displayHole}
         {ninePointHole ? " - 9-Point" : " Result"}
       </h3>
 
@@ -115,7 +121,7 @@ export default function HoleResultCard({
                       const teamB = (selection?.[teamBKey] || []).filter(Boolean);
                       const teamAInitials = teamA.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
                       const teamBInitials = teamB.map(id => getPlayerName(id).split(" ").map(p => p[0]).join("")).join("/");
-                      const subset = buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
+                      const subset = buildHoleResultSubset(matchup, teamA, teamB, displayHole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame);
                       if (!subset) return null;
                       return (
                         <div key={mIdx} className="scorecard-scroll" style={{ marginBottom: 8, overflowX: "scroll", WebkitOverflowScrolling: "touch" }}>
