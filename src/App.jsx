@@ -174,7 +174,31 @@ function getMatchUnits(result) {
 // status per format," not two separate copies that could drift apart
 // from each other, matching the exact concern raised about the
 // Scoring screen becoming a duplicate of Results.
-function renderTeamMatchupStatus(matchup, teamAName, teamBName, key) {
+function renderTeamMatchupStatus(matchup, teamAName, teamBName, key, segmentStart, segmentEnd, scores) {
+  // CONFIRMED REAL GAP (Aug 2026): a segment only failed to render
+  // entirely when teams hadn't been selected yet — but teams are
+  // commonly pre-selected for every segment during Setup, before any
+  // of those holes are actually played. That segment would then still
+  // render, showing a misleading "Even" (0) rather than genuinely
+  // reflecting that nothing has happened in it yet. Same "N/A, not
+  // Tied" distinction already established for Long/Short — a segment
+  // with no scores yet is not the same thing as one that's actually
+  // being played and currently even.
+  if (segmentStart != null && segmentEnd != null && scores) {
+    let hasAnyScore = false;
+    for (let h = segmentStart; h <= segmentEnd; h++) {
+      if (scores[h] && Object.keys(scores[h]).length > 0) { hasAnyScore = true; break; }
+    }
+    if (!hasAnyScore) {
+      return (
+        <div key={key} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#6b7280", fontSize: 13 }}>
+          <span>{teamAName} vs {teamBName}</span>
+          <span>N/A</span>
+        </div>
+      );
+    }
+  }
+
   const col = (v) => v > 0 ? "#137333" : v < 0 ? "#b3261e" : "#6b7280";
   const result = matchup.result;
   const isMatchPlayOrStroke = result?.type === "match_fbt" || result?.type === "stroke";
@@ -4487,7 +4511,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
             const teamAName = teamA.map(id => players.find(p => p.id === id)?.name || id).join("/");
             const teamBName = teamB.map(id => players.find(p => p.id === id)?.name || id).join("/");
 
-            return renderTeamMatchupStatus(matchup, teamAName, teamBName, mIdx);
+            return renderTeamMatchupStatus(matchup, teamAName, teamBName, mIdx, game.start, game.end, scores);
           })}
         </div>
       );
