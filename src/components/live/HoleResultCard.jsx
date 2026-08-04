@@ -100,7 +100,7 @@ export default function HoleResultCard({
         // elsewhere) — not per-bet, just the one overall up/down.
         // Reads from whichever game/segment actually contains the
         // displayed hole, matching the detail section below it.
-        let toggleColor = "#1a5c35";
+        let toggleColor = "#6b7280";
         if (getMatchUnits && getTeamGameRange) {
           const currentGameIndex = teamGameResults.findIndex((g, idx) => {
             const range = getTeamGameRange(teamGames, idx);
