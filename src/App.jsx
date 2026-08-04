@@ -287,17 +287,29 @@ function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, co
   // incorrectly showed holes 1-8, the whole round so far, instead of
   // just holes 7-8, the current segment. segmentStart is now the real
   // boundary from getTeamGameRange, not a guess.
+  //
+  // CONFIRMED REAL BUG (Aug 2026): runningColor was hardcoded to grey
+  // here and never actually computed — every hole showed no color at
+  // all regardless of the real net status, while Match Play's
+  // equivalent row (built correctly from the start) showed real red/
+  // green. Now sums each bet's sign per hole, same net-status
+  // convention as getMatchUnits, just computed at each hole instead of
+  // only the final total.
   if (isPress) {
     const start = segmentStart ?? Math.max(1, lastHoleSaved - 8);
     const holes = [];
     for (let h = start; h <= lastHoleSaved; h++) holes.push(h);
-    const rows = holes.map(hole => ({
-      hole,
-      teamAScores: teamA.filter(Boolean).map(id => scoreArgs(id, hole)),
-      teamBScores: teamB.filter(Boolean).map(id => scoreArgs(id, hole)),
-      runningLabel: formatPressDetail(getBetStatusesForHole(result, hole)),
-      runningColor: "#6b7280",
-    }));
+    const rows = holes.map(hole => {
+      const betStatuses = getBetStatusesForHole(result, hole);
+      const netUnits = betStatuses.reduce((sum, v) => sum + (v > 0 ? 1 : v < 0 ? -1 : 0), 0);
+      return {
+        hole,
+        teamAScores: teamA.filter(Boolean).map(id => scoreArgs(id, hole)),
+        teamBScores: teamB.filter(Boolean).map(id => scoreArgs(id, hole)),
+        runningLabel: formatPressDetail(betStatuses),
+        runningColor: netUnits > 0 ? "#137333" : netUnits < 0 ? "#b3261e" : "#6b7280",
+      };
+    });
     return { halfLabel: "Press", rows };
   }
 
@@ -4300,7 +4312,6 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   teamGames={teamGames}
   getTeamGameRange={getTeamGameRange}
   getTeamGameSelection={getTeamGameSelection}
-  getMatchUnits={getMatchUnits}
   buildHoleResultSubset={buildHoleResultSubset}
   pendingNextGameIndex={pendingNextGameIndex}
   onChooseTeams={pendingNextGameIndex != null ? () => {
