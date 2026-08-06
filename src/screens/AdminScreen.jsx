@@ -89,6 +89,7 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
         <select value={hoursAgo} onChange={e => setHoursAgo(Number(e.target.value))} style={{ fontSize: 13, padding: "4px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "inherit" }}>
           <option value={24}>Last 24 hrs</option>
           <option value={48}>Last 48 hrs</option>
+          <option value={168}>Last 7 days</option>
           <option value={720}>Last 30 days</option>
         </select>
       </div>
@@ -111,7 +112,13 @@ export default function AdminScreen({ onBack, onJoinAsAdmin, onReportBug }) {
               : 0;
             const updatedAt = new Date(r.updated_at);
             const minsAgo = Math.round((Date.now() - updatedAt) / 60000);
-            const timeLabel = minsAgo < 60 ? `${minsAgo}m ago` : `${Math.round(minsAgo / 60)}h ago`;
+            // Beyond 24 hours (1440 minutes), show days instead of an
+            // ever-growing hour count.
+            const timeLabel = minsAgo < 60
+              ? `${minsAgo}m ago`
+              : minsAgo < 1440
+                ? `${Math.round(minsAgo / 60)}h ago`
+                : `${Math.round(minsAgo / 1440)}d ago`;
             const isLive = minsAgo < 30;
 
             return (
