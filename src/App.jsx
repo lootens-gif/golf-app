@@ -850,7 +850,14 @@ function notifyRound(event, code) {
       scores,      
       handicapMode,
       noPar3TeamGame,
-      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread")
+      // CONFIRMED REAL BUG (Aug 2026): this gate never checked format —
+      // only enableTeamGame. Setup's own selector for this only shows
+      // for Press, matching Spread's actual documented purpose ("across
+      // each 6-hole game"), but nothing here enforced that. Fixed at
+      // the source in Setup's format-switch handler too, but this
+      // second check protects any round that was already carrying a
+      // stale "spread" value from before that fix existed.
+      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread" && teamGameFormat === "press")
         ? getSpreadHandicapStrokes
         : getHandicapStrokes,
     }),
@@ -862,6 +869,7 @@ function notifyRound(event, code) {
       noPar3TeamGame,
       enableTeamGame,
       handicapDistribution,
+      teamGameFormat,
     ]
   );
 

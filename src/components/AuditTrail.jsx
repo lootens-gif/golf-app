@@ -911,6 +911,11 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
             <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{p1Name} vs {p2Name}</span>
             {formatDetail && <span style={{ marginLeft: 10, fontSize: 13 }}>{formatDetail}</span>}
             {match.playEven && <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", background: "#f0fdf4", color: "#2d6a4f", border: "1px solid #2d6a4f", borderRadius: 4 }}>Play Even</span>}
+            {match.customStrokes === 0 && (
+              <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", background: "#fde8e8", color: "#b3261e", border: "1px solid #b3261e", borderRadius: 4 }}>
+                ⚠️ Custom Strokes: 0 (no handicap strokes applied)
+              </span>
+            )}
             {matchBirdieNet !== 0 && (
               <span style={{ color: birdieColor, marginLeft: 10, fontSize: 13 }}>
                 Birdies {fmtMoney(matchBirdieNet)}

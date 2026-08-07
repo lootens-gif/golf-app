@@ -1199,6 +1199,23 @@ export default function SetupScreen({
                     key={opt.value}
                     onClick={() => {
                       setTeamGameFormat(opt.value);
+                      // CONFIRMED REAL BUG (Aug 2026): Setup's own
+                      // "Handicap Distribution" selector only renders
+                      // for Press, matching Spread's actual documented
+                      // purpose ("across each 6-hole game"). But this
+                      // handler never touched handicapDistribution at
+                      // all — Spread could be set on Press, then
+                      // survive a switch to any other format
+                      // completely unchanged, with the selector to see
+                      // or undo it now gone, since that section no
+                      // longer renders outside Press. The underlying
+                      // stroke calculation has no format check of its
+                      // own either, so it would keep silently applying
+                      // Spread math (and Spread-based dots) to a format
+                      // it was never designed for.
+                      if (opt.value !== "press" && handicapDistribution === "spread") {
+                        setHandicapDistribution("standard");
+                      }
                       if (opt.value === "press") {
                         setTeamGames(prev => [
                           { ...createDefaultTeamGame(1), teams: prev[0]?.teams || {} },

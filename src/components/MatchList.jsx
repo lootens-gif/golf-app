@@ -606,7 +606,13 @@ export default function MatchList({
               Play Even (no strokes)
             </label>
 
-            {/* Custom strokes — greyed out when Play Even is on */}
+            {/* Custom strokes — greyed out when Play Even is on.
+                customStrokes === 0 is a real, explicit "apply zero
+                strokes" state — easy to land on by accident via +/-
+                and forget to Clear, since 0 and cleared otherwise look
+                nearly identical. Made visually distinct here (Aug
+                2026) after exactly that mistake silently zeroed out an
+                entire live match's strokes. */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: match.playEven ? 0.4 : 1, pointerEvents: match.playEven ? "none" : "auto" }}>
               <span style={{ fontSize: 13, color: "#555" }}>Custom strokes:</span>
               <button
@@ -614,7 +620,10 @@ export default function MatchList({
                 onClick={() => onUpdateMatch(match.id, { customStrokes: Math.max(-18, (match.customStrokes ?? null) - 1) })}
                 style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
               >−</button>
-              <span style={{ fontSize: 16, fontWeight: 600, minWidth: 28, textAlign: "center", color: "#222" }}>
+              <span style={{
+                fontSize: 16, fontWeight: 700, minWidth: 28, textAlign: "center",
+                color: match.customStrokes === 0 ? "#b3261e" : "#222",
+              }}>
                 {match.customStrokes != null ? match.customStrokes : "—"}
               </span>
               <button
@@ -628,6 +637,11 @@ export default function MatchList({
                   onClick={() => onUpdateMatch(match.id, { customStrokes: null })}
                   style={{ fontSize: 11, color: "#999", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                 >clear</button>
+              )}
+              {match.customStrokes === 0 && (
+                <span style={{ fontSize: 11, color: "#b3261e", fontWeight: 600 }}>
+                  ⚠️ removes all strokes — hit clear for normal handicap
+                </span>
               )}
             </div>
 
