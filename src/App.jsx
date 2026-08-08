@@ -1713,7 +1713,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          teamContext,
+          context: teamContext,
         }),
         
       });
@@ -1728,7 +1728,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          teamContext,
+          context: teamContext,
         }),
         
       });
@@ -1743,7 +1743,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          teamContext,
+          context: teamContext,
         }),
       });
     }
@@ -1772,7 +1772,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          teamContext,
+          context: teamContext,
         }),
       });
     }
@@ -1800,7 +1800,7 @@ function addNinePointMatch() {
         start,
         end,
         trigger,
-        teamContext,
+        context: teamContext,
       }),
     });
   }
