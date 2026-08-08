@@ -177,6 +177,45 @@ export function getSpreadHandicapStrokes(playerId, hole, players, course, handic
   return 0;
 }
 
+// Custom segment strokes (Aug 2026) — the third option alongside
+// Standard and Spread, specifically for 6/6/6 Press. Unlike Standard
+// (ranked across all 18) or Spread (calculated proportionally from
+// actual handicap), this uses a flat, manually-chosen number per
+// player, applied identically to every 6-hole segment — matching how
+// groups already do this by hand ("Tim gets 2 per segment, Steve gets
+// 3"), unmoored from the math entirely. Within each segment, those
+// strokes land on that player's own hardest holes in that segment,
+// same "rank by difficulty, take the top N" logic used everywhere else
+// in the app for this — just scoped to one 6-hole segment at a time
+// instead of the whole 18.
+//
+// Returns a function matching the standard getHandicapStrokes
+// signature — (playerId, hole, players, course, handicapMode,
+// noPar3Strokes) — since that's the shape every stroke calculation
+// call site in the app expects, and customStrokesByPlayerId can't fit
+// into that fixed signature directly.
+export function buildCustomSegmentStrokesFn(customStrokesByPlayerId = {}) {
+  return function customSegmentStrokes(playerId, hole, players, course, handicapMode, noPar3Strokes = false) {
+    const n = Number(customStrokesByPlayerId[playerId] || 0);
+    if (n <= 0) return 0;
+
+    const pars = course?.pars || [];
+    const holeHcp = (h) => Number(course?.hcp?.[h - 1]);
+    const isPar3 = (h) => pars[h - 1] === 3;
+
+    const segments = [[1,2,3,4,5,6],[7,8,9,10,11,12],[13,14,15,16,17,18]];
+    const segment = segments.find(seg => seg.includes(hole));
+    if (!segment) return 0;
+
+    const eligible = segment
+      .filter(h => Number.isFinite(holeHcp(h)) && !(noPar3Strokes && isPar3(h)))
+      .sort((a, b) => holeHcp(a) - holeHcp(b));
+
+    const strokeHoles = new Set(eligible.slice(0, n));
+    return strokeHoles.has(hole) ? 1 : 0;
+  };
+}
+
 export function getRawScore(scores, hole, playerId) {
   const value = scores[hole]?.[playerId];
   return Number.isFinite(value) ? value : null;

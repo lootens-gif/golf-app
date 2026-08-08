@@ -717,6 +717,7 @@ export default function SetupScreen({
   pressTrigger, setPressTrigger,
   noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution,
   groupHandicapOverride, setGroupHandicapOverride, groupHandicapMode, setGroupHandicapMode,
+  customSegmentStrokes, setCustomSegmentStrokes,
   applyPreset, setTeamGames, teamGames,
   skinsEnabled, setSkinsEnabled, skinsType, setSkinsType,
   skinsGross, setSkinsGross, skinValueAmount, setSkinValueAmount,
@@ -1454,23 +1455,75 @@ export default function SetupScreen({
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
                 {handicapDistribution === "spread"
                   ? "Spread strokes evenly across each 6-hole game — avoids one game being unfairly weighted (COD format)."
-                  : "Handicap strokes applied in rank order across all 18 holes — strokes fall where they fall on the scorecard."}
+                  : handicapDistribution === "custom"
+                    ? "Set a flat number of strokes per player, applied the same way every 6-hole segment — not calculated from handicap."
+                    : "Handicap strokes applied in rank order across all 18 holes — strokes fall where they fall on the scorecard."}
               </div>
               <div style={{ display: "flex", border: "1px solid #1a5c35", borderRadius: 8, overflow: "hidden" }}>
                 {[
                   { v: "standard", l: "Standard" },
                   { v: "spread", l: "Spread" },
+                  { v: "custom", l: "Custom" },
                 ].map(({ v, l }, i) => (
                   <button key={v} onClick={() => setHandicapDistribution(v)} style={{
                     flex: 1, padding: "8px 12px", border: "none",
                     background: handicapDistribution === v ? "#1a5c35" : "#fff",
                     color: handicapDistribution === v ? "#fff" : "#1a1a1a",
                     fontWeight: 600, fontSize: 13, cursor: "pointer",
-                    borderRight: i === 0 ? "1px solid #d1d5db" : "none",
+                    borderRight: i < 2 ? "1px solid #d1d5db" : "none",
                     fontFamily: "inherit",
                   }}>{l}</button>
                 ))}
               </div>
+
+              {/* Custom segment strokes (Aug 2026) — per-player flat
+                  stroke count, one preset row per player, tap to select
+                  rather than type. Shown right below Handicap
+                  Distribution, only when Custom is the selected option. */}
+              {handicapDistribution === "custom" && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #d1d5db" }}>
+                  {players.filter(p => p.name && !p.name.match(/^P\d+$/)).map(p => {
+                    const current = customSegmentStrokes[p.id] ?? 0;
+                    return (
+                      <div key={p.id} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, color: "#1a1a1a", fontWeight: 600, marginBottom: 4 }}>
+                          {p.name} <span style={{ fontWeight: 400, color: "#6b7280" }}>— {current} per segment</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {[0, 1, 2, 3, 4, 5, 6].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => setCustomSegmentStrokes(prev => ({ ...prev, [p.id]: n }))}
+                              style={{
+                                width: 32, height: 32, fontSize: 13, fontWeight: 600,
+                                border: current === n ? "2px solid #1a5c35" : "1px solid #d1d5db",
+                                background: current === n ? "#1a5c35" : "#fff",
+                                color: current === n ? "#fff" : "#1a1a1a",
+                                borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                              }}
+                            >{n}</button>
+                          ))}
+                          <button
+                            onClick={() => {
+                              const v = window.prompt(`Strokes per segment for ${p.name} (currently ${current}):`, current);
+                              if (v == null) return;
+                              const n = Math.max(0, Math.min(18, Math.round(Number(v)) || 0));
+                              setCustomSegmentStrokes(prev => ({ ...prev, [p.id]: n }));
+                            }}
+                            style={{
+                              width: 32, height: 32, fontSize: 15, fontWeight: 600,
+                              border: current > 6 ? "2px solid #1a5c35" : "1px solid #d1d5db",
+                              background: current > 6 ? "#1a5c35" : "#fff",
+                              color: current > 6 ? "#fff" : "#1a1a1a",
+                              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                            }}
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

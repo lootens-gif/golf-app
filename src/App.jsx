@@ -4,6 +4,7 @@ import {
   getActivePlayers,
   getHandicapStrokes,
   getSpreadHandicapStrokes,
+  buildCustomSegmentStrokesFn,
   computeHoleResult,
   playIndividualMatch,
   playTeamMatch,
@@ -688,6 +689,11 @@ export default function App() {
   const [groupHandicapOverride, setGroupHandicapOverride] = useState(false);
   const [groupHandicapMode, setGroupHandicapMode] = useState("relative");
   const [handicapDistribution, setHandicapDistribution] = useState("standard");
+  // Custom segment strokes (Aug 2026) — a flat, manually-chosen number
+  // per player, applied identically to every 6-hole segment. Only
+  // meaningful when handicapDistribution === "custom". Keyed by
+  // playerId, value is the flat stroke count for that player.
+  const [customSegmentStrokes, setCustomSegmentStrokes] = useState({});
   const [matches, setMatches] = useState([]);
   const [savedRoundName, setSavedRoundName] = useState("");
   const [savedRounds, setSavedRounds] = useState([]);
@@ -894,8 +900,12 @@ function notifyRound(event, code) {
       scores,
       handicapMode: effectiveGroupHandicapMode,
       noPar3TeamGame,
-      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread" && teamGameFormat === "press")
-        ? getSpreadHandicapStrokes
+      getHandicapStrokesFn: (enableTeamGame && teamGameFormat === "press")
+        ? (handicapDistribution === "spread"
+          ? getSpreadHandicapStrokes
+          : handicapDistribution === "custom"
+            ? buildCustomSegmentStrokesFn(customSegmentStrokes)
+            : getHandicapStrokes)
         : getHandicapStrokes,
     }),
     [
@@ -907,6 +917,7 @@ function notifyRound(event, code) {
       enableTeamGame,
       handicapDistribution,
       teamGameFormat,
+      customSegmentStrokes,
     ]
   );
 
@@ -2046,6 +2057,7 @@ function loadLastRound() {
     if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
   if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
   if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
+  if (round.customSegmentStrokes) setCustomSegmentStrokes(round.customSegmentStrokes);
     if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
     if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
     if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2128,6 +2140,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     handicapDistribution,
     groupHandicapOverride,
     groupHandicapMode,
+    customSegmentStrokes,
     enableTeamGame,
     teamGameFormat,
     teamMatchConfig,
@@ -2165,6 +2178,7 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   handicapDistribution,
   groupHandicapOverride,
   groupHandicapMode,
+  customSegmentStrokes,
   enableTeamGame,
   teamGameFormat,
   teamMatchConfig,
@@ -2224,6 +2238,7 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
   if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
   if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
+  if (round.customSegmentStrokes) setCustomSegmentStrokes(round.customSegmentStrokes);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2360,6 +2375,7 @@ function loadNamedRound() {
     if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
   if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
   if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
+  if (round.customSegmentStrokes) setCustomSegmentStrokes(round.customSegmentStrokes);
     if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
     if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
     if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2442,6 +2458,7 @@ function buildTemplatePayload(templateName, isPublic) {
       handicapDistribution,
       groupHandicapOverride,
       groupHandicapMode,
+      customSegmentStrokes,
       enableTeamGame,
       teamGameFormat,
       teamMatchConfig,
@@ -2501,6 +2518,7 @@ async function handleLoadTemplate(template) {
     if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
     if (cfg.groupHandicapOverride != null) setGroupHandicapOverride(cfg.groupHandicapOverride);
     if (cfg.groupHandicapMode) setGroupHandicapMode(cfg.groupHandicapMode);
+    if (cfg.customSegmentStrokes) setCustomSegmentStrokes(cfg.customSegmentStrokes);
     if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
     if (cfg.teamGameFormat) setTeamGameFormat(cfg.teamGameFormat);
     if (cfg.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...cfg.teamMatchConfig }));
@@ -3965,6 +3983,8 @@ return (
     setGroupHandicapOverride={setGroupHandicapOverride}
     groupHandicapMode={groupHandicapMode}
     setGroupHandicapMode={setGroupHandicapMode}
+    customSegmentStrokes={customSegmentStrokes}
+    setCustomSegmentStrokes={setCustomSegmentStrokes}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
     skinsEnabled={skinsEnabled}
