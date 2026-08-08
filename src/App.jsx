@@ -4416,7 +4416,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   course={course}
   scores={scores}
   handicapMode={handicapMode}
-  getHandicapStrokesFn={context.getHandicapStrokesFn}
+  getHandicapStrokesFn={teamContext.getHandicapStrokesFn}
   noPar3TeamGame={noPar3TeamGame}
   mode={mode}
   enableTeamGame={enableTeamGame}
@@ -4538,7 +4538,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
               course={course}
               scores={scores}
               handicapMode={handicapMode}
-              getHandicapStrokesFn={context.getHandicapStrokesFn}
+              getHandicapStrokesFn={teamContext.getHandicapStrokesFn}
               noPar3Strokes={noPar3TeamGame}
             />
           );
@@ -4766,7 +4766,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
     skinsResults={skinsResults}
     skinsEnabled={skinsEnabled}
     skinsConfig={skinsConfig}
-    getHandicapStrokesFn={context.getHandicapStrokesFn}
+    getHandicapStrokesFn={teamContext.getHandicapStrokesFn}
     segmentBirdieAmounts={segmentBirdieAmounts}
     roundCode={roundCode}
     handicapDistribution={handicapDistribution}
