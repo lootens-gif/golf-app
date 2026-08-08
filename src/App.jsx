@@ -894,24 +894,20 @@ function notifyRound(event, code) {
   // directly and is never affected by this, regardless of the override.
   const effectiveGroupHandicapMode = groupHandicapOverride ? groupHandicapMode : handicapMode;
   const teamContext = useMemo(
-    () => {
-      const fn = (enableTeamGame && teamGameFormat === "press")
+    () => ({
+      players,
+      course,
+      scores,
+      handicapMode: effectiveGroupHandicapMode,
+      noPar3TeamGame,
+      getHandicapStrokesFn: (enableTeamGame && teamGameFormat === "press")
         ? (handicapDistribution === "spread"
           ? getSpreadHandicapStrokes
           : handicapDistribution === "custom"
             ? buildCustomSegmentStrokesFn(customSegmentStrokes)
             : getHandicapStrokes)
-        : getHandicapStrokes;
-      console.log("[DIAG-CUSTOM] handicapDistribution:", handicapDistribution, "enableTeamGame:", enableTeamGame, "teamGameFormat:", teamGameFormat, "customSegmentStrokes:", JSON.stringify(customSegmentStrokes), "resolved fn name:", fn.name);
-      return {
-        players,
-        course,
-        scores,
-        handicapMode: effectiveGroupHandicapMode,
-        noPar3TeamGame,
-        getHandicapStrokesFn: fn,
-      };
-    },
+        : getHandicapStrokes,
+    }),
     [
       players,
       course,
@@ -3704,7 +3700,7 @@ const initials = (name) => {
 const teamScoreLine = (team) => {
   const ids = team.filter(Boolean);
   return ids
-    .map(id => `${initials(playerName(id))} ${formatScoreWithStrokeDots(id, holeNumber, players, course, scores, handicapMode, context.getHandicapStrokesFn, noPar3TeamGame)}`)
+    .map(id => `${initials(playerName(id))} ${formatScoreWithStrokeDots(id, holeNumber, players, course, scores, handicapMode, teamContext.getHandicapStrokesFn, noPar3TeamGame)}`)
     .join(" / ");
 };
 
@@ -4299,7 +4295,7 @@ return (
     scores={scores}
     setScore={setScore}
     handicapMode={handicapMode}
-    getHandicapStrokesFn={context.getHandicapStrokesFn}
+    getHandicapStrokesFn={teamContext.getHandicapStrokesFn}
     onScoreFocus={() => { isEnteringScore.current = true; }}
     onScoreBlur={() => { isEnteringScore.current = false; }}
     noPar3TeamGame={noPar3TeamGame}
@@ -4737,7 +4733,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
       onSetScore={setScore}
       course={course}
       handicapMode={handicapMode}
-      getHandicapStrokesFn={context.getHandicapStrokesFn}
+      getHandicapStrokesFn={teamContext.getHandicapStrokesFn}
     />
   </div>
 )}
