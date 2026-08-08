@@ -197,6 +197,9 @@ export function getSpreadHandicapStrokes(playerId, hole, players, course, handic
 export function buildCustomSegmentStrokesFn(customStrokesByPlayerId = {}) {
   return function customSegmentStrokes(playerId, hole, players, course, handicapMode, noPar3Strokes = false) {
     const n = Number(customStrokesByPlayerId[playerId] || 0);
+    if (typeof window !== "undefined") {
+      console.log("[DIAG-CUSTOM-FN] called with playerId:", playerId, "hole:", hole, "n:", n, "customStrokesByPlayerId:", JSON.stringify(customStrokesByPlayerId));
+    }
     if (n <= 0) return 0;
 
     const pars = course?.pars || [];

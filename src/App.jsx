@@ -894,20 +894,24 @@ function notifyRound(event, code) {
   // directly and is never affected by this, regardless of the override.
   const effectiveGroupHandicapMode = groupHandicapOverride ? groupHandicapMode : handicapMode;
   const teamContext = useMemo(
-    () => ({
-      players,
-      course,
-      scores,
-      handicapMode: effectiveGroupHandicapMode,
-      noPar3TeamGame,
-      getHandicapStrokesFn: (enableTeamGame && teamGameFormat === "press")
+    () => {
+      const fn = (enableTeamGame && teamGameFormat === "press")
         ? (handicapDistribution === "spread"
           ? getSpreadHandicapStrokes
           : handicapDistribution === "custom"
             ? buildCustomSegmentStrokesFn(customSegmentStrokes)
             : getHandicapStrokes)
-        : getHandicapStrokes,
-    }),
+        : getHandicapStrokes;
+      console.log("[DIAG-CUSTOM] handicapDistribution:", handicapDistribution, "enableTeamGame:", enableTeamGame, "teamGameFormat:", teamGameFormat, "customSegmentStrokes:", JSON.stringify(customSegmentStrokes), "resolved fn name:", fn.name);
+      return {
+        players,
+        course,
+        scores,
+        handicapMode: effectiveGroupHandicapMode,
+        noPar3TeamGame,
+        getHandicapStrokesFn: fn,
+      };
+    },
     [
       players,
       course,
