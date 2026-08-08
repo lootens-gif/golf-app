@@ -3913,6 +3913,7 @@ return (
           teamGameUnitAmount={teamGameUnitAmount}
           handicapMode={handicapMode}
           handicapDistribution={handicapDistribution}
+          customSegmentStrokes={customSegmentStrokes}
           enableTeamGame={enableTeamGame}
           noPar3TeamGame={noPar3TeamGame}
           birdiesEnabled={birdiesEnabled}

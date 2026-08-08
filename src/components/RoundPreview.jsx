@@ -1,4 +1,4 @@
-import { getSpreadHandicapStrokes, getHandicapStrokes } from "../engine/scoringEngine";
+import { getSpreadHandicapStrokes, getHandicapStrokes, buildCustomSegmentStrokesFn } from "../engine/scoringEngine";
 
 const sc = {
   green: "#2d6a4f",
@@ -10,10 +10,19 @@ const sc = {
   red: "#b3261e",
 };
 
-function getDotsFn(handicapDistribution, enableTeamGame) {
-  return (enableTeamGame && handicapDistribution === "spread")
-    ? getSpreadHandicapStrokes
-    : getHandicapStrokes;
+// CONFIRMED REAL BUG (Aug 2026): this had its own, third, independent
+// copy of "which stroke function applies" — separate from both context
+// and teamContext in App.jsx, and never updated when Custom segment
+// strokes was added. It only ever checked for "spread", so a Custom
+// round showed real dots, just computed with standard whole-course
+// ranking instead of the actual per-player, per-segment numbers —
+// "has dots, wrong dots," not the same symptom as a round showing no
+// dots moved at all (that's a separate, still-open bug elsewhere).
+function getDotsFn(handicapDistribution, enableTeamGame, customSegmentStrokes) {
+  if (!enableTeamGame) return getHandicapStrokes;
+  if (handicapDistribution === "spread") return getSpreadHandicapStrokes;
+  if (handicapDistribution === "custom") return buildCustomSegmentStrokesFn(customSegmentStrokes);
+  return getHandicapStrokes;
 }
 
 function fmtHcp(hcp) {
@@ -24,10 +33,11 @@ function fmtHcp(hcp) {
 export default function RoundPreview({
   players, course, matches, teamGames, teamGameFormat,
   teamGameUnitAmount, handicapMode, handicapDistribution,
+  customSegmentStrokes,
   enableTeamGame, noPar3TeamGame, birdiesEnabled, birdieBetAmount,
   skinsEnabled, onConfirm, onBack, roundCode, inProgress = false,
 }) {
-  const strokesFn = getDotsFn(handicapDistribution, enableTeamGame);
+  const strokesFn = getDotsFn(handicapDistribution, enableTeamGame, customSegmentStrokes);
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const isSpread = enableTeamGame && handicapDistribution === "spread";
   const activePlayers = players.filter(p => p.name && !p.name.match(/^P\d+$/));
