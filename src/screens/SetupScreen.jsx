@@ -715,7 +715,9 @@ export default function SetupScreen({
   enableTeamGame, setEnableTeamGame, teamGameFormat, setTeamGameFormat, teamMatchConfig, setTeamMatchConfig,
   teamGameUnitAmount, setTeamGameUnitAmount,
   pressTrigger, setPressTrigger,
-  noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution, applyPreset, setTeamGames, teamGames,
+  noPar3TeamGame, setNoPar3TeamGame, handicapDistribution, setHandicapDistribution,
+  groupHandicapOverride, setGroupHandicapOverride, groupHandicapMode, setGroupHandicapMode,
+  applyPreset, setTeamGames, teamGames,
   skinsEnabled, setSkinsEnabled, skinsType, setSkinsType,
   skinsGross, setSkinsGross, skinValueAmount, setSkinValueAmount,
   skinCarryover, setSkinCarryover, skinBirdie, setSkinBirdie,
@@ -913,6 +915,44 @@ export default function SetupScreen({
             ))}
           </div>
         </div>
+
+        {/* Group Handicap Mode override (Aug 2026) — deliberately small
+            and off by default, since most rounds use one mode for
+            everything. Applies to Team Games and 9-Point together
+            (9-Point is functionally the Team Game for 3-player mode,
+            not a separate category); 1v1 always uses the toggle above,
+            regardless of this setting. */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: sc.muted, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={groupHandicapOverride}
+              onChange={(e) => setGroupHandicapOverride(e.target.checked)}
+            />
+            Team Games / 9-Point use a different handicap mode than the toggle above
+          </label>
+          {groupHandicapOverride && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, marginLeft: 24 }}>
+              <span style={{ fontSize: 12, color: sc.muted, minWidth: 60 }}>Group</span>
+              <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
+                {[
+                  { value: "relative", label: "Net (Lowest)" },
+                  { value: "full", label: "Full HCP" },
+                ].map(({ value, label }, i) => (
+                  <button key={value} onClick={() => setGroupHandicapMode(value)} style={{
+                    padding: "6px 12px", border: "none",
+                    background: groupHandicapMode === value ? sc.green : "#fff",
+                    color: groupHandicapMode === value ? "#fff" : sc.ink,
+                    fontWeight: 600, fontSize: 12, cursor: "pointer",
+                    borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                    fontFamily: "inherit",
+                  }}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div style={{ marginTop: 12 }}>
           <PlayerSetupPanel
             mode={mode} players={players} onPlayerChange={handlePlayerChange}

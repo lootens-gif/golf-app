@@ -678,6 +678,15 @@ export default function App() {
   const [course, setCourse] = useState(createDefaultCourse());
   const [scores, setScores] = useState({});
   const [handicapMode, setHandicapMode] = useState("relative");
+  // Group Handicap Mode override (Aug 2026) — the vast majority of
+  // rounds want one handicapMode for everything, so this stays off by
+  // default, changing nothing. When on, Team Games and 9-Point (which
+  // is functionally the Team Game for 3-player mode, not a separate
+  // third category) use groupHandicapMode instead of the main toggle;
+  // 1v1 always keeps using the main toggle directly, untouched either
+  // way.
+  const [groupHandicapOverride, setGroupHandicapOverride] = useState(false);
+  const [groupHandicapMode, setGroupHandicapMode] = useState("relative");
   const [handicapDistribution, setHandicapDistribution] = useState("standard");
   const [matches, setMatches] = useState([]);
   const [savedRoundName, setSavedRoundName] = useState("");
@@ -866,6 +875,34 @@ function notifyRound(event, code) {
       course,
       scores,
       handicapMode,
+      noPar3TeamGame,
+      enableTeamGame,
+      handicapDistribution,
+      teamGameFormat,
+    ]
+  );
+
+  // Group Handicap Mode override (Aug 2026) — same shape as `context`
+  // above, but Team Games and 9-Point read handicapMode from here
+  // instead, when the override is on. 1v1 always uses `context` above
+  // directly and is never affected by this, regardless of the override.
+  const effectiveGroupHandicapMode = groupHandicapOverride ? groupHandicapMode : handicapMode;
+  const teamContext = useMemo(
+    () => ({
+      players,
+      course,
+      scores,
+      handicapMode: effectiveGroupHandicapMode,
+      noPar3TeamGame,
+      getHandicapStrokesFn: (enableTeamGame && handicapDistribution === "spread" && teamGameFormat === "press")
+        ? getSpreadHandicapStrokes
+        : getHandicapStrokes,
+    }),
+    [
+      players,
+      course,
+      scores,
+      effectiveGroupHandicapMode,
       noPar3TeamGame,
       enableTeamGame,
       handicapDistribution,
@@ -1591,9 +1628,14 @@ function addNinePointMatch() {
   const matchResults = useMemo(() => {
     return matches.map((match) => ({
       match,
-      result: playIndividualMatch(match, context),
+      // 9-Point is functionally the Team Game for 3-player mode, not a
+      // separate third category (confirmed Aug 2026) — it uses
+      // teamContext so it respects the group handicap override the
+      // same way real team games do, while every other 1v1 match keeps
+      // reading from the main context, unaffected by that override.
+      result: playIndividualMatch(match, match.gameType === "ninePoint" ? teamContext : context),
     }));
-  }, [matches, context]);
+  }, [matches, context, teamContext]);
 
 
 
@@ -1613,7 +1655,7 @@ function addNinePointMatch() {
       teamB: team2,
       bet: Number(teamGameUnitAmount) || 0,
     };
-    const result = playTeamMatch(matchDef, context);
+    const result = playTeamMatch(matchDef, teamContext);
     return [{
       index: 0,
       start: 1,
@@ -1660,7 +1702,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          context,
+          teamContext,
         }),
         
       });
@@ -1675,7 +1717,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          context,
+          teamContext,
         }),
         
       });
@@ -1690,7 +1732,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          context,
+          teamContext,
         }),
       });
     }
@@ -1719,7 +1761,7 @@ function addNinePointMatch() {
           start,
           end,
           trigger,
-          context,
+          teamContext,
         }),
       });
     }
@@ -1747,7 +1789,7 @@ function addNinePointMatch() {
         start,
         end,
         trigger,
-        context,
+        teamContext,
       }),
     });
   }
@@ -1761,7 +1803,7 @@ birdieEnabled: enableTeamGame && teamMatchConfig.teamBirdiesEnabled,
     matches: teamMatches,
   };
   }); // end press format map
-  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, getTeamGameSelection, context, mode]);
+  }, [enableTeamGame, teamGameFormat, teamMatchConfig, teamGames, teamGameUnitAmount, getTeamGameSelection, teamContext, mode]);
 
 
 
@@ -2002,6 +2044,8 @@ function loadLastRound() {
     if (round.scores) setScores(round.scores);
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
+  if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
+  if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
     if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
     if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
     if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2082,6 +2126,8 @@ const buildCurrentRoundSnapshot = useCallback(() => {
     scores,
     handicapMode,
     handicapDistribution,
+    groupHandicapOverride,
+    groupHandicapMode,
     enableTeamGame,
     teamGameFormat,
     teamMatchConfig,
@@ -2117,6 +2163,8 @@ const buildCurrentRoundSnapshot = useCallback(() => {
   scores,
   handicapMode,
   handicapDistribution,
+  groupHandicapOverride,
+  groupHandicapMode,
   enableTeamGame,
   teamGameFormat,
   teamMatchConfig,
@@ -2174,6 +2222,8 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
   if (round.scores) setScores(round.scores);
   if (round.handicapMode) setHandicapMode(round.handicapMode);
   if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
+  if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
+  if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
   if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
   if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
   if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2308,6 +2358,8 @@ function loadNamedRound() {
     if (round.scores) setScores(round.scores);
     if (round.handicapMode) setHandicapMode(round.handicapMode);
     if (round.handicapDistribution) setHandicapDistribution(round.handicapDistribution);
+  if (round.groupHandicapOverride != null) setGroupHandicapOverride(round.groupHandicapOverride);
+  if (round.groupHandicapMode) setGroupHandicapMode(round.groupHandicapMode);
     if (typeof round.enableTeamGame === "boolean") setEnableTeamGame(round.enableTeamGame);
     if (round.teamGameFormat) setTeamGameFormat(round.teamGameFormat);
     if (round.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...round.teamMatchConfig }));
@@ -2388,6 +2440,8 @@ function buildTemplatePayload(templateName, isPublic) {
       mode,
       handicapMode,
       handicapDistribution,
+      groupHandicapOverride,
+      groupHandicapMode,
       enableTeamGame,
       teamGameFormat,
       teamMatchConfig,
@@ -2445,6 +2499,8 @@ async function handleLoadTemplate(template) {
     if (cfg.mode) setMode(cfg.mode);
     if (cfg.handicapMode) setHandicapMode(cfg.handicapMode);
     if (cfg.handicapDistribution) setHandicapDistribution(cfg.handicapDistribution);
+    if (cfg.groupHandicapOverride != null) setGroupHandicapOverride(cfg.groupHandicapOverride);
+    if (cfg.groupHandicapMode) setGroupHandicapMode(cfg.groupHandicapMode);
     if (typeof cfg.enableTeamGame === "boolean") setEnableTeamGame(cfg.enableTeamGame);
     if (cfg.teamGameFormat) setTeamGameFormat(cfg.teamGameFormat);
     if (cfg.teamMatchConfig) setTeamMatchConfig(prev => ({ ...prev, ...cfg.teamMatchConfig }));
@@ -3905,6 +3961,10 @@ return (
     setNoPar3TeamGame={setNoPar3TeamGame}
     handicapDistribution={handicapDistribution}
     setHandicapDistribution={setHandicapDistribution}
+    groupHandicapOverride={groupHandicapOverride}
+    setGroupHandicapOverride={setGroupHandicapOverride}
+    groupHandicapMode={groupHandicapMode}
+    setGroupHandicapMode={setGroupHandicapMode}
     pressTrigger={pressTrigger}
     setPressTrigger={setPressTrigger}
     skinsEnabled={skinsEnabled}
