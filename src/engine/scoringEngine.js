@@ -2828,6 +2828,6 @@ export function getBestBallWinner(teamIds, hole, players, course, scores, handic
 export function getBestBallDisplay(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn = null, noPar3Strokes = false) {
   const best = getBestBallWinner(teamIds, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes);
   if (!best) return "-";
-  const firstName = best.name.split(" ")[0];
+  const firstName = best.name.trim().split(" ")[0];
   return `${firstName} ${formatScoreWithStrokeDots(best.playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`;
 }

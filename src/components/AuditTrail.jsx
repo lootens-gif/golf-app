@@ -359,10 +359,10 @@ function TeamGameScorecard({
     return {
       hole,
       teamAValue: (isStroke && matchup.result.strokeCombined)
-        ? teamA.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
+        ? teamA.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).trim().split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
         : getBestBallDisplay(teamA, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       teamBValue: (isStroke && matchup.result.strokeCombined)
-        ? teamB.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
+        ? teamB.filter(Boolean).map(id => `${(players.find(p => p.id === id)?.name || id).trim().split(" ")[0]} ${formatScoreWithStrokeDots(id, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`).join(" + ")
         : getBestBallDisplay(teamB, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes),
       result: formatTeamHoleResult(holeResult, teamAName, teamBName),
       running: formatRunningUnits(runningValue), // Press only — Match Play/Long-Short use matchPlayCells/longCell/shortCell below
@@ -458,7 +458,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{teamA.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
+            <td style={scorecardLabelCellStyle}>{teamA.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).trim().split(" ")[0]).join("/")}</td>
             {sectionRows.map((row) => {
               const teamAHasBirdie = teamA.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
@@ -494,7 +494,7 @@ function TeamGameScorecard({
           </tr>
 
           <tr>
-            <td style={scorecardLabelCellStyle}>{teamB.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).split(" ")[0]).join("/")}</td>
+            <td style={scorecardLabelCellStyle}>{teamB.filter(Boolean).map(id => (players.find(p=>p.id===id)?.name||id).trim().split(" ")[0]).join("/")}</td>
             {sectionRows.map((row) => {
               const teamBHasBirdie = teamB.filter(Boolean).some(id =>
                 isGrossBirdie(scores, course, row.hole, id)
@@ -805,8 +805,8 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
         const result = entry.result || {};
         const p1Name = getPlayerName(players, match.p1Id);
         const p2Name = getPlayerName(players, match.p2Id);
-        const p1First = p1Name.split(" ")[0];
-        const p2First = p2Name.split(" ")[0];
+        const p1First = p1Name.trim().split(" ")[0];
+        const p2First = p2Name.trim().split(" ")[0];
 
         // Birdie $$ for this match from P1 perspective
         const matchBirdieNet = (birdieResults || [])
@@ -1145,7 +1145,7 @@ function NinePointScorecard({
               {/* SCORE ROWS */}
               {matchPlayers.map((player) => (
                 <tr key={`score-${player.id}`}>
-                  <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{player.name.split(" ")[0]}</td>
+                  <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{player.name.trim().split(" ")[0]}</td>
                   {sectionHoles.map((h) => {
                     const gross = getRawScore(scores, h.hole, player.id);
                     const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
@@ -1213,7 +1213,7 @@ function NinePointScorecard({
               const pts = totals[p.id] ?? 0;
               return (
                 <span key={p.id} style={{ marginRight: 10 }}>
-                  <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+                  <span style={{ color: "#1a1a1a" }}>{p.name.trim().split(" ")[0]}</span>
                   <span style={{ color: "#6b7280", marginLeft: 3 }}>{pts}</span>
                 </span>
               );
@@ -1515,7 +1515,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
 
           {[playerA, playerB].map((player) => (
             <tr key={player.id}>
-              <td style={scorecardLabelCellStyle}>{player.name.split(" ")[0]}</td>
+              <td style={scorecardLabelCellStyle}>{player.name.trim().split(" ")[0]}</td>
               {sectionHoles.map((hole) => {
                 const gross = getRawScore(scores, hole, player.id);
                 const strokes = overrideStrokesFn
@@ -1892,8 +1892,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const backSeg = segs.find(s => s.key === "back");
           const totalSeg = segs.find(s => s.key === "total");
           const isDiff = result.strokePayoutMode === "differential";
-          const p1First = playerA.name.split(" ")[0];
-          const p2First = playerB.name.split(" ")[0];
+          const p1First = playerA.name.trim().split(" ")[0];
+          const p2First = playerB.name.trim().split(" ")[0];
           const items = [];
           const makeStrokeItem = (seg, label) => {
             const u = seg.units ?? 0;
@@ -1935,7 +1935,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
           const playedHoles = p1Won + p2Won + pushed;
           if (playedHoles === 0) return null;
           const netColor = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
-          const p1First = playerA.name.split(" ")[0];
+          const p1First = playerA.name.trim().split(" ")[0];
           const netLabel = net === 0
             ? "All square (even)"
             : net > 0
@@ -1949,8 +1949,8 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
                 <span style={{ fontWeight: 700, marginLeft: 8 }}>{matchTotal !== 0 && `(${matchTotal > 0 ? "+" : ""}$${Math.abs(matchTotal)})`}</span>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ background: "#f0fdf4", color: "#137333", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerA.name.split(" ")[0]} {p1Won}W</span>
-                <span style={{ background: "#fef2f2", color: "#b3261e", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerB.name.split(" ")[0]} {p2Won}W</span>
+                <span style={{ background: "#f0fdf4", color: "#137333", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerA.name.trim().split(" ")[0]} {p1Won}W</span>
+                <span style={{ background: "#fef2f2", color: "#b3261e", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6 }}>{playerB.name.trim().split(" ")[0]} {p2Won}W</span>
                 <span style={{ background: "#f9fafb", color: "#6b7280", fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6, border: "0.5px solid #e5e7eb" }}>{pushed} Push</span>
               </div>
             </div>
@@ -2124,7 +2124,7 @@ function WolfAudit({
         const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
         return (
           <span key={p.id}>
-            <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+            <span style={{ color: "#1a1a1a" }}>{p.name.trim().split(" ")[0]}</span>
             <span style={{ color, marginLeft: 2 }}>{formatMoney(net)}</span>
           </span>
         );
@@ -2149,7 +2149,7 @@ function WolfAudit({
         if (!lines.length) return null; // hole not fully scored yet — skip
 
         const nameOf = (id) => players.find((p) => p.id === id)?.name || id;
-        const firstNameOf = (id) => (nameOf(id).split(" ")[0]);
+        const firstNameOf = (id) => (nameOf(id).trim().split(" ")[0]);
 
         let formatLabel;
         if (format === "pack") formatLabel = "Pack Wolf";
@@ -2439,7 +2439,7 @@ function TeamGameAudit({
         const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
         return (
           <span key={p.id}>
-            <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>
+            <span style={{ color: "#1a1a1a" }}>{p.name.trim().split(" ")[0]}</span>
             <span style={{ color, marginLeft: 2 }}>{formatMoney(net)}</span>
           </span>
         );
@@ -2518,7 +2518,7 @@ function TeamGameAudit({
               return (
                 <span key={p.id} style={{ whiteSpace: "nowrap" }}>
                   <span style={{ color: "#6b7280" }}> · </span>
-                  <span style={{ color: "#1a1a1a" }}>{p.name.split(" ")[0]}</span>{" "}
+                  <span style={{ color: "#1a1a1a" }}>{p.name.trim().split(" ")[0]}</span>{" "}
                   <span style={{ color: col(matchDollars) }}>{fmtAmt(matchDollars)}</span>
                   {birdieDollars !== 0 && (
                     <span style={{ color: col(birdieDollars) }}> {fmtAmt(birdieDollars)} 🐦</span>
