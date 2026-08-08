@@ -2350,6 +2350,7 @@ function TeamGameAudit({
   scores,
   course,
   handicapMode,
+  handicapDistribution = "standard",
   teamGameUnitAmount,
   noPar3TeamGame = false,
   getHandicapStrokesFn,
@@ -2434,6 +2435,11 @@ function TeamGameAudit({
   const teamGameTitle = (
     <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 8px" }}>
       <span style={{ fontWeight: 700, color: "#1a1a1a" }}>Team Game</span>
+      {handicapDistribution !== "standard" && (
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>
+          {handicapDistribution === "spread" ? "Spread" : "Custom"}
+        </span>
+      )}
       {sortedPlayers.map((p) => {
         const net = overallPlayerDollars[p.id] || 0;
         const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
@@ -2818,7 +2824,7 @@ function ScoreCell({ gross, par, strokes }) {
   return <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>{display}{dotsEl}</span>;
 }
 
-function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpdateScore, initialSelectedPlayer = null, getHandicapStrokesFn, noPar3TeamGame = false, handicapDistribution = "standard" }) {
+function TotalScorecard({ players, scores, course, goToLive, onUpdateScore, initialSelectedPlayer = null, noPar3TeamGame = false }) {
   const [selectedPlayer, setSelectedPlayer] = React.useState(initialSelectedPlayer);
 
   // Update if initialSelectedPlayer changes (from leaderboard drill-in)
@@ -2901,7 +2907,7 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
             {/* HCP row */}
             <tr>
-              <td style={labelStyle}>{handicapDistribution === "spread" ? "HCP·Spr" : "HCP"}</td>
+              <td style={labelStyle}>HCP</td>
               {sectionHoles.map(h => (
                 <td key={h} style={{ ...cellStyle, color: "#888", fontSize: 10, textAlign: "right", paddingRight: 3 }}>{hcps[h - 1] || "-"}</td>
               ))}
@@ -2913,9 +2919,16 @@ function TotalScorecard({ players, scores, course, handicapMode, goToLive, onUpd
 
             {/* Player rows */}
             {displayPlayers.map(player => {
-              const _strokesFn = getHandicapStrokesFn || getHandicapStrokes;
+              // CONFIRMED (Aug 2026): this screen is the master
+              // gross/net record, deliberately independent of whatever
+              // Team or 1v1 betting arrangement is active — same reason
+              // the Net total below already always uses "full" (see
+              // that calculation further down), not whatever
+              // getHandicapStrokesFn happened to be passed in. The dots
+              // shown here must match that same rule, not drift from
+              // it — this was previously inconsistent with itself.
               const strokes = sectionHoles.map(h =>
-                _strokesFn(player.id, h, players, course, handicapMode, noPar3TeamGame)
+                getHandicapStrokes(player.id, h, players, course, "full", noPar3TeamGame)
               );
               const grossScores = sectionHoles.map(h => getRawScore(scores, h, player.id));
               const sectionTotal = grossScores.reduce((sum, g) => g !== null ? sum + g : sum, 0);
@@ -3087,6 +3100,7 @@ export default function AuditTrail({
   scores={scores}
   course={course}
   handicapMode={handicapMode}
+  handicapDistribution={handicapDistribution}
   teamGameUnitAmount={teamGameUnitAmount}
   noPar3TeamGame={noPar3TeamGame}
   birdieResults={birdieResults}
@@ -3122,7 +3136,7 @@ export default function AuditTrail({
 {/* TOTAL SCORECARD */}
 <div ref={drillPlayerId ? (el) => { if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 150); } : null}>
   <AuditSection
-    title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}${handicapDistribution === "spread" ? " · Spread" : ""}`}
+    title={`Total Scorecard${course?.name ? ` · ${course.name}` : ""}`}
     defaultOpen={drillPlayerId !== null}
     key={drillPlayerId || "total"}
     sessionKey={sessionKey}
