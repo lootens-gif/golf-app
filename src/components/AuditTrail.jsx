@@ -813,7 +813,21 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
           .filter(e => e.source === "match-birdie" && e.matchId === match.id && e.playerId === match.p1Id)
           .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-        const total = Number(result?.total || 0);
+        // CONFIRMED REAL BUG (Aug 2026): Press results are a bare array,
+        // which has no .total property — this always evaluated to 0,
+        // showing "+$0" in the header no matter what the match actually
+        // paid out. Same units-based calculation already used in
+        // MatchList.jsx's Live Results panel and scoreRound's settlement,
+        // so all three places agree on the same number.
+        const isPressResult = Array.isArray(result);
+        const total = isPressResult
+          ? result.reduce((sum, bet) => {
+              const score = Number(bet.score || 0);
+              if (score > 0) return sum + 1;
+              if (score < 0) return sum - 1;
+              return sum;
+            }, 0) * (Number(match.bet) || 0)
+          : Number(result?.total || 0);
         const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
         const birdieColor = matchBirdieNet > 0 ? "#1a5c35" : matchBirdieNet < 0 ? "#b3261e" : "#6b7280";
         const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
@@ -1246,6 +1260,105 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const playerB = players.find((p) => p.id === match.p2Id);
 
   if (!playerA || !playerB) return null;
+
+  // 1v1 Press (Aug 2026): result is an array of independent bets (Base
+  // Match + any auto/manual Presses), not the {type, holes/segments} shape
+  // every other 1v1 format returns. CONFIRMED REAL BUG this fixes: this
+  // scorecard never had a Press branch at all, so a Press match fell
+  // through with match.type never matching isLongShort/isStroke/isNetHoles
+  // and rendered as a bare Net-Holes-style grid with no press detail
+  // whatsoever — exactly what showed up live (Tim, Aug 2026): the header
+  // stuck at "+$0" and the scorecard showing plain "1 dn / 2 dn" running
+  // instead of any bet-chain detail. Early return here rather than
+  // threading Press into the shared holeData computation below, which was
+  // built entirely around formats with a single running result, not a set
+  // of independent parallel bets.
+  if (Array.isArray(result)) {
+    const isPlayEvenPress = !!match.playEven;
+    const strokesFnPress = isPlayEvenPress
+      ? () => 0
+      : (playerId, hole) => getHandicapStrokes(playerId, hole, [playerA, playerB], course, handicapMode, !!match.noPar3Strokes);
+
+    const holesPress = Array.from({ length: 18 }, (_, i) => i + 1);
+    const frontPress = holesPress.slice(0, 9);
+    const backPress = holesPress.slice(9, 18);
+    const betAmount = Number(match.bet) || 0;
+    const totalUnits = result.reduce((sum, bet) => {
+      const score = Number(bet.score || 0);
+      if (score > 0) return sum + 1;
+      if (score < 0) return sum - 1;
+      return sum;
+    }, 0);
+    const totalDollars = totalUnits * betAmount;
+
+    const renderPressHalf = (holeList, label) => (
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>{label}</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <td style={{ padding: "3px 4px", color: "#6b7280" }}>Hole</td>
+              {holeList.map((h) => <td key={h} style={{ padding: "3px 4px", textAlign: "center", color: "#6b7280" }}>{h}</td>)}
+            </tr>
+            <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <td style={{ padding: "3px 4px", color: "#9ca3af" }}>Par</td>
+              {holeList.map((h) => <td key={h} style={{ padding: "3px 4px", textAlign: "center", color: "#9ca3af" }}>{course?.pars?.[h - 1] ?? "-"}</td>)}
+            </tr>
+          </thead>
+          <tbody>
+            {[playerA, playerB].map((p) => (
+              <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={{ padding: "3px 4px", fontWeight: 600 }}>{p.name.split(" ")[0]}</td>
+                {holeList.map((h) => {
+                  const gross = getRawScore(scores, h, p.id);
+                  const par = course?.pars?.[h - 1];
+                  const strokes = strokesFnPress(p.id, h);
+                  return (
+                    <td key={h} style={{ padding: "3px 4px", textAlign: "center" }}>
+                      {gross != null ? <ScoreCell gross={gross} par={par} strokes={strokes} /> : "-"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr>
+              <td style={{ padding: "3px 4px", fontWeight: 600, color: "#6b7280" }}>Press detail</td>
+              {holeList.map((h) => {
+                const played = getRawScore(scores, h, playerA.id) != null && getRawScore(scores, h, playerB.id) != null;
+                const statuses = played ? getBetStatusesForHole(result, h) : [];
+                return (
+                  <td key={h} style={{ padding: "3px 4px", textAlign: "center", fontSize: 11, color: "#374151" }}>
+                    {played ? formatPressDetail(statuses) : "-"}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+
+    return (
+      <div>
+        {renderPressHalf(frontPress, "Front 9")}
+        {renderPressHalf(backPress, "Back 9")}
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #ddd" }}>
+          {result.map((bet, i) => {
+            const col = bet.score > 0 ? "#1a5c35" : bet.score < 0 ? "#b3261e" : "#6b7280";
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 2 }}>
+                <span>{bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}</span>
+                <span style={{ color: col, fontWeight: 600 }}>{bet.score > 0 ? `+${bet.score}` : bet.score}</span>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 6, fontWeight: 700, color: totalDollars > 0 ? "#1a5c35" : totalDollars < 0 ? "#b3261e" : "#6b7280" }}>
+            Net Payout: {totalDollars >= 0 ? `+$${totalDollars}` : `-$${Math.abs(totalDollars)}`}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const matchPlayers = [playerA, playerB];
   const isLongShort = match.type === "longshort";
