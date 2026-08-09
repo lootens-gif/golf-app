@@ -48,8 +48,27 @@ describe('WolfHoleCard — basic rendering', () => {
     expect(screen.getByText('Hole 2 — Wolf')).toBeInTheDocument();
   });
 
-  test('shows a guard message with fewer than 5 players', () => {
+  test('shows a guard message with fewer than 4 players', () => {
     function Bad() {
+      return (
+        <WolfHoleCard
+          currentHole={1}
+          players={PLAYERS.slice(0, 3)}
+          wolfHoles={{}}
+          onUpdateWolfHole={() => {}}
+        />
+      );
+    }
+    render(<Bad />);
+    expect(screen.getByText(/needs 4 or 5 active players/i)).toBeInTheDocument();
+  });
+
+  // Aug 2026: 4-player Wolf is now supported (Harrison confirmed the rules
+  // are identical, just Pack Wolf becomes 2v2 instead of 2v3, and solo
+  // tiers become 1v3 instead of 1v4). This card should render normally,
+  // not guard, at 4 active players.
+  test('renders normally (no guard) with exactly 4 players', () => {
+    function FourPlayer() {
       return (
         <WolfHoleCard
           currentHole={1}
@@ -59,8 +78,9 @@ describe('WolfHoleCard — basic rendering', () => {
         />
       );
     }
-    render(<Bad />);
-    expect(screen.getByText(/needs exactly 5 active players/i)).toBeInTheDocument();
+    render(<FourPlayer />);
+    expect(screen.queryByText(/needs 4 or 5 active players/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Hole 1 — Wolf')).toBeInTheDocument();
   });
 });
 

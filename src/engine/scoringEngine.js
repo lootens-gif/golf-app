@@ -766,20 +766,17 @@ function settleStrokeSegment(aTotal, bTotal, payoutMode, bet) {
 
 
 
-export function playIndividualMatch(match, context) {
-  const {
-    players,
-    course,
-    scores,
-    handicapMode,
-  } = context;
-
+// Builds the per-match handicap override function for Play Even / Custom
+// Strokes — shared by playIndividualMatch and playIndividualPressMatch so
+// there's exactly one implementation of "how do these two 1v1 toggles
+// work," not two that can quietly drift apart from each other.
+function buildMatchHandicapOverrideFn(match, players, course) {
   // Play Even — override handicap function to return 0 strokes for all holes
-  const playEvenFn = match.playEven ? () => 0 : null;
+  if (match.playEven) return () => 0;
 
   // Custom strokes — distribute N strokes to hardest holes by HCP order
   // Positive N = higher HCP player gets strokes, negative = lower HCP player gets strokes
-  const customStrokesFn = (!match.playEven && match.customStrokes != null) ? (() => {
+  if (match.customStrokes != null) {
     const p1 = players.find(p => p.id === match.p1Id);
     const p2 = players.find(p => p.id === match.p2Id);
     if (!p1 || !p2) return null;
@@ -795,7 +792,20 @@ export function playIndividualMatch(match, context) {
     const hcpRanking = course?.hcp ? [...course.hcp].map((h, i) => ({ hole: i + 1, hcp: h })).sort((a, b) => a.hcp - b.hcp) : [];
     const strokeHoles = new Set(hcpRanking.slice(0, absN).map(h => h.hole));
     return (playerId, hole) => (playerId === receiverId && strokeHoles.has(hole)) ? 1 : 0;
-  })() : null;
+  }
+
+  return null;
+}
+
+export function playIndividualMatch(match, context) {
+  const {
+    players,
+    course,
+    scores,
+    handicapMode,
+  } = context;
+
+  const overrideStrokesFnTop = buildMatchHandicapOverrideFn(match, players, course);
 
 // -----------------------------
 // 9 POINT MODE (3-player)
@@ -839,7 +849,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
       course,
       scores,
       handicapMode,
-      getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
+      getHandicapStrokesFn: overrideStrokesFnTop,
     });
 
     holes.push(result);
@@ -966,7 +976,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
         scores,
         handicapMode,
         strokeScoring,
-        getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
+        getHandicapStrokesFn: overrideStrokesFnTop,
       });
 
       const b = sumStrokeSegment({
@@ -978,7 +988,7 @@ const matchPlayers = [p1, p2].filter(Boolean);
         scores,
         handicapMode,
         strokeScoring,
-        getHandicapStrokesFn: playEvenFn || customStrokesFn || null,
+        getHandicapStrokesFn: overrideStrokesFnTop,
       });
 
       const settlement = settleStrokeSegment(
@@ -1024,8 +1034,15 @@ export function playPressMatch({
   end,
   trigger = 2,
   context,
+  manualPressHoles = [], // Aug 2026: holes where a press was called by hand,
+  // independent of the score trigger. Confirmed design (Tim, Aug 2026): a
+  // manual call and the auto-trigger are two SEPARATE conditions, not one
+  // deduped against the other — if both fire on the same hole, that hole
+  // gets two new bets, not one. Each is exactly the same operation
+  // ("push a new $0 bet"), just gated by a different condition.
 }) {
   const numericTrigger = Math.max(1, Number(trigger) || 2);
+  const manualHoleSet = new Set((manualPressHoles || []).map(Number));
 
   const bets = [
     {
@@ -1083,6 +1100,22 @@ export function playPressMatch({
         startHole: hole + 1,
       });
     }
+
+    // Manual press: a completely independent condition from the trigger
+    // check above. Deliberately not an "else" and not deduped against the
+    // auto-trigger firing the same hole — both can fire on the same hole,
+    // producing two new bets that hole, same as if two different real
+    // presses were called at once.
+    if (manualHoleSet.has(hole)) {
+      pressCount += 1;
+      bets.push({
+        label: `Press ${pressCount}`,
+        score: 0,
+        history: [],
+        startHole: hole + 1,
+        manual: true,
+      });
+    }
   }
 
   return bets.map((bet) => ({
@@ -1090,8 +1123,38 @@ export function playPressMatch({
     score: bet.score,
     history: bet.history,
     startHole: bet.startHole,
+    manual: !!bet.manual,
   }));
 }
+
+/**
+ * 1v1 Press — Aug 2026. Wraps playPressMatch for a single p1-vs-p2 match,
+ * the same way playIndividualMatch wraps every other 1v1 format, so Press
+ * gets the exact same Play Even / Custom Strokes handling as every other
+ * 1v1 match type instead of silently ignoring those two toggles.
+ * Default start/end is the full round (1-18) — 1v1 Press is one
+ * continuous running press across the whole round, not segmented like
+ * 6/6/6 team Press. If that assumption is wrong for how a specific match
+ * should be scoped, start/end can be overridden via match.pressStart /
+ * match.pressEnd.
+ */
+export function playIndividualPressMatch(match, context) {
+  const { players, course, scores, handicapMode } = context;
+  const overrideStrokesFn = buildMatchHandicapOverrideFn(match, players, course);
+
+  const bets = playPressMatch({
+    teamA: [match.p1Id],
+    teamB: [match.p2Id],
+    start: Number(match.pressStart) || 1,
+    end: Number(match.pressEnd) || 18,
+    trigger: match.pressTrigger ?? 2,
+    manualPressHoles: match.manualPressHoles || [],
+    context: { players, course, scores, handicapMode, getHandicapStrokesFn: overrideStrokesFn, noPar3TeamGame: false },
+  });
+
+  return bets;
+}
+
 
 // ─── TEAM MATCH (non-press formats) ────────────────────────────────────────
 // Mirrors playIndividualMatch but uses computeHoleResult for per-hole scoring.
@@ -1631,6 +1694,48 @@ for (const entry of birdieResults) {
         ledgerMap[playerId].total += amount;
       });
 
+      continue;
+    }
+
+    // 1v1 Press: result is an array of bet results (Base Match + any
+    // Presses), same shape team Press already produces. Each bet pays as
+    // its own separate unit — sum won/lost bets, then scale by match.bet,
+    // mirroring exactly how team Press settlement already works below.
+    // CONFIRMED REAL BUG FIXED HERE (Aug 2026): before this branch existed,
+    // a 1v1 Press match's result.total was undefined (arrays have no
+    // .total), so the "Standard 1v1 totals" branch below silently matched
+    // nothing and Press paid out exactly $0 to both players.
+    if (match.p1Id && match.p2Id && Array.isArray(result)) {
+      const totalUnits = result.reduce((sum, bet) => {
+        const score = Number(bet.score || 0);
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0);
+      const dollars = totalUnits * (Number(match.bet) || 0);
+
+      if (ledgerMap[match.p1Id]) {
+        ledgerMap[match.p1Id].sideMatches += dollars;
+        ledgerMap[match.p1Id].total += dollars;
+        eventLedger.push({
+          holeNumber: null,
+          playerId: match.p1Id,
+          amount: dollars,
+          gameType: "side",
+          label: "Side Match (Press)",
+        });
+      }
+      if (ledgerMap[match.p2Id]) {
+        ledgerMap[match.p2Id].sideMatches -= dollars;
+        ledgerMap[match.p2Id].total -= dollars;
+        eventLedger.push({
+          holeNumber: null,
+          playerId: match.p2Id,
+          amount: -dollars,
+          gameType: "side",
+          label: "Side Match (Press)",
+        });
+      }
       continue;
     }
 

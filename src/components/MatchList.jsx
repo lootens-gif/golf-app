@@ -265,6 +265,76 @@ export default function MatchList({
     if (result?.gameType === "ninePoint") {
   return null;
 }
+
+    // 1v1 Press (Aug 2026): result is an array of bet results (Base Match +
+    // any Presses), not the {type, holes, total} shape every other 1v1
+    // format returns — same distinguishing pattern (Array.isArray) already
+    // used for team Press elsewhere in the app.
+    if (Array.isArray(result)) {
+      const totalUnits = result.reduce((sum, bet) => {
+        const score = Number(bet.score || 0);
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0);
+      const dollars = totalUnits * (Number(match.bet) || 0);
+      const calledHoles = (match.manualPressHoles || []).slice().sort((a, b) => a - b);
+      return (
+        <div style={{ marginTop: 8 }}>
+          {result.map((bet, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+              <span>
+                {bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}
+              </span>
+              <span style={{ color: bet.score > 0 ? "green" : bet.score < 0 ? "red" : "#666" }}>
+                {bet.score > 0 ? `+${bet.score}` : bet.score}
+              </span>
+            </div>
+          ))}
+          <div style={{ marginTop: 6 }}>
+            <strong>Net Payout: ${dollars}</strong>
+          </div>
+
+          {/* Manual press — tap a hole to call a press there, tap again to
+              undo. Independent of the auto-trigger (confirmed, Aug 2026):
+              stacks rather than dedupes if both fire the same hole. Not
+              locked to "the current hole" — can be added for any hole,
+              any time, matching how it's actually called out loud IRL. */}
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed #ddd" }}>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 4 }}>Call Press (tap a hole, tap again to undo)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 3 }}>
+              {Array.from({ length: 18 }, (_, i) => i + 1).map((h) => {
+                const called = calledHoles.includes(h);
+                return (
+                  <button
+                    key={h}
+                    onClick={() => {
+                      const next = called
+                        ? calledHoles.filter((x) => x !== h)
+                        : [...calledHoles, h];
+                      onUpdateMatch(match.id, { manualPressHoles: next });
+                    }}
+                    style={{
+                      padding: "4px 0",
+                      fontSize: 11,
+                      fontWeight: called ? 700 : 400,
+                      border: called ? "1.5px solid green" : "1px solid #ddd",
+                      background: called ? "#eaf7ea" : "#fff",
+                      color: called ? "green" : "#333",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {h}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const holeStats = getHoleStats(result.holes || []);
 
     if (result.type === "standard") {
@@ -460,6 +530,7 @@ export default function MatchList({
     <option value="longshort">Long/Short</option>
 <option value="match_fbt">Match Play</option>
     <option value="stroke">Stroke</option>
+    <option value="press">Press</option>
   </select>
 )}
 
@@ -786,6 +857,41 @@ export default function MatchList({
             </div>
           )}
 
+          {match.type === "press" && (
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ fontSize: 13 }}>Auto Press:</span>
+              <div style={{ display: "flex", border: "1px solid green", borderRadius: 8, overflow: "hidden" }}>
+                {[{ n: 1, l: "1 Down" }, { n: 2, l: "2 Down" }].map(({ n, l }, i) => (
+                  <button
+                    key={n}
+                    onClick={() => onUpdateMatch(match.id, { pressTrigger: n })}
+                    style={{
+                      padding: "6px 12px",
+                      border: "none",
+                      background: Number(match.pressTrigger ?? 2) === n ? "green" : "#fff",
+                      color: Number(match.pressTrigger ?? 2) === n ? "#fff" : "#000",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      borderRight: i === 0 ? "1px solid #ddd" : "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "2px dashed #ddd" }}>
            <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Live Results</div>
            <div style={{ marginBottom: 4, fontWeight: 600 }}>
@@ -796,6 +902,8 @@ export default function MatchList({
 
           {result?.gameType === "ninePoint"
             ? renderNinePointResult(result, match, !!expandedNinePointIds[match.id])
+            : Array.isArray(result)
+            ? null
             : renderHoleRows(result.holes || [])}
 
           {renderMatchDetails(match, result)}

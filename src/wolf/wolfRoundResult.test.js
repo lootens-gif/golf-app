@@ -158,11 +158,37 @@ describe('computeWolfRoundResult — style and settlement toggles pass through c
 });
 
 describe('computeWolfRoundResult — guards', () => {
-  test('fewer than 5 active players → returns empty balances, does not throw', () => {
+  test('fewer than 4 active players → returns empty balances, does not throw', () => {
     const result = computeWolfRoundResult({
-      activePlayers: PLAYERS.slice(0, 4), wolfHoles: {}, getFormat: getWolfFormat,
+      activePlayers: PLAYERS.slice(0, 3), wolfHoles: {}, getFormat: getWolfFormat,
       course: COURSE, scores: {}, handicapMode: 'full', betAmount: 5,
     });
     expect(result.balancesByPlayerId).toEqual({});
+  });
+
+  test('more than 5 active players → returns empty balances, does not throw', () => {
+    const SIX = ['A', 'B', 'C', 'D', 'E', 'F'].map(makePlayer);
+    const result = computeWolfRoundResult({
+      activePlayers: SIX, wolfHoles: {}, getFormat: getWolfFormat,
+      course: COURSE, scores: {}, handicapMode: 'full', betAmount: 5,
+    });
+    expect(result.balancesByPlayerId).toEqual({});
+  });
+
+  // Aug 2026: 4-player Wolf is now supported (Harrison confirmed the rules
+  // are identical, just Pack Wolf becomes 2v2 instead of 2v3, and solo
+  // tiers become 1v3 instead of 1v4). With no scores entered, every hole
+  // resolves to null, so balances should be real zero-value entries for
+  // each of the 4 players — not the empty-object guard shape.
+  test('exactly 4 active players → computes real (zeroed) balances, not the empty guard shape', () => {
+    const FOUR = PLAYERS.slice(0, 4);
+    const result = computeWolfRoundResult({
+      activePlayers: FOUR, wolfHoles: {}, getFormat: getWolfFormat,
+      course: COURSE, scores: {}, handicapMode: 'full', betAmount: 5,
+    });
+    expect(Object.keys(result.balancesByPlayerId).sort()).toEqual(['A', 'B', 'C', 'D']);
+    FOUR.forEach((p) => {
+      expect(result.balancesByPlayerId[p.id]).toBe(0);
+    });
   });
 });

@@ -7,6 +7,7 @@ import {
   buildCustomSegmentStrokesFn,
   computeHoleResult,
   playIndividualMatch,
+  playIndividualPressMatch,
   playTeamMatch,
   buildLeaderboard,
   playPressMatch,
@@ -1637,15 +1638,23 @@ function addNinePointMatch() {
   }
 
   const matchResults = useMemo(() => {
-    return matches.map((match) => ({
-      match,
+    return matches.map((match) => {
       // 9-Point is functionally the Team Game for 3-player mode, not a
       // separate third category (confirmed Aug 2026) — it uses
       // teamContext so it respects the group handicap override the
       // same way real team games do, while every other 1v1 match keeps
       // reading from the main context, unaffected by that override.
-      result: playIndividualMatch(match, match.gameType === "ninePoint" ? teamContext : context),
-    }));
+      const activeContext = match.gameType === "ninePoint" ? teamContext : context;
+      // 1v1 Press (Aug 2026): wraps playPressMatch the same way team
+      // Press already does, instead of falling through playIndividualMatch's
+      // generic "total = running * bet" fallback (which has no press
+      // escalation logic at all — a match.type of "press" there would have
+      // silently produced a flat, wrong payout).
+      const result = match.type === "press"
+        ? playIndividualPressMatch(match, activeContext)
+        : playIndividualMatch(match, activeContext);
+      return { match, result };
+    });
   }, [matches, context, teamContext]);
 
 
@@ -1714,6 +1723,7 @@ function addNinePointMatch() {
           end,
           trigger,
           context: teamContext,
+          manualPressHoles: game.manualPressHoles?.["Team 1 vs Team 2"] || [],
         }),
         
       });
@@ -1729,6 +1739,7 @@ function addNinePointMatch() {
           end,
           trigger,
           context: teamContext,
+          manualPressHoles: game.manualPressHoles?.["Team 1 vs Team 3"] || [],
         }),
         
       });
@@ -1744,6 +1755,7 @@ function addNinePointMatch() {
           end,
           trigger,
           context: teamContext,
+          manualPressHoles: game.manualPressHoles?.["Team 1 vs Team 4"] || [],
         }),
       });
     }
@@ -1773,6 +1785,7 @@ function addNinePointMatch() {
           end,
           trigger,
           context: teamContext,
+          manualPressHoles: game.manualPressHoles?.["Team 1 vs Team 2"] || [],
         }),
       });
     }
@@ -1801,6 +1814,7 @@ function addNinePointMatch() {
         end,
         trigger,
         context: teamContext,
+        manualPressHoles: game.manualPressHoles?.["Team 1 vs Team 2"] || [],
       }),
     });
   }
