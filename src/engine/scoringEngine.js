@@ -2236,7 +2236,7 @@ export function checkWolfCleanSweep(winningSide, losingSide, hole, players, cour
  * App.jsx's render body specifically so this can be unit tested directly
  * instead of only verified by "the app didn't crash."
  *
- * @param {Object[]} activePlayers - in rotation order, exactly 5.
+ * @param {Object[]} activePlayers - in rotation order, 4 or 5 players.
  * @param {Object} wolfHoles - { [hole]: rawConfig } as captured by WolfHoleCard.
  * @param {Function} getFormat - WolfHoleCard's getWolfFormat(config) => format string.
  *   Passed in rather than imported directly to keep this engine file free
@@ -2443,7 +2443,7 @@ export function computeWolfRoundResult({
   shuckDoubles = true, // Setup toggle — some groups don't want the extra Shuck penalty
   hammerEnabled = true, // Setup toggle — "Hammer Rule"
 }) {
-  if (!activePlayers || activePlayers.length !== 5) {
+  if (!activePlayers || activePlayers.length < 4 || activePlayers.length > 5) {
     return { balancesByPlayerId: {} };
   }
 

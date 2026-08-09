@@ -1215,13 +1215,13 @@ export default function SetupScreen({
                 { value: "wolf", label: "Wolf" },
               ].map(opt => {
                 const active = (teamGameFormat || "press") === opt.value;
-                const wolfBlocked = opt.value === "wolf" && mode !== "5p";
+                const wolfBlocked = opt.value === "wolf" && mode !== "5p" && mode !== "4p";
                 if (wolfBlocked) {
                   return (
                     <button
                       key={opt.value}
                       disabled
-                      title="Wolf requires exactly 5 players"
+                      title="Wolf requires 4 or 5 players"
                       style={{
                         padding: "9px 6px", fontSize: 13, fontWeight: 400,
                         border: `1px dashed ${sc.border}`,
@@ -1231,7 +1231,7 @@ export default function SetupScreen({
                       }}
                     >
                       {opt.label}
-                      <div style={{ fontSize: 9, marginTop: 1 }}>needs 5 players</div>
+                      <div style={{ fontSize: 9, marginTop: 1 }}>needs 4-5 players</div>
                     </button>
                   );
                 }
@@ -1676,7 +1676,12 @@ export default function SetupScreen({
           {teamGameFormat === "wolf" && (
             <div>
               <div style={{ fontSize: 12, color: sc.muted, marginBottom: 14, lineHeight: 1.5 }}>
-                Whole round · 18 holes · 5 players · teams picked live each hole by the Scorekeeper. Dollar Value Per Point and No Par 3 Strokes are the shared fields above — same as every other format.
+                Whole round · holes 1-15 · {mode === "4p" ? "4" : "5"} players · teams picked live each hole by the Scorekeeper. Dollar Value Per Point and No Par 3 Strokes are the shared fields above — same as every other format.
+                {mode === "4p" && (
+                  <div style={{ marginTop: 6 }}>
+                    Rotation isn't perfectly even at 4 players — 3 of you will be Wolf 4 times, 1 will be Wolf 3 times over holes 1-15. Holes 16-18 don't have Wolf yet (Super Wolf for 4 players is on the backlog).
+                  </div>
+                )}
               </div>
 
               {/* Wolf Style */}
@@ -1709,7 +1714,9 @@ export default function SetupScreen({
                 </select>
                 {teamMatchConfig.wolfSettlementStyle === "pooled" && (
                   <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
-                    Split the Pot can produce uneless bet amount is divisible by 6
+                    {mode === "4p"
+                      ? "Split the Pot can produce uneven cents when 3 players beat a lone Wolf, unless the bet is divisible by 3. A 2v2 Pack Wolf hole is always clean."
+                      : "Split the Pot can produce uneven cents on a Pack Wolf hole (2v3), unless the bet is divisible by 6."}
                   </div>
                 )}
               </div>

@@ -60,7 +60,7 @@ export function getWolfFormat(config) {
 
 export default function WolfHoleCard({
   currentHole,
-  players = [],          // rotation-order active players (5)
+  players = [],          // rotation-order active players (4 or 5)
   wolfHoles = {},         // { [hole]: config }
   onUpdateWolfHole,       // (hole, updates) => void
   hammerEnabled = false,
@@ -88,10 +88,10 @@ export default function WolfHoleCard({
   const format = getWolfFormat(config);
   const declaredSolo = config.loneWolfDeclared || config.blindWolfDeclared;
 
-  if (players.length !== 5) {
+  if (players.length < 4 || players.length > 5) {
     return (
       <div style={{ background: sc.redLight, border: `1px solid ${sc.red}`, borderRadius: 12, padding: 14, marginBottom: 12, fontSize: 13, color: sc.red }}>
-        Wolf needs exactly 5 active players to show hole details.
+        Wolf needs 4 or 5 active players to show hole details.
       </div>
     );
   }
