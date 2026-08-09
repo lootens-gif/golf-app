@@ -1056,6 +1056,30 @@ export function playPressMatch({
   let pressCount = 0;
 
   for (let hole = start; hole <= end; hole++) {
+    // Manual press (Aug 2026, fixed): added BEFORE this hole's result is
+    // computed, not after. A manual call represents a real-time decision
+    // ("I'm calling a press right now") made during the hole, not after
+    // it's already known — so the hole it's called on should count toward
+    // it. This is the opposite of the auto-trigger below, which can only
+    // fire AFTER a hole completes (the down-2 condition isn't knowable
+    // until the hole is scored) and correctly starts the next hole.
+    // CONFIRMED REAL BUG, caught by Tim (Aug 2026): before this fix, a
+    // press called on hole 6 of a 1-6 segment got startHole: 7 — meaning
+    // it had zero holes left to play in that segment and was a permanent
+    // $0 stub no matter what happened on hole 6, even though calling a
+    // press on the hole you're playing should let you win or lose that
+    // same hole with it.
+    if (manualHoleSet.has(hole)) {
+      pressCount += 1;
+      bets.push({
+        label: `Press ${pressCount}`,
+        score: 0,
+        history: [],
+        startHole: hole,
+        manual: true,
+      });
+    }
+
     const result = computeHoleResult({
       hole,
       teamA,
@@ -1090,7 +1114,9 @@ export function playPressMatch({
     // Removing the remaining-hole requirement: the bet still gets
     // created with an empty history, contributing exactly $0 to the
     // total (nothing to ever multiply), so this only changes what
-    // gets shown, never what gets paid.
+    // gets shown, never what gets paid. Auto-trigger correctly still
+    // starts the NEXT hole — see the manual-press comment above for
+    // why these two intentionally differ.
     if (Math.abs(latestBet.score) >= numericTrigger) {
       pressCount += 1;
       bets.push({
@@ -1098,22 +1124,6 @@ export function playPressMatch({
         score: 0,
         history: [],
         startHole: hole + 1,
-      });
-    }
-
-    // Manual press: a completely independent condition from the trigger
-    // check above. Deliberately not an "else" and not deduped against the
-    // auto-trigger firing the same hole — both can fire on the same hole,
-    // producing two new bets that hole, same as if two different real
-    // presses were called at once.
-    if (manualHoleSet.has(hole)) {
-      pressCount += 1;
-      bets.push({
-        label: `Press ${pressCount}`,
-        score: 0,
-        history: [],
-        startHole: hole + 1,
-        manual: true,
       });
     }
   }
