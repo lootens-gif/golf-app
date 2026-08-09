@@ -2070,7 +2070,7 @@ function WolfAudit({
   sessionKey,
   goToLive,
 }) {
-  if (!players || players.length !== 5) return null;
+  if (!players || players.length < 4 || players.length > 5) return null;
 
   const wolfStyle = teamMatchConfig.wolfStyle || "harrison";
   const settlementStyle = teamMatchConfig.wolfSettlementStyle || "pairwise";
