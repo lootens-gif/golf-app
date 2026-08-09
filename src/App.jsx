@@ -24,6 +24,7 @@ import ScoresGrid from "./components/ScoresGrid";
 import { formatPressDetail } from "./components/AuditTrail";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from "./components/live/WolfHoleCard";
+import TeamPressHoleCard from "./components/live/TeamPressHoleCard";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
@@ -783,6 +784,31 @@ function notifyRound(event, code) {
       return next;
     });
   };
+
+  // Team Press manual call (Aug 2026) — toggles a specific matchup's
+  // manual press for a specific hole. Stored per-matchup (keyed by label,
+  // e.g. "Team 1 vs Team 2") on the specific teamGames[gameIndex] segment,
+  // so Team 1 vs Team 2 and Team 1 vs Team 3 calling separate presses on
+  // the same hole don't collide — confirmed design, same independence
+  // already established for 1v1 Press matches.
+  const toggleTeamManualPress = (gameIndex, label, hole) => {
+    setTeamGames((prev) => {
+      const next = prev.map((g, i) => {
+        if (i !== gameIndex) return g;
+        const existing = g.manualPressHoles || {};
+        const forLabel = existing[label] || [];
+        const nextForLabel = forLabel.includes(hole)
+          ? forLabel.filter((h) => h !== hole)
+          : [...forLabel, hole];
+        return { ...g, manualPressHoles: { ...existing, [label]: nextForLabel } };
+      });
+      if (roundCode) {
+        safeMergeWriteJsonStorage(AUTO_ROUND_KEY, { teamGames: next }, buildCurrentRoundSnapshot);
+      }
+      return next;
+    });
+  };
+
   const [expandedGame, setExpandedGame] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
   const [showRoundCompleteModal, setShowRoundCompleteModal] = useState(false);
@@ -4301,6 +4327,29 @@ return (
     );
   })()}
   </div>
+
+  {enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && (() => {
+    // Find which team-game segment (6/6/6 etc.) the current hole falls in,
+    // then pull that segment's already-computed matchup labels straight
+    // from teamGameResults — guarantees the buttons shown here always
+    // match whatever's actually being scored, rather than re-deriving
+    // team-selection logic a second time in a way that could drift.
+    const activeGame = teamGameResults.find(
+      (g) => currentHole >= g.start && currentHole <= g.end
+    );
+    if (!activeGame || activeGame.duplicateError || !activeGame.matches?.length) return null;
+    const labels = activeGame.matches.map((m) => m.label);
+    const rawGame = teamGames[activeGame.index] || {};
+    return (
+      <TeamPressHoleCard
+        currentHole={currentHole}
+        matchupLabels={labels}
+        manualPressHoles={rawGame.manualPressHoles || {}}
+        onToggleCall={(label, hole) => toggleTeamManualPress(activeGame.index, label, hole)}
+      />
+    );
+  })()}
+
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
     currentHole={currentHole}
