@@ -133,7 +133,6 @@ export default function LiveMatchStatus({
   matches,
   matchResults,
   teamGameResults,
-  getTeamGameSelection,
   teamGameUnitAmount,
   onUpdateMatch,          // 1v1: same updateMatch(id, patch) already used in Setup
   onToggleTeamManualPress, // team: (gameIndex, label, hole) => void
@@ -184,7 +183,6 @@ export default function LiveMatchStatus({
   // Team matches
   (teamGameResults || []).forEach((game, gameIndex) => {
     if (game.duplicateError) return;
-    const selection = getTeamGameSelection?.(game.index ?? gameIndex);
     (game.matches || []).forEach((matchup) => {
       if (currentHole < game.start || currentHole > game.end) return;
       const teamAName = getTeamName(players, matchup.teamA || []);

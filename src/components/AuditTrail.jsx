@@ -942,7 +942,7 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
           .filter(e => e.source === "match-birdie" && e.matchId === match.id && e.playerId === match.p1Id)
           .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-        const { total, formatDetail, headerColor } = computeOneVOneGlance({ match, result, p1First, p2First });
+        const { formatDetail } = computeOneVOneGlance({ match, result, p1First, p2First });
         const birdieColor = matchBirdieNet > 0 ? "#1a5c35" : matchBirdieNet < 0 ? "#b3261e" : "#6b7280";
         const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
 

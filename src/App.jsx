@@ -4334,7 +4334,6 @@ return (
     matches={matches}
     matchResults={matchResults}
     teamGameResults={enableTeamGame ? teamGameResults : []}
-    getTeamGameSelection={getTeamGameSelection}
     teamGameUnitAmount={teamGameUnitAmount}
     onUpdateMatch={updateMatch}
     onToggleTeamManualPress={toggleTeamManualPress}
