@@ -80,7 +80,7 @@ function getPlayerName(players, playerId) {
   return player?.name || playerId;
 }
 
-function getTeamName(players, ids = []) {
+export function getTeamName(players, ids = []) {
   const names = ids.filter(Boolean).map((id) => getPlayerName(players, id));
   return names.length ? names.join(" / ") : "-";
 }
@@ -277,6 +277,11 @@ function TeamGameScorecard({
     const pressResult = Array.isArray(matchup?.result) ? matchup.result : [];
     const statuses = getBetStatusesForHole(pressResult, hole);
     const runningValue = getNetActiveBetCountForHole(pressResult, hole);
+    // Manual press marker (Aug 2026) — was previously shown nowhere on
+    // this scorecard, even though 1v1's equivalent view already flags it.
+    // Flags this hole if a manually-called press (not auto-triggered)
+    // starts here, so the compact Press Detail row can mark it.
+    const manualPressStartsHere = pressResult.some((bet) => bet.manual && Number(bet.startHole) === hole);
 
     // Match Play — one cell per enabled segment (Front/Back/Total),
     // each independently stopping at its own decidedOn.
@@ -373,6 +378,7 @@ function TeamGameScorecard({
       netHolesLabel,
       strokeCells,
       pressDetail: formatPressDetail(statuses),
+      manualPressStartsHere,
       resultValue: holeResult,
     };
   });
@@ -658,6 +664,9 @@ function TeamGameScorecard({
               {sectionRows.map((row) => (
                 <td key={`press-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
                   {row.pressDetail}
+                  {row.manualPressStartsHere && (
+                    <span title="Press called by hand, not auto-triggered" style={{ marginLeft: 3, fontSize: 10 }}>📞</span>
+                  )}
                 </td>
               ))}
               <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
@@ -707,6 +716,17 @@ function TeamGameScorecard({
               return `${label} — ${summary}`;
             })()}
       </div>
+
+      {(() => {
+        const pressResultForCaption = Array.isArray(matchup?.result) ? matchup.result : [];
+        const manualBets = pressResultForCaption.filter((bet) => bet.manual);
+        if (!manualBets.length) return null;
+        return (
+          <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
+            📞 Press called by hand on hole{manualBets.length > 1 ? "s" : ""} {manualBets.map((b) => b.startHole).join(", ")}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -793,6 +813,115 @@ function AuditSection({ title, subtitle, children, defaultOpen = false, storageI
 
 
 
+// 1v1 glance-line computation — extracted (Aug 2026) from OneVOneAudit so
+// both the Results screen and the Live screen's lightweight status list
+// use the exact same "what does this match's status read as" logic,
+// instead of two independent implementations that could drift apart.
+// Same total/formatDetail logic as before, just no longer trapped inline
+// inside OneVOneAudit's map callback.
+export function computeOneVOneGlance({ match, result, p1First, p2First }) {
+  const isPressResult = Array.isArray(result);
+  const total = isPressResult
+    ? result.reduce((sum, bet) => {
+        const score = Number(bet.score || 0);
+        if (score > 0) return sum + 1;
+        if (score < 0) return sum - 1;
+        return sum;
+      }, 0) * (Number(match.bet) || 0)
+    : Number(result?.total || 0);
+  const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
+  const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
+  const col = (v) => v > 0 ? "#1a5c35" : v < 0 ? "#b3261e" : "#6b7280";
+
+  const formatDetail = (() => {
+    if (!result) return null;
+    if (result.type === "standard") {
+      const units = result.units || 0;
+      const absUnits = Math.abs(units);
+      if (units === 0) return <span style={{ color: "#6b7280" }}>Even</span>;
+      const sign = units > 0 ? "+" : "-";
+      const label = `${p1First} ${sign}${absUnits} hole${absUnits !== 1 ? "s" : ""} (${fmtMoney(total)})`;
+      return <span style={{ color: col(total) }}>{label}</span>;
+    }
+    if (result.type === "longshort") {
+      const longLabel = result.longLabel || fmtMoney(result.long || 0);
+      const shortLabel = result.shortLabel || null;
+      const longCol = col(result.long || 0);
+      const shortCol = col(result.short || 0);
+      const netTotal = (result.long || 0) + (result.short || 0);
+      return (
+        <span>
+          <span style={{ color: longCol }}>Long {longLabel}</span>
+          {shortLabel && <><span style={{ color: "#6b7280" }}> · </span><span style={{ color: shortCol }}>Short {shortLabel}</span></>}
+          <span style={{ color: col(netTotal), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(netTotal)})</span>
+        </span>
+      );
+    }
+    if (result.type === "match_fbt") {
+      const segs = result.segments || [];
+      const frontSeg = segs.find(s => s.key === "front");
+      const backSeg = segs.find(s => s.key === "back");
+      const totalSeg = segs.find(s => s.key === "total");
+      if (totalSeg && !frontSeg && !backSeg) {
+        const units = totalSeg.units || 0;
+        const resultLbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
+        return <span style={{ color: col(total) }}>{p1First} {resultLbl} ({fmtMoney(total)})</span>;
+      }
+      return (
+        <span>
+          {segs.map((seg, i) => {
+            const u = seg.units || 0;
+            const lbl = seg.resultLabel || (u === 0 ? "AS" : `${Math.abs(u)}${u > 0 ? "UP" : "DN"}`);
+            return (
+              <span key={seg.key}>
+                {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                <span style={{ color: col(u) }}>
+                  {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {lbl}
+                </span>
+              </span>
+            );
+          })}
+          <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
+        </span>
+      );
+    }
+    if (result.type === "stroke") {
+      const segs = result.segments || [];
+      const frontSeg = segs.find(s => s.key === "front");
+      const backSeg = segs.find(s => s.key === "back");
+      const totalSeg = segs.find(s => s.key === "total");
+      const isDiff = result.strokePayoutMode === "differential";
+      if (totalSeg && !frontSeg && !backSeg) {
+        const u = totalSeg.units ?? 0;
+        const lbl = isDiff ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`) : (u > 0 ? p1First : u < 0 ? p2First : "Push");
+        return <span style={{ color: col(u) }}>{lbl} ({fmtMoney(total)})</span>;
+      }
+      return (
+        <span>
+          {segs.map((seg, i) => {
+            const u = seg.units ?? 0;
+            const lbl = isDiff
+              ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`)
+              : (u > 0 ? p1First : u < 0 ? p2First : "Push");
+            const key = seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T";
+            return (
+              <span key={seg.key}>
+                {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
+                <span style={{ color: col(u) }}>{key} {lbl}</span>
+              </span>
+            );
+          })}
+          <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
+        </span>
+      );
+    }
+    // Press (array of bets)
+    return <span style={{ color: headerColor }}>{fmtMoney(total)}</span>;
+  })();
+
+  return { total, formatDetail, fmtMoney, col, isPressResult, headerColor };
+}
+
 function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, course, handicapMode, sessionKey }) {
   const sideMatchEntries = (matchResults || []).filter((entry) => !isNinePointMatch(entry.match));
 
@@ -813,112 +942,10 @@ function OneVOneAudit({ players, matches, matchResults, birdieResults, scores, c
           .filter(e => e.source === "match-birdie" && e.matchId === match.id && e.playerId === match.p1Id)
           .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
-        // CONFIRMED REAL BUG (Aug 2026): Press results are a bare array,
-        // which has no .total property — this always evaluated to 0,
-        // showing "+$0" in the header no matter what the match actually
-        // paid out. Same units-based calculation already used in
-        // MatchList.jsx's Live Results panel and scoreRound's settlement,
-        // so all three places agree on the same number.
-        const isPressResult = Array.isArray(result);
-        const total = isPressResult
-          ? result.reduce((sum, bet) => {
-              const score = Number(bet.score || 0);
-              if (score > 0) return sum + 1;
-              if (score < 0) return sum - 1;
-              return sum;
-            }, 0) * (Number(match.bet) || 0)
-          : Number(result?.total || 0);
-        const headerColor = total > 0 ? "#1a5c35" : total < 0 ? "#b3261e" : "#6b7280";
+        const { total, formatDetail, headerColor } = computeOneVOneGlance({ match, result, p1First, p2First });
         const birdieColor = matchBirdieNet > 0 ? "#1a5c35" : matchBirdieNet < 0 ? "#b3261e" : "#6b7280";
         const fmtMoney = (v) => v >= 0 ? `+$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}` : `-$${Math.abs(v).toFixed(2).replace(/\.00$/, "")}`;
-        const col = (v) => v > 0 ? "#1a5c35" : v < 0 ? "#b3261e" : "#6b7280";
 
-        // Format-specific detail line
-        const formatDetail = (() => {
-          if (!result) return null;
-          if (result.type === "standard") {
-            const units = result.units || 0;
-            const absUnits = Math.abs(units);
-            if (units === 0) return <span style={{ color: "#6b7280" }}>Even</span>;
-            const sign = units > 0 ? "+" : "-";
-            const label = `${p1First} ${sign}${absUnits} hole${absUnits !== 1 ? "s" : ""} (${fmtMoney(total)})`;
-            return <span style={{ color: col(total) }}>{label}</span>;
-          }
-          if (result.type === "longshort") {
-            const longLabel = result.longLabel || fmtMoney(result.long || 0);
-            const shortLabel = result.shortLabel || null;
-            const longCol = col(result.long || 0);
-            const shortCol = col(result.short || 0);
-            const netTotal = (result.long || 0) + (result.short || 0);
-            return (
-              <span>
-                <span style={{ color: longCol }}>Long {longLabel}</span>
-                {shortLabel && <><span style={{ color: "#6b7280" }}> · </span><span style={{ color: shortCol }}>Short {shortLabel}</span></>}
-                <span style={{ color: col(netTotal), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(netTotal)})</span>
-              </span>
-            );
-          }
-          if (result.type === "match_fbt") {
-            const segs = result.segments || [];
-            const frontSeg = segs.find(s => s.key === "front");
-            const backSeg = segs.find(s => s.key === "back");
-            const totalSeg = segs.find(s => s.key === "total");
-            if (totalSeg && !frontSeg && !backSeg) {
-              const units = totalSeg.units || 0;
-              const resultLbl = totalSeg.resultLabel || (units === 0 ? "AS" : `${Math.abs(units)}UP`);
-              return <span style={{ color: col(total) }}>{p1First} {resultLbl} ({fmtMoney(total)})</span>;
-            }
-            return (
-              <span>
-                {segs.map((seg, i) => {
-                  const u = seg.units || 0;
-                  const lbl = seg.resultLabel || (u === 0 ? "AS" : `${Math.abs(u)}${u > 0 ? "UP" : "DN"}`);
-                  return (
-                    <span key={seg.key}>
-                      {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
-                      <span style={{ color: col(u) }}>
-                        {seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T"} {lbl}
-                      </span>
-                    </span>
-                  );
-                })}
-                <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
-              </span>
-            );
-          }
-          if (result.type === "stroke") {
-            const segs = result.segments || [];
-            const frontSeg = segs.find(s => s.key === "front");
-            const backSeg = segs.find(s => s.key === "back");
-            const totalSeg = segs.find(s => s.key === "total");
-            const isDiff = result.strokePayoutMode === "differential";
-            if (totalSeg && !frontSeg && !backSeg) {
-              const u = totalSeg.units ?? 0;
-              const lbl = isDiff ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`) : (u > 0 ? p1First : u < 0 ? p2First : "Push");
-              return <span style={{ color: col(u) }}>{lbl} ({fmtMoney(total)})</span>;
-            }
-            return (
-              <span>
-                {segs.map((seg, i) => {
-                  const u = seg.units ?? 0;
-                  const lbl = isDiff
-                    ? (u === 0 ? "Even" : u > 0 ? `+${Math.abs(u)}` : `-${Math.abs(u)}`)
-                    : (u > 0 ? p1First : u < 0 ? p2First : "Push");
-                  const key = seg.key === "front" ? "F" : seg.key === "back" ? "B" : "T";
-                  return (
-                    <span key={seg.key}>
-                      {i > 0 && <span style={{ color: "#6b7280" }}> · </span>}
-                      <span style={{ color: col(u) }}>{key} {lbl}</span>
-                    </span>
-                  );
-                })}
-                <span style={{ color: col(total), fontWeight: 700, marginLeft: 6 }}>({fmtMoney(total)})</span>
-              </span>
-            );
-          }
-          // Press (array of bets)
-          return <span style={{ color: headerColor }}>{fmtMoney(total)}</span>;
-        })();
 
         const oneVOneTitle = (
           <span>
@@ -1347,7 +1374,7 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
             const col = bet.score > 0 ? "#1a5c35" : bet.score < 0 ? "#b3261e" : "#6b7280";
             return (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 2 }}>
-                <span>{bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}</span>
+                <span>{bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}:</span>
                 <span style={{ color: col, fontWeight: 600 }}>{bet.score > 0 ? `+${bet.score}` : bet.score}</span>
               </div>
             );
@@ -2454,6 +2481,43 @@ function WolfAudit({
   );
 }
 
+// Team matchup glance-line computation — extracted (Aug 2026) alongside
+// computeOneVOneGlance, same reasoning: one implementation of "what does
+// this matchup's status read as," shared by Results and the Live screen's
+// lightweight status list instead of two that could drift apart. Birdie
+// sub-lines are Results-specific detail and stay in TeamGameAudit itself —
+// this covers only the core win/loss/dollar status every consumer needs.
+export function computeTeamMatchupGlance({ matchup, teamAName, teamBName, teamGameUnitAmount }) {
+  const result = matchup.result;
+  const isNonPress = result && !Array.isArray(result) && result.type;
+  let totalDollars = 0;
+  let matchSummaryLine = null;
+
+  if (isNonPress) {
+    totalDollars = result.total || 0;
+    const winner = totalDollars > 0 ? teamAName : totalDollars < 0 ? teamBName : null;
+    if (result.type === "standard") {
+      matchSummaryLine = winner ? `${winner} wins — ${result.label || ""}` : "Tied";
+    } else if (result.type === "longshort") {
+      const longWin = result.long > 0 ? teamAName : result.long < 0 ? teamBName : null;
+      const shortWin = result.short > 0 ? teamAName : result.short < 0 ? teamBName : null;
+      matchSummaryLine = `Long: ${longWin ? `${longWin} ${result.longLabel}` : (result.longLabel || "Tied")} · Short: ${shortWin ? `${shortWin} ${result.shortLabel}` : (result.shortLabel || "N/A")}`;
+    } else if (result.type === "match_fbt") {
+      matchSummaryLine = (result.segments || []).map(s => `${s.label}: ${s.resultLabel}`).join(" · ");
+    } else if (result.type === "stroke") {
+      matchSummaryLine = (result.segments || []).map(s => {
+        const w = s.winner > 0 ? teamAName : s.winner < 0 ? teamBName : "Tied";
+        return `${s.label}: ${w}${s.diff != null ? ` by ${s.diff}` : ""}`;
+      }).join(" · ");
+    }
+  } else {
+    const totalUnits = getMatchUnits(matchup.result);
+    totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
+  }
+
+  return { totalDollars, matchSummaryLine, isNonPress, isPress: !isNonPress };
+}
+
 function TeamGameAudit({
   players,
   teamGames,
@@ -2664,38 +2728,8 @@ function TeamGameAudit({
               const teamAName = getTeamName(players, teamA);
               const teamBName = getTeamName(players, teamB);
 
-              // Detect non-press result (has .type field)
               const result = matchup.result;
-              const isNonPress = result && !Array.isArray(result) && result.type;
-
-              let totalDollars = 0;
-              let matchSummaryLine = null;
-
-              if (isNonPress) {
-                totalDollars = result.total || 0;
-                const winner = totalDollars > 0 ? teamAName : totalDollars < 0 ? teamBName : null;
-                if (result.type === "standard") {
-                  matchSummaryLine = winner ? `${winner} wins — ${result.label || ""}` : "Tied";
-                } else if (result.type === "longshort") {
-                  // Real Long/Short summary — previously lumped in with
-                  // Net Holes' generic "winner + label" treatment, which
-                  // silently ignored the long/short breakdown the engine
-                  // was already correctly computing.
-                  const longWin = result.long > 0 ? teamAName : result.long < 0 ? teamBName : null;
-                  const shortWin = result.short > 0 ? teamAName : result.short < 0 ? teamBName : null;
-                  matchSummaryLine = `Long: ${longWin ? `${longWin} ${result.longLabel}` : (result.longLabel || "Tied")} · Short: ${shortWin ? `${shortWin} ${result.shortLabel}` : (result.shortLabel || "N/A")}`;
-                } else if (result.type === "match_fbt") {
-                  matchSummaryLine = (result.segments || []).map(s => `${s.label}: ${s.resultLabel}`).join(" · ");
-                } else if (result.type === "stroke") {
-                  matchSummaryLine = (result.segments || []).map(s => {
-                    const w = s.winner > 0 ? teamAName : s.winner < 0 ? teamBName : "Tied";
-                    return `${s.label}: ${w}${s.diff != null ? ` by ${s.diff}` : ""}`;
-                  }).join(" · ");
-                }
-              } else {
-                const totalUnits = getMatchUnits(matchup.result);
-                totalDollars = totalUnits * Number(teamGameUnitAmount || 0);
-              }
+              const { totalDollars, matchSummaryLine, isNonPress } = computeTeamMatchupGlance({ matchup, teamAName, teamBName, teamGameUnitAmount });
 
               // Birdie summary for this matchup
               const matchupBirdieLine = getBirdieSummary([matchup.label], teamA, teamB, birdieResults, teamGameUnitAmount, game.birdieEnabled, scores, course, [game.start, game.end]);

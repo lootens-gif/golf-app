@@ -284,7 +284,7 @@ export default function MatchList({
           {result.map((bet, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
               <span>
-                {bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}
+                {bet.label}{bet.manual ? " (called)" : ""} — from hole {bet.startHole}:
               </span>
               <span style={{ color: bet.score > 0 ? "green" : bet.score < 0 ? "red" : "#666" }}>
                 {bet.score > 0 ? `+${bet.score}` : bet.score}
@@ -292,7 +292,7 @@ export default function MatchList({
             </div>
           ))}
           <div style={{ marginTop: 6 }}>
-            <strong>Net Payout: ${dollars}</strong>
+            <strong>Net Payout: {dollars >= 0 ? `+$${dollars}` : `-$${Math.abs(dollars)}`}</strong>
           </div>
 
           {/* Manual press — tap a hole to call a press there, tap again to

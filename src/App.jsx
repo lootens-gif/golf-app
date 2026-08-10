@@ -24,7 +24,7 @@ import ScoresGrid from "./components/ScoresGrid";
 import { formatPressDetail } from "./components/AuditTrail";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from "./components/live/WolfHoleCard";
-import TeamPressHoleCard from "./components/live/TeamPressHoleCard";
+import LiveMatchStatus from "./components/live/LiveMatchStatus";
 import SetupScreen from "./screens/SetupScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import HoleResultCard from "./components/live/HoleResultCard";
@@ -4328,27 +4328,17 @@ return (
   })()}
   </div>
 
-  {enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && (() => {
-    // Find which team-game segment (6/6/6 etc.) the current hole falls in,
-    // then pull that segment's already-computed matchup labels straight
-    // from teamGameResults — guarantees the buttons shown here always
-    // match whatever's actually being scored, rather than re-deriving
-    // team-selection logic a second time in a way that could drift.
-    const activeGame = teamGameResults.find(
-      (g) => currentHole >= g.start && currentHole <= g.end
-    );
-    if (!activeGame || activeGame.duplicateError || !activeGame.matches?.length) return null;
-    const labels = activeGame.matches.map((m) => m.label);
-    const rawGame = teamGames[activeGame.index] || {};
-    return (
-      <TeamPressHoleCard
-        currentHole={currentHole}
-        matchupLabels={labels}
-        manualPressHoles={rawGame.manualPressHoles || {}}
-        onToggleCall={(label, hole) => toggleTeamManualPress(activeGame.index, label, hole)}
-      />
-    );
-  })()}
+  <LiveMatchStatus
+    currentHole={currentHole}
+    players={activePlayers}
+    matches={matches}
+    matchResults={matchResults}
+    teamGameResults={enableTeamGame ? teamGameResults : []}
+    getTeamGameSelection={getTeamGameSelection}
+    teamGameUnitAmount={teamGameUnitAmount}
+    onUpdateMatch={updateMatch}
+    onToggleTeamManualPress={toggleTeamManualPress}
+  />
 
   <div ref={scoreEntryRef}>
   <ScoreEntryCard
