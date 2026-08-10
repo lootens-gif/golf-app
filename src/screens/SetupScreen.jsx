@@ -1,5 +1,6 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import MatchList from "../components/MatchList";
+import { WOLF_CENTS_SAFE_DIVISOR } from "../components/live/WolfHoleCard";
 import { useEffect, useRef, useState } from "react";
 
 const sc = {
@@ -1712,13 +1713,15 @@ export default function SetupScreen({
                   <option value="pairwise">Pay Each Winner — every loser pays every winner in full</option>
                   <option value="pooled">Split the Pot — losers pay in, winners split it evenly</option>
                 </select>
-                {teamMatchConfig.wolfSettlementStyle === "pooled" && (
-                  <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
-                    {mode === "4p"
-                      ? "Split the Pot can produce uneven cents when 3 players beat a lone Wolf, unless the bet is divisible by 3. A 2v2 Pack Wolf hole is always clean."
-                      : "Split the Pot can produce uneven cents on a Pack Wolf hole (2v3), unless the bet is divisible by 6."}
-                  </div>
-                )}
+                {teamMatchConfig.wolfSettlementStyle === "pooled" && (() => {
+                  const wolfPlayerCount = mode === "4p" ? 4 : 5;
+                  const safeDivisor = WOLF_CENTS_SAFE_DIVISOR[wolfPlayerCount];
+                  return (
+                    <div style={{ fontSize: 11, color: "#b45309", marginTop: 8 }}>
+                      Split the Pot can produce uneven cents unless the bet is divisible by {safeDivisor} ({wolfPlayerCount} players, accounting for Hammer/birdie multipliers).
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Hammer Rule */}

@@ -29,6 +29,16 @@ const DEFAULT_WOLF_HOLE_CONFIG = {
   confirmed: false, // true once ANY real Wolf decision was made for this hole — the light hard block checks this before allowing save
 };
 
+// Safe divisor for Wolf's "Split the Pot" settlement, per player count.
+// Exported (Aug 2026) so Setup's own hint text can reuse this exact table
+// instead of being independently derived a second time — which is exactly
+// how it drifted: Setup's own hint said 4-player needed the bet divisible
+// by 3, this one says 6, and this one is the correct value. The extra
+// factor of 2 versus a naive Pack-Wolf-only calculation accounts for
+// Hammer/birdie multipliers doubling the effective pool on top of the
+// base split — Setup's hint never factored that in.
+export const WOLF_CENTS_SAFE_DIVISOR = { 3: 2, 4: 6, 5: 12 };
+
 export function getWolfHoleConfig(wolfHoles, hole) {
   return { ...DEFAULT_WOLF_HOLE_CONFIG, ...(wolfHoles?.[hole] || {}) };
 }
@@ -217,9 +227,6 @@ export default function WolfHoleCard({
             Dollar value for this hole
           </label>
           {settlementStyle === "pooled" && (() => {
-            // Same hint as Setup, same reasoning — Split the Pot needs the
-            // bet to divide cleanly across every possible split size.
-            const WOLF_CENTS_SAFE_DIVISOR = { 3: 2, 4: 6, 5: 12 };
             const divisor = WOLF_CENTS_SAFE_DIVISOR[players.length];
             if (!divisor) return null;
             return (
