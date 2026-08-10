@@ -835,6 +835,24 @@ function notifyRound(event, code) {
   const scoreEntryRef = useRef(null);
   const wolfCardRef = useRef(null); // Wolf's tee-box card sits above score entry — scroll target needs to point here on Wolf rounds, not past it.
 
+  // CONFIRMED REAL GAP (Aug 2026): the only place this app ever scrolled to
+  // Score Entry was the hole-advance handler after saving a hole. Landing
+  // on the Live screen any other way — Start Round, resuming an
+  // in-progress round, navigating back from Results — never scrolled at
+  // all, so whatever rendered above Score Entry (Wolf's card; now also
+  // LiveMatchStatus) was just however the page happened to load, with no
+  // guarantee Score Entry was the first thing visible. Score Entry must be
+  // the first thing that fills the screen — this covers every path that
+  // sets screen to "live", not just the hole-advance one.
+  useEffect(() => {
+    if (screen !== "live") return;
+    const t = setTimeout(() => {
+      const target = teamGameFormat === "wolf" ? wolfCardRef.current : scoreEntryRef.current;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [screen, teamGameFormat]);
+
 
   function createDefaultTeamGame(index = 0) {
     return {

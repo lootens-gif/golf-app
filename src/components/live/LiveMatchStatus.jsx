@@ -137,7 +137,41 @@ export default function LiveMatchStatus({
   onUpdateMatch,          // 1v1: same updateMatch(id, patch) already used in Setup
   onToggleTeamManualPress, // team: (gameIndex, label, hole) => void
 }) {
+  const [listOpen, setListOpen] = useState(false);
   const items = [];
+
+  // Team matches first (Aug 2026, confirmed order) - the shared, whole-group
+  // bet everyone's in is more universally relevant than individual 1v1 side
+  // arrangements, so it leads.
+  (teamGameResults || []).forEach((game, gameIndex) => {
+    if (game.duplicateError) return;
+    (game.matches || []).forEach((matchup) => {
+      if (currentHole < game.start || currentHole > game.end) return;
+      const teamAName = getTeamName(players, matchup.teamA || []);
+      const teamBName = getTeamName(players, matchup.teamB || []);
+      const { totalDollars, matchSummaryLine, isPress } = computeTeamMatchupGlance({ matchup, teamAName, teamBName, teamGameUnitAmount });
+
+      if (isPress) {
+        items.push({
+          id: `t-${gameIndex}-${matchup.label}`,
+          label: matchup.label,
+          kindLabel: "Team Press",
+          kind: "press",
+          glance: <span style={{ color: totalDollars > 0 ? col.green : totalDollars < 0 ? col.red : col.muted }}>{fmtMoney(totalDollars)}</span>,
+          bets: Array.isArray(matchup.result) ? matchup.result : [],
+          gameIndex: game.index ?? gameIndex,
+        });
+      } else {
+        items.push({
+          id: `t-${gameIndex}-${matchup.label}`,
+          label: matchup.label,
+          kindLabel: "Team " + (matchup.result?.type === "match_fbt" ? "Match Play" : matchup.result?.type === "longshort" ? "Long/Short" : matchup.result?.type === "stroke" ? "Stroke" : "Net Holes"),
+          kind: matchup.result?.type === "match_fbt" ? "match_fbt" : "flat",
+          glance: <span style={{ fontSize: 12, color: col.muted }}>{matchSummaryLine || "—"}</span>,
+        });
+      }
+    });
+  });
 
   // 1v1 matches
   (matchResults || []).forEach((entry) => {
@@ -180,36 +214,6 @@ export default function LiveMatchStatus({
     }
   });
 
-  // Team matches
-  (teamGameResults || []).forEach((game, gameIndex) => {
-    if (game.duplicateError) return;
-    (game.matches || []).forEach((matchup) => {
-      if (currentHole < game.start || currentHole > game.end) return;
-      const teamAName = getTeamName(players, matchup.teamA || []);
-      const teamBName = getTeamName(players, matchup.teamB || []);
-      const { totalDollars, matchSummaryLine, isPress } = computeTeamMatchupGlance({ matchup, teamAName, teamBName, teamGameUnitAmount });
-
-      if (isPress) {
-        items.push({
-          id: `t-${gameIndex}-${matchup.label}`,
-          label: matchup.label,
-          kindLabel: "Team Press",
-          kind: "press",
-          glance: <span style={{ color: totalDollars > 0 ? col.green : totalDollars < 0 ? col.red : col.muted }}>{fmtMoney(totalDollars)}</span>,
-          bets: Array.isArray(matchup.result) ? matchup.result : [],
-          gameIndex: game.index ?? gameIndex,
-        });
-      } else {
-        items.push({
-          id: `t-${gameIndex}-${matchup.label}`,
-          label: matchup.label,
-          kindLabel: "Team " + (matchup.result?.type === "match_fbt" ? "Match Play" : matchup.result?.type === "longshort" ? "Long/Short" : matchup.result?.type === "stroke" ? "Stroke" : "Net Holes"),
-          kind: matchup.result?.type === "match_fbt" ? "match_fbt" : "flat",
-          glance: <span style={{ fontSize: 12, color: col.muted }}>{matchSummaryLine || "—"}</span>,
-        });
-      }
-    });
-  });
 
   if (!items.length) return null;
 
@@ -227,15 +231,33 @@ export default function LiveMatchStatus({
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, border: "0.5px solid #d1d5db", marginBottom: 12 }}>
-      <div style={{ fontSize: 12, color: col.muted, padding: "10px 14px 4px" }}>Match status</div>
-      {items.map((item, i) => (
-        <Row
-          key={item.id}
-          item={{ ...item, first: i === 0 }}
-          currentHole={currentHole}
-          onToggleManualPress={toggleManualPress}
-        />
-      ))}
+      <div
+        onClick={() => setListOpen((o) => !o)}
+        style={{
+          padding: "10px 14px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontSize: 13, color: col.ink, fontWeight: 500 }}>
+          Match status <span style={{ fontSize: 12, color: col.faint, fontWeight: 400 }}>{items.length} active</span>
+        </span>
+        <span style={{ fontSize: 11, color: col.faint }}>{listOpen ? "▲" : "▼"}</span>
+      </div>
+      {listOpen && (
+        <div style={{ borderTop: `0.5px solid ${col.border}` }}>
+          {items.map((item, i) => (
+            <Row
+              key={item.id}
+              item={{ ...item, first: i === 0 }}
+              currentHole={currentHole}
+              onToggleManualPress={toggleManualPress}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
