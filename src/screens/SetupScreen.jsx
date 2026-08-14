@@ -728,7 +728,7 @@ export default function SetupScreen({
   saveCourseToLibrary, searchCourses, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, deviceId,
   totalHoles, getTeamGameRange, hasDuplicateSelections, getTeamGameSelection,
   renderTeamSelectors, expandedGame, setExpandedGame, modeText,
-  addMatch, addNinePointMatch, autoCreateMatches, matches, matchResults,
+  addMatch, addNinePointMatch, addTwelvePointMatch, addTwentyPointMatch, autoCreateMatches, matches, matchResults,
   birdieResults = [], updateMatch, removeMatch, startRound,
   createDefaultTeamGame, focusGameTarget, goToLive, goToResults,
   roundName, setRoundName,
@@ -1870,6 +1870,22 @@ export default function SetupScreen({
               disabled={hasNinePoint}
             >
               {hasNinePoint ? "9-Point Added ✓" : "+ 9 Point Match"}
+            </OutlineButton>
+          )}
+          {mode === "4p" && (
+            <OutlineButton
+              onClick={hasNinePoint ? undefined : addTwelvePointMatch}
+              disabled={hasNinePoint}
+            >
+              {hasNinePoint ? "12-Point Added ✓" : "+ 12 Point Match"}
+            </OutlineButton>
+          )}
+          {mode === "5p" && (
+            <OutlineButton
+              onClick={hasNinePoint ? undefined : addTwentyPointMatch}
+              disabled={hasNinePoint}
+            >
+              {hasNinePoint ? "20-Point Added ✓" : "+ 20 Point Match"}
             </OutlineButton>
           )}
         </div>

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import {
   getPlayerName,
-  
+  getNinePointPlayerIds,
+  NINE_POINT_SCALES,
 } from "../engine/scoringEngine";
 
 
@@ -29,7 +30,9 @@ export default function MatchList({
   }
 
   function renderNinePointResult(result, match, isExpanded) {
-    const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+    const playerIds = getNinePointPlayerIds(match);
+    const scale = NINE_POINT_SCALES[playerIds.length];
+    const gameLabel = scale ? `${scale.reduce((a, b) => a + b, 0)} Point` : "Points";
 
     return (
       
@@ -51,7 +54,7 @@ export default function MatchList({
   }}
 >
   <div style={{ fontWeight: "bold", fontSize: 16 }}>
-    9 Point
+    {gameLabel}
   </div>
 
   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -429,7 +432,11 @@ export default function MatchList({
   >
     {match.gameType === "ninePoint" && (
       <div style={{ fontSize: 12, fontWeight: "bold", color: "#555", marginBottom: 4 }}>
-        9 POINT GAME
+        {(() => {
+          const count = getNinePointPlayerIds(match).length;
+          const scale = NINE_POINT_SCALES[count];
+          return scale ? `${scale.reduce((a, b) => a + b, 0)} POINT GAME` : "POINTS GAME";
+        })()}
       </div>
     )}
           <div
@@ -440,58 +447,32 @@ export default function MatchList({
               flexWrap: "wrap",
             }}
           >
-           {match.gameType === "ninePoint" ? (
-  <>
-    <select
-      value={match.p1Id || ""}
-      onChange={(e) => onUpdateMatch(match.id, { p1Id: e.target.value })}
-    >
-      {players.map((p) => (
-        <option
-          key={p.id}
-          value={p.id}
-          disabled={p.id === match.p2Id || p.id === match.p3Id}
-        >
-          {p.name}
-        </option>
+           {match.gameType === "ninePoint" ? (() => {
+  const idFields = ["p1Id", "p2Id", "p3Id", "p4Id", "p5Id"].filter((f) => match[f]);
+  return (
+    <>
+      {idFields.map((field, idx) => (
+        <span key={field} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {idx > 0 && <span>vs</span>}
+          <select
+            value={match[field] || ""}
+            onChange={(e) => onUpdateMatch(match.id, { [field]: e.target.value })}
+          >
+            {players.map((p) => (
+              <option
+                key={p.id}
+                value={p.id}
+                disabled={idFields.some((otherField) => otherField !== field && p.id === match[otherField])}
+              >
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </span>
       ))}
-    </select>
-
-    <span>vs</span>
-
-    <select
-      value={match.p2Id || ""}
-      onChange={(e) => onUpdateMatch(match.id, { p2Id: e.target.value })}
-    >
-      {players.map((p) => (
-        <option
-          key={p.id}
-          value={p.id}
-          disabled={p.id === match.p1Id || p.id === match.p3Id}
-        >
-          {p.name}
-        </option>
-      ))}
-    </select>
-
-    <span>vs</span>
-
-    <select
-      value={match.p3Id || ""}
-      onChange={(e) => onUpdateMatch(match.id, { p3Id: e.target.value })}
-    >
-      {players.map((p) => (
-        <option
-          key={p.id}
-          value={p.id}
-          disabled={p.id === match.p1Id || p.id === match.p2Id}
-        >
-          {p.name}
-        </option>
-      ))}
-    </select>
-  </>
-) : (
+    </>
+  );
+})() : (
   <>
     <select
       value={match.p1Id}
@@ -896,7 +877,7 @@ export default function MatchList({
            <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Live Results</div>
            <div style={{ marginBottom: 4, fontWeight: 600 }}>
              {match.gameType === "ninePoint"
-               ? `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)} vs ${getPlayerName(players, match.p3Id)}`
+               ? getNinePointPlayerIds(match).map((id) => getPlayerName(players, id)).join(" vs ")
                : `${getPlayerName(players, match.p1Id)} vs ${getPlayerName(players, match.p2Id)}`}
            </div>
 

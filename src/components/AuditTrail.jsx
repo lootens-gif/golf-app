@@ -13,6 +13,7 @@ import {
   getTeamStrokeScore,
   formatScoreWithStrokeDots,
   formatMatchPlayRunning,
+  getNinePointPlayerIds,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -1007,7 +1008,7 @@ function NinePointScorecard({
   if (!holes.length) return null;
 
   // Only show players who are actually in this match
-  const matchPlayerIds = [match?.p1Id, match?.p2Id, match?.p3Id].filter(Boolean);
+  const matchPlayerIds = getNinePointPlayerIds(match);
   const matchPlayers = players.filter(p => matchPlayerIds.includes(p.id));
 
   const front = holes.slice(0, 9);
@@ -2141,7 +2142,7 @@ function NinePointAudit({
   const { result, match } = ninePointEntry;
 
   // Compute total net $ per player: points payout + birdie side bet
-  const matchPlayerIds = [match?.p1Id, match?.p2Id, match?.p3Id].filter(Boolean);
+  const matchPlayerIds = getNinePointPlayerIds(match);
   const matchPlayers = players.filter(p => matchPlayerIds.includes(p.id));
   const pointsBalances = result?.payout?.balancesByPlayerId || {};
   const birdieTotals = Object.fromEntries(matchPlayerIds.map(id => [id, 0]));

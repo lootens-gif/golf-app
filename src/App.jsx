@@ -13,6 +13,8 @@ import {
   playPressMatch,
   scoreRound,
   buildBirdieResults,
+  getNinePointPlayerIds,
+  NINE_POINT_SCALES,
   settleSkinsRound,
   getBestBallDisplay,
   formatScoreWithStrokeDots,
@@ -1614,36 +1616,52 @@ function autoCreateMatches() {
   setMatches(newMatches);
 }
 
-function addNinePointMatch() {
-    if (mode !== "3p") return;
-  if (players.length < 3) return;
+// Shared "add a points-game match" function (Aug 2026) — 9/12/20-Point are
+// one game, not three, so this is one function parameterized by player
+// count rather than three independent copies. Mirrors the exact structure
+// addNinePointMatch always had: gated to the round already being locked to
+// the right player count, auto-includes every active player (no manual
+// picker needed, since at 4p mode there ARE only 4 players and all of them
+// belong in a 12-Point match by definition).
+function addPointsGameMatch(requiredCount) {
+  const requiredMode = requiredCount === 3 ? "3p" : requiredCount === 4 ? "4p" : "5p";
+  if (mode !== requiredMode) return;
+  if (players.length < requiredCount) return;
 
-  let defaultIds = [players[0]?.id, players[1]?.id, players[2]?.id].filter(Boolean);
+  let defaultIds = players.slice(0, requiredCount).map((p) => p.id).filter(Boolean);
 
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem(LAST_NINE_POINT_PLAYERS_KEY) || "null"
-    );
+  // The "remember last players" convenience only makes sense for 9-Point,
+  // where 3 of a larger group get picked — at 4p/5p mode every active
+  // player is already included by definition, so there's nothing to
+  // remember or restore.
+  if (requiredCount === 3) {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(LAST_NINE_POINT_PLAYERS_KEY) || "null"
+      );
 
-    if (
-      Array.isArray(saved) &&
-      saved.length === 3 &&
-      saved.every((id) => players.some((p) => p.id === id))
-    ) {
-      defaultIds = saved;
+      if (
+        Array.isArray(saved) &&
+        saved.length === 3 &&
+        saved.every((id) => players.some((p) => p.id === id))
+      ) {
+        defaultIds = saved;
+      }
+    } catch {
+      // ignore localStorage issues
     }
-  } catch {
-    // ignore localStorage issues
   }
+
+  const idFields = ["p1Id", "p2Id", "p3Id", "p4Id", "p5Id"];
+  const idPatch = {};
+  idFields.forEach((field, i) => { idPatch[field] = defaultIds[i]; });
 
   setMatches((prev) => [
     ...prev,
     {
       id: createId("nine-point"),
       gameType: "ninePoint",
-      p1Id: defaultIds[0],
-      p2Id: defaultIds[1],
-      p3Id: defaultIds[2],
+      ...idPatch,
       blitzEnabled: false,
       birdieDoublePoints: false,
       eagleTriplePoints: false,
@@ -1656,6 +1674,18 @@ function addNinePointMatch() {
   ]);
 }
 
+function addNinePointMatch() {
+  addPointsGameMatch(3);
+}
+
+function addTwelvePointMatch() {
+  addPointsGameMatch(4);
+}
+
+function addTwentyPointMatch() {
+  addPointsGameMatch(5);
+}
+
   function updateMatch(id, patch) {
   setMatches((prev) => {
     const next = prev.map((m) => (m.id === id ? { ...m, ...patch } : m));
@@ -1663,12 +1693,15 @@ function addNinePointMatch() {
     const updated = next.find((m) => m.id === id);
 
     if (updated?.gameType === "ninePoint") {
-      const trio = [updated.p1Id, updated.p2Id, updated.p3Id];
+      const ids = getNinePointPlayerIds(updated);
 
-      if (trio.every(Boolean) && new Set(trio).size === 3) {
+      // Only 3-player 9-Point has a real "which players" choice to
+      // remember — 12/20-Point always include every active player, so
+      // there's nothing meaningful to persist for those.
+      if (ids.length === 3 && new Set(ids).size === 3) {
         localStorage.setItem(
           LAST_NINE_POINT_PLAYERS_KEY,
-          JSON.stringify(trio)
+          JSON.stringify(ids)
         );
       }
     }
@@ -1920,6 +1953,8 @@ const activePlayers = useMemo(() => {
     if (match.p1Id) activePlayerIds.add(match.p1Id);
     if (match.p2Id) activePlayerIds.add(match.p2Id);
     if (match.p3Id) activePlayerIds.add(match.p3Id);
+    if (match.p4Id) activePlayerIds.add(match.p4Id);
+    if (match.p5Id) activePlayerIds.add(match.p5Id);
   });
 
   return players.filter((player) => activePlayerIds.has(player.id));
@@ -3375,8 +3410,9 @@ if (!enableTeamGame && !skinsEnabled) {
 
   const invalidMatch = matches.find((match) => {
     if (match.gameType === "ninePoint") {
-      const ids = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
-      return ids.length !== 3 || new Set(ids).size !== 3;
+      const ids = getNinePointPlayerIds(match);
+      const expectedCount = ids.length; // however many are set, all must be unique and non-empty
+      return !NINE_POINT_SCALES[expectedCount] || new Set(ids).size !== expectedCount;
     }
 
     return !match.p1Id || !match.p2Id || match.p1Id === match.p2Id;
@@ -4085,6 +4121,8 @@ return (
     setExpandedGame={setExpandedGame}
     addMatch={addMatch}
     addNinePointMatch={addNinePointMatch}
+    addTwelvePointMatch={addTwelvePointMatch}
+    addTwentyPointMatch={addTwentyPointMatch}
     autoCreateMatches={autoCreateMatches}
     matches={matches}
     matchResults={matchResults}
@@ -4720,19 +4758,21 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   </div>
 )}
 
-{/* ── 9-POINT STATUS ── */}
+{/* ── POINTS GAME STATUS (9/12/20-Point) ── */}
 {matchResults.filter(({ match, result }) => match?.gameType === "ninePoint" && result?.totalsByPlayerId).length > 0 && (
   <div className="app-card" style={{ marginBottom: 12 }}>
-    <div style={{ fontWeight: "bold", marginBottom: 8 }}>9-Point Standing</div>
     {matchResults
       .filter(({ match, result }) => match?.gameType === "ninePoint" && result?.totalsByPlayerId)
       .map(({ match, result }) => {
-        const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+        const playerIds = getNinePointPlayerIds(match);
+        const scale = NINE_POINT_SCALES[playerIds.length];
+        const gameLabel = scale ? `${scale.reduce((a, b) => a + b, 0)}-Point Standing` : "Points Standing";
         const sorted = [...playerIds].sort(
           (a, b) => (result.totalsByPlayerId[b] ?? 0) - (result.totalsByPlayerId[a] ?? 0)
         );
         return (
           <div key={match.id}>
+            <div style={{ fontWeight: "bold", marginBottom: 8 }}>{gameLabel}</div>
             {sorted.map((playerId) => {
               const pts = result.totalsByPlayerId[playerId] ?? 0;
               const name = players.find((p) => p.id === playerId)?.name || playerId;

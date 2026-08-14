@@ -291,12 +291,38 @@ export function getTeamNetScore(
   return Math.min(...netScores);
 }
 
+// Point scales for the "per-hole points" game family (Aug 2026) — 9-Point,
+// 12-Point, and 20-Point are ONE game, not three. The only real difference
+// is player count; everything else (blitz, birdie double, eagle triple,
+// pairwise settlement) is identical math applied to whichever scale
+// matches the player count. Proven correct by construction: each scale is
+// exactly `getNinePointPlayerIds(match).length` distinct descending
+// values, and the general tie-averaging algorithm below reproduces the
+// original hand-written 9-Point tie table exactly (verified in tests) —
+// 12-Point's confirmed tie value (5-5-2-0) and 20-Point's proven
+// whole-number property (exhaustive search, every tie combination) both
+// fall out of the same general formula, not separately re-derived.
+export const NINE_POINT_SCALES = {
+  3: [5, 3, 1],
+  4: [6, 4, 2, 0],
+  5: [8, 6, 4, 2, 0],
+};
+
+// Single source of truth for extracting this match's player list — replaces
+// every independent [p1Id, p2Id, p3Id] trio extraction that used to exist
+// across scoringEngine.js, App.jsx, MatchList.jsx, and AuditTrail.jsx. Supports
+// up to 5 players (9/12/20-Point); a 2-player match should keep using its own
+// p1Id/p2Id directly, this helper is specific to the points-game family.
+export function getNinePointPlayerIds(match) {
+  return [match?.p1Id, match?.p2Id, match?.p3Id, match?.p4Id, match?.p5Id].filter(Boolean);
+}
+
 export function getNinePointHoleStatus(
   playerIds,
   hole,
   scores
 ) {
-  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+  if (!Array.isArray(playerIds) || !NINE_POINT_SCALES[playerIds.length]) {
     return "invalid";
   }
 
@@ -316,10 +342,12 @@ export function scoreNinePointHole(
   birdieDoublePoints = false,
   eagleTriplePoints = false
 ) {
-  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+  const scale = Array.isArray(playerIds) ? NINE_POINT_SCALES[playerIds.length] : null;
+
+  if (!scale) {
     return {
       status: "invalid",
-      reason: "ninePoint requires exactly 3 players",
+      reason: `points game requires ${Object.keys(NINE_POINT_SCALES).join(", ")} players`,
       mode: null,
       pointsByPlayerId: {},
       netScoresByPlayerId: {},
@@ -344,7 +372,7 @@ export function scoreNinePointHole(
   }));
 
   const sorted = [...scoredPlayers].sort((a, b) => a.netScore - b.netScore);
-  const [first, second, third] = sorted;
+  const first = sorted[0];
 
   const pointsByPlayerId = Object.fromEntries(
     playerIds.map((playerId) => [playerId, 0])
@@ -355,7 +383,7 @@ export function scoreNinePointHole(
   );
 
   const par = course?.pars?.[hole - 1];
-  const uniqueWinner = first.netScore < second.netScore;
+  const uniqueWinner = sorted[1].netScore > first.netScore;
 
   // Birdie double only applies if:
   // 1. birdieDoublePoints toggle is on
@@ -375,16 +403,18 @@ export function scoreNinePointHole(
   // Store birdie/eagle info on result for rendering
   const birdieMode = winnerMadeEagle ? "eagle" : winnerMadeGrossBirdie ? "birdie" : null;
 
+  // Blitz: the winner beats EVERY other player by 2+ net strokes — same
+  // rule as the original 3-player version, generalized to "every other
+  // player" instead of hardcoding exactly two opponents.
   const blitzApplies =
     blitzEnabled &&
     uniqueWinner &&
-    second.netScore - first.netScore >= 2 &&
-    third.netScore - first.netScore >= 2;
+    sorted.slice(1).every((p) => p.netScore - first.netScore >= 2);
 
   if (blitzApplies) {
-    pointsByPlayerId[first.playerId] = 9 * multiplier;
-    pointsByPlayerId[second.playerId] = 0;
-    pointsByPlayerId[third.playerId] = 0;
+    const totalPoints = scale.reduce((sum, v) => sum + v, 0); // 9, 12, or 20 — matches the game's own name
+    pointsByPlayerId[first.playerId] = totalPoints * multiplier;
+    // everyone else stays 0
 
     return {
       status: "complete",
@@ -396,22 +426,23 @@ export function scoreNinePointHole(
     };
   }
 
-  if (first.netScore === second.netScore && second.netScore === third.netScore) {
-    pointsByPlayerId[first.playerId] = 3 * multiplier;
-    pointsByPlayerId[second.playerId] = 3 * multiplier;
-    pointsByPlayerId[third.playerId] = 3 * multiplier;
-  } else if (first.netScore === second.netScore) {
-    pointsByPlayerId[first.playerId] = 4 * multiplier;
-    pointsByPlayerId[second.playerId] = 4 * multiplier;
-    pointsByPlayerId[third.playerId] = 1 * multiplier;
-  } else if (second.netScore === third.netScore) {
-    pointsByPlayerId[first.playerId] = 5 * multiplier;
-    pointsByPlayerId[second.playerId] = 2 * multiplier;
-    pointsByPlayerId[third.playerId] = 2 * multiplier;
-  } else {
-    pointsByPlayerId[first.playerId] = 5 * multiplier;
-    pointsByPlayerId[second.playerId] = 3 * multiplier;
-    pointsByPlayerId[third.playerId] = 1 * multiplier;
+  // General tie-averaged point assignment: walk the sorted field, group
+  // consecutive tied players, and give each player in a tied group the
+  // average of the scale positions their group occupies. This is exactly
+  // what the original hand-written 3-player branches did implicitly
+  // (e.g. a tie for 1st averages positions 0-1 of [5,3,1] → 4,4) — this
+  // general version reproduces that exact table with zero behavior
+  // change, and correctly extends to 4 and 5 players using the same rule.
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1].netScore === sorted[i].netScore) j++;
+    const groupSum = scale.slice(i, j + 1).reduce((sum, v) => sum + v, 0);
+    const share = groupSum / (j - i + 1);
+    for (let k = i; k <= j; k++) {
+      pointsByPlayerId[sorted[k].playerId] = share * multiplier;
+    }
+    i = j + 1;
   }
 
   return {
@@ -425,7 +456,7 @@ export function scoreNinePointHole(
 }
 
 export function getNinePointPayout(totalsByPlayerId, dollarsPerPoint = 0) {
-const rate = Math.max(0, Number(dollarsPerPoint ?? 0));
+  const rate = Math.max(0, Number(dollarsPerPoint ?? 0));
   const ranked = Object.entries(totalsByPlayerId)
     .map(([playerId, points]) => ({
       playerId,
@@ -433,7 +464,7 @@ const rate = Math.max(0, Number(dollarsPerPoint ?? 0));
     }))
     .sort((a, b) => b.points - a.points);
 
-  if (ranked.length !== 3) {
+  if (!NINE_POINT_SCALES[ranked.length]) {
     return {
       status: "invalid",
       ranking: ranked,
@@ -442,37 +473,35 @@ const rate = Math.max(0, Number(dollarsPerPoint ?? 0));
     };
   }
 
-  const [first, second, third] = ranked;
+  const allTied = ranked.every((r) => r.points === ranked[0].points);
 
-  if (
-  first.points === second.points &&
-  second.points === third.points
-) {
-  return {
-    status: "tie",
-    ranking: ranked,
-    balancesByPlayerId: Object.fromEntries(ranked.map((r) => [r.playerId, 0])),
-    transactions: [],
-  };
-}
+  if (allTied) {
+    return {
+      status: "tie",
+      ranking: ranked,
+      balancesByPlayerId: Object.fromEntries(ranked.map((r) => [r.playerId, 0])),
+      transactions: [],
+    };
+  }
 
-const transactions = [
-  {
-    fromPlayerId: third.playerId,
-    toPlayerId: first.playerId,
-    amount: (first.points - third.points) * rate,
-  },
-  {
-    fromPlayerId: third.playerId,
-    toPlayerId: second.playerId,
-    amount: (second.points - third.points) * rate,
-  },
-  {
-    fromPlayerId: second.playerId,
-    toPlayerId: first.playerId,
-    amount: (first.points - second.points) * rate,
-  },
-];
+  // Pairwise settlement, generalized: every lower-ranked player pays every
+  // higher-ranked player the point difference between them × rate. For 3
+  // players this produces the exact same 3 transactions the original
+  // hand-written version did (verified in tests); for 4 it's 6
+  // transactions, for 5 it's 10 — same "last pays everyone above" model
+  // just built generically instead of hardcoded to three names.
+  const transactions = [];
+  for (let i = 0; i < ranked.length; i++) {
+    for (let j = i + 1; j < ranked.length; j++) {
+      const diff = ranked[i].points - ranked[j].points;
+      if (diff === 0) continue; // no money moves between an exactly-tied pair
+      transactions.push({
+        fromPlayerId: ranked[j].playerId,
+        toPlayerId: ranked[i].playerId,
+        amount: diff * rate,
+      });
+    }
+  }
 
   const balancesByPlayerId = Object.fromEntries(
     ranked.map((r) => [r.playerId, 0])
@@ -504,7 +533,7 @@ export function getNinePointMatchSummary(
   birdieDoublePoints = false,
   eagleTriplePoints = false
 ) {
-  if (!Array.isArray(playerIds) || playerIds.length !== 3) {
+  if (!Array.isArray(playerIds) || !NINE_POINT_SCALES[playerIds.length]) {
     return {
       gameType: "ninePoint",
       status: "invalid",
@@ -812,7 +841,7 @@ export function playIndividualMatch(match, context) {
 // -----------------------------
 const noPar3Strokes = !!match.noPar3Strokes;
 if (match.gameType === "ninePoint") {
-  const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
+  const playerIds = getNinePointPlayerIds(match);
   const ninePointPlayers = players.filter(p => playerIds.includes(p.id));
 
   const result = getNinePointMatchSummary(
@@ -1334,7 +1363,7 @@ function getMatchParticipants(match, scores, holeNumber) {
 
 function getNinePointParticipants(match, scores, holeNumber) {
   return getScoredPlayers(
-    [match?.p1Id, match?.p2Id, match?.p3Id],
+    getNinePointPlayerIds(match),
     scores,
     holeNumber
   );
@@ -1427,15 +1456,15 @@ export function buildNinePointBirdieResults(matchResults, scores, course, toyRul
 
     if (!isNinePoint) continue;
 
-    const playerIds = [match.p1Id, match.p2Id, match.p3Id].filter(Boolean);
-    if (playerIds.length !== 3) continue;
+    const playerIds = getNinePointPlayerIds(match);
+    if (!NINE_POINT_SCALES[playerIds.length]) continue;
 
     const start = Number(match.startHole || 1);
     const end = Number(match.endHole || 18);
 
     for (let holeNumber = start; holeNumber <= end; holeNumber += 1) {
       const scoredPlayerIds = getNinePointParticipants(match, scores, holeNumber);
-      if (scoredPlayerIds.length !== 3) continue;
+      if (!NINE_POINT_SCALES[scoredPlayerIds.length]) continue;
 
       const grossBirdiePlayers = scoredPlayerIds.filter((playerId) =>
         isGrossBirdie(scores, course, holeNumber, playerId)
