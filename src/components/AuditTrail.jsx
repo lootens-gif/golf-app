@@ -14,6 +14,7 @@ import {
   formatScoreWithStrokeDots,
   formatMatchPlayRunning,
   getNinePointPlayerIds,
+  NINE_POINT_SCALES,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -2164,16 +2165,20 @@ function NinePointAudit({
     return v > 0 ? `+$${str}` : `-$${str}`;
   };
 
+  const pointCount = NINE_POINT_SCALES[matchPlayerIds.length];
+  const gameLabel = pointCount ? `${pointCount.reduce((a, b) => a + b, 0)}-Point` : "Points";
+
   const title = (
     <span>
-      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>9-Point</span>
+      <span style={{ fontWeight: 700, color: "#1a1a1a" }}>{gameLabel}:</span>
       <span style={{ marginLeft: 10, fontSize: 13 }}>
         {rankedPlayers.map((player, i) => {
           const net = netTotals[player.id];
           const color = net > 0 ? "#137333" : net < 0 ? "#b3261e" : "#6b7280";
           return (
             <span key={player.id} style={{ marginRight: 10 }}>
-              <span style={{ color: "#1a1a1a" }}>{player.name}</span>
+              {i > 0 && <span> </span>}
+              <span style={{ color: "#1a1a1a" }}>{player.name}:</span>
               <span style={{ color, fontWeight: 700, marginLeft: 3 }}>{fmtNet(net)}</span>
             </span>
           );
