@@ -1200,6 +1200,164 @@ export function playIndividualPressMatch(match, context) {
 // teamA / teamB are arrays of player IDs.
 // match.type: "standard" | "longshort" | "match_fbt" | "stroke"
 // match.strokeCombined: if true, stroke = sum of both team members' net scores
+// ─── VEGAS WHEEL (Aug 2026) ─────────────────────────────────────────────
+// Private shadow-calculation feature, Admin-only, invisible to the group.
+// Reuses whatever real team pairings were configured for the actual 6/6/6
+// Press Wheel that day — no separate team-selection UI, no separate
+// Setup exposure. Real Vegas math (point-differential accumulation × a
+// rate, not flat $/hole — confirmed against real-world convention), with
+// Flip the Bird as a toggle so Tim can compare the swing it makes.
+
+// Combines two net scores into the standard Vegas two-digit number —
+// string concatenation, not arithmetic, so a 10+ score is handled
+// correctly (e.g. 4 and 10 -> "410", not a broken 2-digit assumption).
+// forceHighFirst reverses the normal "low digit leads" convention -
+// used both by the 10+ protective rule (always on) and Flip the Bird
+// (optional, triggered by an opponent's gross birdie).
+function combineVegasDigits(n1, n2, forceHighFirst) {
+  const low = Math.min(n1, n2);
+  const high = Math.max(n1, n2);
+  return forceHighFirst ? Number(`${high}${low}`) : Number(`${low}${high}`);
+}
+
+export function resolveVegasHole({
+  hole,
+  teamA,
+  teamB,
+  players,
+  course,
+  scores,
+  handicapMode,
+  getHandicapStrokesFn,
+  noPar3Strokes,
+  flipTheBirdEnabled = false,
+}) {
+  const netA = teamA.map((id) => getNetScore(id, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn));
+  const netB = teamB.map((id) => getNetScore(id, hole, players, course, scores, handicapMode, noPar3Strokes, getHandicapStrokesFn));
+
+  if (netA.some((n) => n === null) || netB.some((n) => n === null)) return null;
+
+  // 10+ protective flip: always on, not optional — without it one blow-up
+  // hole can mathematically end the round (see real-world Vegas guidance).
+  const aHasTenPlus = netA.some((n) => n >= 10);
+  const bHasTenPlus = netB.some((n) => n >= 10);
+
+  let vegasA = combineVegasDigits(netA[0], netA[1], aHasTenPlus);
+  let vegasB = combineVegasDigits(netB[0], netB[1], bHasTenPlus);
+
+  let flippedA = false;
+  let flippedB = false;
+
+  if (flipTheBirdEnabled) {
+    const aBirdied = teamA.some((id) => isGrossBirdie(scores, course, hole, id));
+    const bBirdied = teamB.some((id) => isGrossBirdie(scores, course, hole, id));
+    // Birdies cancel out if both teams birdie the same hole - neither
+    // flip applies, matching standard Vegas convention.
+    if (aBirdied && !bBirdied) {
+      vegasB = combineVegasDigits(netB[0], netB[1], !bHasTenPlus);
+      flippedB = true;
+    }
+    if (bBirdied && !aBirdied) {
+      vegasA = combineVegasDigits(netA[0], netA[1], !aHasTenPlus);
+      flippedA = true;
+    }
+  }
+
+  return {
+    hole,
+    vegasA,
+    vegasB,
+    diff: vegasB - vegasA, // positive = teamA (the Wheel side) wins the hole
+    flippedA,
+    flippedB,
+  };
+}
+
+// One matchup (Wheel pair vs. one opponent pair) across a hole range —
+// accumulates the raw point differential, does NOT settle to dollars
+// itself (that's the aggregator's job, since the rate is a single round-
+// level setting, not per-matchup).
+export function playVegasMatchup({ teamA, teamB, start, end, context, flipTheBirdEnabled }) {
+  const holes = [];
+  let totalDiff = 0;
+
+  for (let hole = start; hole <= end; hole++) {
+    const r = resolveVegasHole({
+      hole,
+      teamA,
+      teamB,
+      players: context.players,
+      course: context.course,
+      scores: context.scores,
+      handicapMode: context.handicapMode,
+      getHandicapStrokesFn: context.getHandicapStrokesFn,
+      noPar3Strokes: !!context.noPar3TeamGame,
+      flipTheBirdEnabled,
+    });
+    if (r === null) break;
+    holes.push(r);
+    totalDiff += r.diff;
+  }
+
+  return { totalDiff, holes };
+}
+
+// Full-round aggregator — walks the REAL teamGames configuration (whatever
+// segments/pairings were actually set for the day's Press Wheel) and
+// produces per-player dollar totals under Vegas Wheel rules instead.
+// Handles both shapes that already exist in the app: 5-player (Team 1
+// pair vs. 3 overlapping pairs from the other 3) and 4-player (straight
+// Team 1 vs Team 2, no overlapping pairs - there aren't enough remaining
+// players to form them). Reuses getTeamGameRange so segment boundaries
+// always match the real round exactly, never re-derived independently.
+export function computeVegasWheelShadow({ teamGames, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame, flipTheBirdEnabled, dollarsPerPoint }) {
+  const context = { players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame };
+  const balancesByPlayerId = {};
+  players.forEach((p) => { balancesByPlayerId[p.id] = 0; });
+
+  const matchupDetails = [];
+
+  (teamGames || []).forEach((game, gameIndex) => {
+    const start = Number(game.startHole) || (gameIndex * (game.holes || 6)) + 1;
+    const end = start + (Number(game.holes) || 6) - 1;
+    const teams = game.teams || {};
+    const team1 = (teams.team1 || []).filter(Boolean);
+    const team2 = (teams.team2 || []).filter(Boolean);
+    const team3 = (teams.team3 || []).filter(Boolean);
+    const team4 = (teams.team4 || []).filter(Boolean);
+
+    if (team1.length !== 2) return; // no valid Wheel pair this segment
+
+    // Every opponent grouping present this segment - 5-player mode gives
+    // 3 overlapping pairs (team2/3/4), 4-player mode gives just one
+    // (team2 only, straight 2v2).
+    const opponents = [
+      { label: "Team 1 vs Team 2", team: team2 },
+      { label: "Team 1 vs Team 3", team: team3 },
+      { label: "Team 1 vs Team 4", team: team4 },
+    ].filter((o) => o.team.length === 2);
+
+    opponents.forEach(({ label, team }) => {
+      const { totalDiff, holes } = playVegasMatchup({
+        teamA: team1,
+        teamB: team,
+        start,
+        end,
+        context,
+        flipTheBirdEnabled,
+      });
+      const dollars = totalDiff * (Number(dollarsPerPoint) || 0);
+
+      team1.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) + dollars; });
+      team.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) - dollars; });
+
+      matchupDetails.push({ segment: gameIndex, label, start, end, totalDiff, dollars, holes });
+    });
+  });
+
+  return { balancesByPlayerId, matchupDetails };
+}
+
 export function playTeamMatch(match, context) {
   const { players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame } = context;
   const teamA = match.teamA || [];

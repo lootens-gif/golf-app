@@ -163,6 +163,37 @@ export async function fetchRecentRounds(deviceId) {
 // with whatever was in local state, no staleness check, no scores-differ
 // check, nothing. Confirmed as the likely mechanism behind round 9194
 // showing an unexplained partial data change days after it was completed.
+// CONFIRMED REAL BUG (Aug 2026): this guard only ever compared
+// lastHoleSaved — it had no way to tell "my own round, another of my
+// devices is just ahead" (the legitimate case this was built for) apart
+// from "a completely different round happens to be sitting under this
+// same code" (a genuine collision). In the second case, blocking is
+// exactly the wrong response — it permanently traps the local round,
+// since the remote data never changes and every future save hits the
+// same comparison forever. Confirmed directly: round 8348, an entire
+// live round's worth of autosaves silently blocked start to finish,
+// no error ever shown, on WiFi the whole time — nothing to do with
+// connectivity. Now checks whether the remote round is even the same
+// round at all (matching named players, ignoring placeholder names
+// like "P1"/"P2") before deciding whether "remote is ahead" means
+// "wait" or means "this was never my round to begin with."
+export function sameRoundIdentity(localData, remoteData) {
+  const realNames = (players) =>
+    (players || [])
+      .map(p => (p?.name || "").trim())
+      .filter(n => n && !/^P\d+$/.test(n));
+
+  const localNames = new Set(realNames(localData.allPlayers));
+  const remoteNames = new Set(realNames(remoteData.allPlayers));
+
+  // If either side has no real (named) players yet, there's nothing
+  // reliable to compare — don't claim a mismatch off placeholder data.
+  if (!localNames.size || !remoteNames.size) return true;
+
+  const overlap = [...localNames].some(n => remoteNames.has(n));
+  return overlap;
+}
+
 async function shouldBlockRoundWrite(code, roundData) {
   try {
     const { data: existing } = await supabase
@@ -175,10 +206,16 @@ async function shouldBlockRoundWrite(code, roundData) {
       const remoteHole = existing.data.lastHoleSaved ?? -1;
       const localHole = roundData.lastHoleSaved ?? -1;
 
-      // Local is behind — never overwrite
+      // Local is behind — but is this even the same round? If the
+      // remote round's real players don't overlap with ours at all,
+      // this is a code collision, not a stale device — don't block.
       if (localHole < remoteHole) {
+        if (!sameRoundIdentity(roundData, existing.data)) {
+          console.warn(`[sync] code ${code} collision detected — remote round has different players, not blocking`);
+          return { block: false, reason: "different-round" };
+        }
         console.warn(`[sync] Skipping save: local lastHoleSaved=${localHole} < remote=${remoteHole}`);
-        return true;
+        return { block: true, reason: "stale-device" };
       }
 
       // Same hole count — compare scores. If remote has scores and they differ,
@@ -187,8 +224,12 @@ async function shouldBlockRoundWrite(code, roundData) {
         const remoteScores = JSON.stringify(existing.data.scores || {});
         const localScores = JSON.stringify(roundData.scores || {});
         if (remoteScores !== localScores) {
+          if (!sameRoundIdentity(roundData, existing.data)) {
+            console.warn(`[sync] code ${code} collision detected at completion — remote round has different players, not blocking`);
+            return { block: false, reason: "different-round" };
+          }
           console.warn(`[sync] Skipping save: completed round scores differ — keeping remote`);
-          return true;
+          return { block: true, reason: "stale-device" };
         }
       }
     }
@@ -196,36 +237,57 @@ async function shouldBlockRoundWrite(code, roundData) {
     // If we can't fetch, proceed with save (don't block on network error)
   }
 
-  return false;
+  return { block: false, reason: null };
 }
 
+// Returns the code the write actually succeeded under — normally the
+// same `code` passed in, but a different one if a genuine round-code
+// collision was detected and auto-resolved (see shouldBlockRoundWrite).
+// Callers that care whether their round's identity just changed
+// mid-flight should check the return value against what they passed in.
 export async function shareRoundWithDevice(code, roundData, deviceId) {
-  console.log("[DIAG] shareRoundWithDevice called, code:", code, "teamGames:", JSON.stringify(roundData?.teamGames));
-  console.trace("[DIAG] call stack");
-  if (await shouldBlockRoundWrite(code, roundData)) return;
+  const { block, reason } = await shouldBlockRoundWrite(code, roundData);
+  if (block) return code; // genuinely stale device — no write, same code
+
+  let finalCode = code;
+  if (reason === "different-round") {
+    // A different, unrelated round already owns this code. Generating
+    // a fresh one and writing under that instead, rather than silently
+    // discarding this round's data or fighting over the same row.
+    finalCode = await generateUniqueRoundCode();
+    console.warn(`[sync] round code collision — moved from ${code} to ${finalCode}`);
+  }
 
   const { error } = await supabase
     .from("rounds")
     .upsert({
-      id: code,
-      code,
+      id: finalCode,
+      code: finalCode,
       data: roundData,
       device_id: deviceId,
       updated_at: new Date().toISOString(),
     }, { onConflict: "id" });
 
   if (error) throw error;
+  return finalCode;
 }
 
 // Save a round to Supabase stats (called when "Save to History & Stats" is checked)
 export async function saveRoundToStats(code, roundData, deviceId) {
-  if (await shouldBlockRoundWrite(code, roundData)) return;
+  const { block, reason } = await shouldBlockRoundWrite(code, roundData);
+  if (block) return code;
+
+  let finalCode = code;
+  if (reason === "different-round") {
+    finalCode = await generateUniqueRoundCode();
+    console.warn(`[sync] round code collision — moved from ${code} to ${finalCode}`);
+  }
 
   const { error } = await supabase
     .from("rounds")
     .upsert({
-      id: code,
-      code,
+      id: finalCode,
+      code: finalCode,
       data: roundData,
       device_id: deviceId,
       save_to_stats: true,
@@ -233,6 +295,7 @@ export async function saveRoundToStats(code, roundData, deviceId) {
     }, { onConflict: "id" });
 
   if (error) throw error;
+  return finalCode;
 }
 
 // Fetch all rounds marked save_to_stats for Stats screen
