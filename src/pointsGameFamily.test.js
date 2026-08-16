@@ -210,3 +210,16 @@ test('NINE_POINT_SCALES sums match the game names (9/12/20)', () => {
   expect(NINE_POINT_SCALES[4].reduce((a, b) => a + b, 0)).toBe(12);
   expect(NINE_POINT_SCALES[5].reduce((a, b) => a + b, 0)).toBe(20);
 });
+
+test('decimal bet amount (e.g. $0.25/point) settles correctly for 20-Point', () => {
+  // Confirms the settlement math handles a fractional dollarsPerPoint
+  // cleanly - relevant now that the Match Bet field allows decimals for
+  // the points-game family specifically.
+  const totals = { a: 20, b: 12, c: 4, d: -8, e: -28 };
+  const p = getNinePointPayout(totals, 0.25);
+  const sum = Object.values(p.balancesByPlayerId).reduce((s, v) => s + v, 0);
+  expect(sum).toBeCloseTo(0);
+  // a beats e by 48 points -> 48 * 0.25 = $12
+  const aFromE = p.transactions.find(t => t.fromPlayerId === 'e' && t.toPlayerId === 'a');
+  expect(aFromE.amount).toBeCloseTo(12);
+});

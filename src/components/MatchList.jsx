@@ -519,7 +519,7 @@ export default function MatchList({
               Match Bet:
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode={match.gameType === "ninePoint" ? "decimal" : "numeric"}
                 value={match.bet ?? ""}
                 onFocus={(e) => {
                   setTimeout(() => {
@@ -527,18 +527,38 @@ export default function MatchList({
                   }, 0);
                 }}
                 onChange={(e) => {
-                  const cleaned = e.target.value.replace(/\D/g, "");
+                  if (match.gameType !== "ninePoint") {
+                    const cleaned = e.target.value.replace(/\D/g, "");
 
-                  if (cleaned === "") {
-                    onUpdateMatch(match.id, { bet: "" });
+                    if (cleaned === "") {
+                      onUpdateMatch(match.id, { bet: "" });
+                      return;
+                    }
+
+                    const num = Math.min(100, Math.max(0, Number(cleaned)));
+                    onUpdateMatch(match.id, { bet: num });
+                    // Auto-populate birdie bet if birdies are enabled and birdie bet not manually set
+                    if (match.birdieEnabled && (!match.birdieBet || match.birdieBet === match.bet)) {
+                      onUpdateMatch(match.id, { bet: num, birdieBet: num });
+                    }
                     return;
                   }
 
-                  const num = Math.min(100, Math.max(0, Number(cleaned)));
-                  onUpdateMatch(match.id, { bet: num });
-                  // Auto-populate birdie bet if birdies are enabled and birdie bet not manually set
+                  // 9/12/20-Point: allow decimals (e.g. $0.25/$0.50 per
+                  // point) — useful for 20-Point's wider swings
+                  // specifically. Kept as a simple character sanitizer
+                  // (digits + at most one decimal point), stored as the
+                  // raw string while typing so a trailing "." or "0"
+                  // isn't stripped mid-entry — every consumer already
+                  // does Number(match.bet), so a string here is safe.
+                  let cleaned = e.target.value.replace(/[^\d.]/g, "");
+                  const firstDot = cleaned.indexOf(".");
+                  if (firstDot !== -1) {
+                    cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
+                  }
+                  onUpdateMatch(match.id, { bet: cleaned });
                   if (match.birdieEnabled && (!match.birdieBet || match.birdieBet === match.bet)) {
-                    onUpdateMatch(match.id, { bet: num, birdieBet: num });
+                    onUpdateMatch(match.id, { bet: cleaned, birdieBet: cleaned });
                   }
                 }}
                 style={{ width: 70, marginLeft: 6, fontSize: 16, padding: 6 }}
