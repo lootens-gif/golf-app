@@ -1237,6 +1237,9 @@ export function resolveVegasHole({
 
   if (netA.some((n) => n === null) || netB.some((n) => n === null)) return null;
 
+  const grossA = teamA.map((id) => getHoleGrossScore(scores, hole, id));
+  const grossB = teamB.map((id) => getHoleGrossScore(scores, hole, id));
+
   // 10+ protective flip: always on, not optional — without it one blow-up
   // hole can mathematically end the round (see real-world Vegas guidance).
   const aHasTenPlus = netA.some((n) => n >= 10);
@@ -1247,6 +1250,7 @@ export function resolveVegasHole({
 
   let flippedA = false;
   let flippedB = false;
+  let birdieBy = null; // "A" or "B" - which team's birdie triggered a flip, for display
 
   if (flipTheBirdEnabled) {
     const aBirdied = teamA.some((id) => isGrossBirdie(scores, course, hole, id));
@@ -1256,20 +1260,27 @@ export function resolveVegasHole({
     if (aBirdied && !bBirdied) {
       vegasB = combineVegasDigits(netB[0], netB[1], !bHasTenPlus);
       flippedB = true;
+      birdieBy = "A";
     }
     if (bBirdied && !aBirdied) {
       vegasA = combineVegasDigits(netA[0], netA[1], !aHasTenPlus);
       flippedA = true;
+      birdieBy = "B";
     }
   }
 
   return {
     hole,
+    grossA,
+    grossB,
+    netA,
+    netB,
     vegasA,
     vegasB,
     diff: vegasB - vegasA, // positive = teamA (the Wheel side) wins the hole
     flippedA,
     flippedB,
+    birdieBy,
   };
 }
 
@@ -1351,7 +1362,7 @@ export function computeVegasWheelShadow({ teamGames, players, course, scores, ha
       team1.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) + dollars; });
       team.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) - dollars; });
 
-      matchupDetails.push({ segment: gameIndex, label, start, end, totalDiff, dollars, holes });
+      matchupDetails.push({ segment: gameIndex, label, start, end, totalDiff, dollars, team1, team, holes });
     });
   });
 

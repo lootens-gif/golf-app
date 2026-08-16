@@ -32,6 +32,10 @@ describe('resolveVegasHole — core combine + flip logic', () => {
     expect(r.vegasA).toBe(64); // normally 46, flipped to 64
     expect(r.flippedB).toBe(false);
     expect(r.vegasB).toBe(36); // c=3,d=6 -> low first, no flip on the birdie-maker's own team
+    expect(r.birdieBy).toBe('B'); // tracks which side actually made the birdie, for display
+    expect(r.grossA).toEqual([4, 6]);
+    expect(r.grossB).toEqual([3, 6]);
+    expect(r.netA).toEqual([4, 6]); // hcp 0 for all test players - net equals gross here
   });
 
   test('Flip the Bird: both teams birdie same hole -> cancels, no flip either way', () => {
