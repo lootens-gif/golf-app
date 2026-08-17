@@ -707,11 +707,6 @@ export default function App() {
   const [templateStatus, setTemplateStatus] = useState(""); // "" | "saving" | "saved" | "error" | "loading"
   const [round] = useState(createEmptyRound());
   const [screen, setScreen] = useState("setup");
-  // Vegas Wheel shadow calc (Aug 2026) is Admin-only, invisible to the
-  // group - isJoiner=false alone can't gate it since that's also true for
-  // a normal host on their own round. This flag is set ONLY by the actual
-  // Join as Admin flow and nowhere else.
-  const [isAdminView, setIsAdminView] = useState(false);
   // CRITICAL_GUARDS.md Guard #41: set (instead of applying the restored
   // snapshot immediately) when mount-time restore finds a completed round
   // stale by STALE_ROUND_HOURS+. Shape: { snapshot, successMessage,
@@ -2808,9 +2803,7 @@ async function resetSetup() {
   setRoundCode(await generateUniqueRoundCode());
   setRoundName("");
   setIsJoiner(false);
-  setIsAdminView(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
-  localStorage.removeItem("golf-betting-is-admin-view-v1");
   localStorage.removeItem(ROUND_CODE_KEY);
   // CRITICAL: also clear the autosaved round snapshot itself. Without this,
   // the OLD round's scores/matches/players stay sitting in AUTO_ROUND_KEY —
@@ -2973,17 +2966,6 @@ useEffect(() => {
   // Restore isJoiner state from localStorage (survives iOS Safari page reload)
   if (localStorage.getItem("golf-betting-is-joiner-v1") === "true") {
     setIsJoiner(true);
-  }
-
-  // Same reasoning, same fix, for isAdminView (Aug 2026) — confirmed real
-  // bug: without this, any reload between joining as Admin and actually
-  // viewing the Vegas Wheel panel (backgrounding, manual refresh) silently
-  // reset it to false and the panel vanished, even though the round was
-  // still genuinely loaded as an Admin view. Guard #17 already documents
-  // this exact failure mode for isJoiner; this is the same fix applied to
-  // the newer flag that needed it too.
-  if (localStorage.getItem("golf-betting-is-admin-view-v1") === "true") {
-    setIsAdminView(true);
   }
 
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
@@ -3288,8 +3270,6 @@ async function startRound() {
   // you're the host, regardless of whatever stale state exists.
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
-  setIsAdminView(false); // same reasoning as isJoiner above - starting a round always means a normal host session, never a leftover Admin view of a different round
-  localStorage.removeItem("golf-betting-is-admin-view-v1");
 
 if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
     setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
@@ -4049,7 +4029,7 @@ return (
           }}>
             👁 You joined this round — Setup is view only.{" "}
             <button
-              onClick={async () => { setIsJoiner(false); setIsAdminView(false); localStorage.removeItem("golf-betting-is-joiner-v1"); localStorage.removeItem("golf-betting-is-admin-view-v1"); setRoundCode(await generateUniqueRoundCode()); setRoundName(""); }}
+              onClick={async () => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(await generateUniqueRoundCode()); setRoundName(""); }}
               style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
             >
               Start my own round →
@@ -4940,13 +4920,14 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
       }
     }}
   />
-  {isAdminView && enableTeamGame && teamGameFormat === "press" && (
-    <VegasWheelShadow
-      teamGames={teamGames}
-      players={activePlayers}
-      teamContext={teamContext}
-    />
-  )}
+  <VegasWheelShadow
+    enableTeamGame={enableTeamGame}
+    teamGameFormat={teamGameFormat}
+    teamGames={teamGames}
+    nonPressTeamSelection={teamGameFormat !== "press" ? getTeamGameSelection(0) : null}
+    players={activePlayers}
+    teamContext={teamContext}
+  />
   </>
 )}
 
@@ -4994,8 +4975,6 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           applyRoundSnapshot(result.data);
           setRoundCode(code);
           setIsJoiner(false); // admin gets full access
-          setIsAdminView(true); // Vegas Wheel shadow panel only ever shows in this specific path
-          localStorage.setItem("golf-betting-is-admin-view-v1", "true");
           setScreen("results");
           // CONFIRMED REAL BUG (Aug 2026): a directly-fixed field
           // (teamGames[0].holes) was reliably reverting the instant an

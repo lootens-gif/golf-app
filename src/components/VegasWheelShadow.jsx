@@ -1,14 +1,18 @@
 // VegasWheelShadow.jsx — Aug 2026
 //
-// Private, Admin-only shadow calculation. Only ever rendered when
-// isAdminView is true (see App.jsx) — never visible on a normal host's
-// live Results screen, never exposed in Setup, no trace of it anywhere
-// the group would see. Reuses the REAL team pairings already configured
-// for the day's actual 6/6/6 Press Wheel — no separate team-selection UI.
+// A supplementary "what if we scored this round Vegas-style instead"
+// calculation, shown alongside the real results — visible to anyone
+// viewing this round's Results screen, not restricted to any particular
+// role. Reuses the REAL team pairings already configured for the day's
+// actual round — no separate team-selection UI. Works for Press's
+// segmented Wheel structure (5-player overlapping pairs, 4-player
+// straight 2v2) and, as of this expansion, any other team format's
+// single whole-round Team 1 vs Team 2 — as long as it's genuinely 2v2.
+// A 3-player round's 2v1 has no second player to combine into a Vegas
+// number, so it's correctly excluded rather than guessed at.
 //
-// Flip the Bird is a genuine toggle (not baked in) specifically so Tim
-// can compare the swing it makes before deciding whether it's worth
-// floating to the group at all. The 10+ protective flip is NOT a toggle —
+// Flip the Bird is a genuine toggle (not baked in) so it's easy to
+// compare the swing it makes. The 10+ protective flip is NOT a toggle —
 // it's always on, matching standard Vegas convention.
 //
 // Hole-by-hole detail is expandable per matchup, deliberately showing
@@ -17,7 +21,7 @@
 // number to take on faith.
 
 import { useState } from "react";
-import { computeVegasWheelShadow } from "../engine/scoringEngine";
+import { buildVegasMatchupSpecs, computeVegasWheelShadow } from "../engine/scoringEngine";
 
 const col = {
   ink: "#1a1a1a",
@@ -27,8 +31,7 @@ const col = {
   green: "#137333",
   red: "#b3261e",
   gold: "#b45309",
-  bg: "#fdf8ee", // deliberately distinct from every other card style in the app -
-                 // this should never be mistaken for something the group sees
+  bg: "#fdf8ee", // deliberately distinct from every other card style in the app
 };
 
 function fmtMoney(v) {
@@ -52,7 +55,7 @@ function MatchupDetail({ matchup, players }) {
         style={{ padding: "6px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: "#fff" }}
       >
         <span style={{ fontSize: 12, color: col.ink }}>
-          Seg {matchup.segment + 1}: {teamAName} vs {teamBName}
+          {matchup.label} {matchup.start === 1 && matchup.end === 18 ? "" : `(holes ${matchup.start}-${matchup.end})`}: {teamAName} vs {teamBName}
         </span>
         <span style={{ fontSize: 11, color: col.faint }}>
           {matchup.holes.length} holes, {matchup.totalDiff >= 0 ? "+" : ""}{matchup.totalDiff} pt {open ? "▲" : "▼"}
@@ -104,14 +107,22 @@ function MatchupDetail({ matchup, players }) {
   );
 }
 
-export default function VegasWheelShadow({ teamGames, players, teamContext }) {
+export default function VegasWheelShadow({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection, players, teamContext }) {
   const [flipTheBirdEnabled, setFlipTheBirdEnabled] = useState(false);
   const [betInput, setBetInput] = useState("0.25");
 
   const dollarsPerPoint = Number(betInput) || 0;
 
+  const matchupSpecs = buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection });
+
+  // Nothing to show at all — either team games are off, or whatever
+  // format/configuration this round is using isn't a genuine 2v2 (a
+  // 3-player round's 2v1, for instance). Correctly renders nothing rather
+  // than an empty, confusing card.
+  if (!matchupSpecs.length) return null;
+
   const { balancesByPlayerId, matchupDetails } = computeVegasWheelShadow({
-    teamGames,
+    matchupSpecs,
     ...teamContext,
     flipTheBirdEnabled,
     dollarsPerPoint,
@@ -126,10 +137,10 @@ export default function VegasWheelShadow({ teamGames, players, teamContext }) {
   return (
     <div style={{ background: col.bg, border: `1.5px dashed ${col.faint}`, borderRadius: 12, padding: 14, marginTop: 16, marginBottom: 12 }}>
       <div style={{ fontSize: 12, color: col.muted, fontWeight: 600, marginBottom: 2 }}>
-        🔒 Admin only — Vegas Wheel shadow calc
+        🎲 Vegas Wheel — for fun
       </div>
       <div style={{ fontSize: 11, color: col.faint, marginBottom: 10 }}>
-        Not visible to the group. Uses this round's real team pairings, different math.
+        What this round would look like scored a different way. Doesn't affect real Settle Up.
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12, flexWrap: "wrap" }}>
@@ -162,7 +173,7 @@ export default function VegasWheelShadow({ teamGames, players, teamContext }) {
       </div>
 
       {!hasAnyData ? (
-        <div style={{ fontSize: 12, color: col.faint }}>No scores entered yet for this round's team segments.</div>
+        <div style={{ fontSize: 12, color: col.faint }}>No scores entered yet for this round's team matchups.</div>
       ) : (
         <>
           {sorted.map((p) => {

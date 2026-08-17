@@ -1,4 +1,4 @@
-const { resolveVegasHole, playVegasMatchup, computeVegasWheelShadow } = require('./engine/scoringEngine');
+const { resolveVegasHole, playVegasMatchup, computeVegasWheelShadow, buildVegasMatchupSpecs } = require('./engine/scoringEngine');
 
 const course = { pars: Array(18).fill(4), hcp: Array.from({ length: 18 }, (_, i) => i + 1) };
 const players = [
@@ -86,8 +86,9 @@ describe('computeVegasWheelShadow — full round aggregator, reuses real teamGam
       scores[h] = { a: 4, b: 5, c: 4, d: 5, e: 4 };
     }
     const players5 = players;
+    const specs = buildVegasMatchupSpecs({ enableTeamGame: true, teamGameFormat: 'press', teamGames });
     const result = computeVegasWheelShadow({
-      teamGames, players: players5, course, scores, handicapMode: 'relative',
+      matchupSpecs: specs, players: players5, course, scores, handicapMode: 'relative',
       dollarsPerPoint: 1, flipTheBirdEnabled: false,
     });
     expect(result.matchupDetails.length).toBe(3); // 3 overlapping-pair matchups
@@ -99,12 +100,13 @@ describe('computeVegasWheelShadow — full round aggregator, reuses real teamGam
     const teamGames = [
       { holes: 6, startHole: 1, teams: { team1: ['a', 'b'], team2: ['c', 'd'] } },
     ];
+    const specs = buildVegasMatchupSpecs({ enableTeamGame: true, teamGameFormat: 'press', teamGames });
     const scores = {};
     for (let h = 1; h <= 6; h++) {
       scores[h] = { a: 4, b: 6, c: 5, d: 5 };
     }
     const result = computeVegasWheelShadow({
-      teamGames, players, course, scores, handicapMode: 'relative',
+      matchupSpecs: specs, players, course, scores, handicapMode: 'relative',
       dollarsPerPoint: 0.25, flipTheBirdEnabled: false,
     });
     expect(result.matchupDetails.length).toBe(1); // only Team1 vs Team2
@@ -116,6 +118,7 @@ describe('computeVegasWheelShadow — full round aggregator, reuses real teamGam
     const teamGames = [
       { holes: 3, startHole: 1, teams: { team1: ['a', 'b'], team2: ['c', 'd'] } },
     ];
+    const specs = buildVegasMatchupSpecs({ enableTeamGame: true, teamGameFormat: 'press', teamGames });
     // par 4 course; a makes a birdie on hole 1. Team B's scores (5,4) are
     // deliberately asymmetric so the flip actually changes their number
     // (5,5 would flip to itself - not a real test of the toggle).
@@ -125,11 +128,11 @@ describe('computeVegasWheelShadow — full round aggregator, reuses real teamGam
       3: { a: 5, b: 4, c: 5, d: 4 },
     };
     const withoutFlip = computeVegasWheelShadow({
-      teamGames, players, course, scores, handicapMode: 'relative',
+      matchupSpecs: specs, players, course, scores, handicapMode: 'relative',
       dollarsPerPoint: 1, flipTheBirdEnabled: false,
     });
     const withFlip = computeVegasWheelShadow({
-      teamGames, players, course, scores, handicapMode: 'relative',
+      matchupSpecs: specs, players, course, scores, handicapMode: 'relative',
       dollarsPerPoint: 1, flipTheBirdEnabled: true,
     });
     // the two toggles should produce genuinely different totals - that's
@@ -141,16 +144,79 @@ describe('computeVegasWheelShadow — full round aggregator, reuses real teamGam
     const teamGames = [
       { holes: 2, startHole: 1, teams: { team1: ['a', 'b'], team2: ['c', 'd'] } },
     ];
+    const specs = buildVegasMatchupSpecs({ enableTeamGame: true, teamGameFormat: 'press', teamGames });
     const scores = {
       1: { a: 4, b: 6, c: 3, d: 7 },
       2: { a: 5, b: 5, c: 4, d: 4 },
     };
     const result = computeVegasWheelShadow({
-      teamGames, players, course, scores, handicapMode: 'relative',
+      matchupSpecs: specs, players, course, scores, handicapMode: 'relative',
       dollarsPerPoint: 0.25, flipTheBirdEnabled: false,
     });
     const sum = Object.values(result.balancesByPlayerId).reduce((s, v) => s + v, 0);
     expect(sum).toBeCloseTo(0);
     expect(Number.isFinite(result.balancesByPlayerId.a)).toBe(true);
+  });
+});
+
+describe('buildVegasMatchupSpecs — expanded (Aug 2026) to any team format, not just Press', () => {
+  test('non-press format (e.g. Match Play) with a genuine 2v2: one whole-round matchup', () => {
+    const specs = buildVegasMatchupSpecs({
+      enableTeamGame: true,
+      teamGameFormat: 'match_fbt',
+      teamGames: [],
+      nonPressTeamSelection: { team1: ['a', 'b'], team2: ['c', 'd'] },
+    });
+    expect(specs.length).toBe(1);
+    expect(specs[0]).toMatchObject({ label: 'Team 1 vs Team 2', start: 1, end: 18, team1: ['a', 'b'], team2: ['c', 'd'] });
+  });
+
+  test('3-player non-press (2v1) is correctly excluded - no second player to combine', () => {
+    const specs = buildVegasMatchupSpecs({
+      enableTeamGame: true,
+      teamGameFormat: 'standard',
+      teamGames: [],
+      nonPressTeamSelection: { team1: ['a', 'b'], team2: ['c'] }, // 2v1
+    });
+    expect(specs.length).toBe(0);
+  });
+
+  test('non-press format with no team selection yet: no specs, no crash', () => {
+    const specs = buildVegasMatchupSpecs({
+      enableTeamGame: true,
+      teamGameFormat: 'longshort',
+      teamGames: [],
+      nonPressTeamSelection: null,
+    });
+    expect(specs).toEqual([]);
+  });
+
+  test('team game disabled entirely: no specs regardless of format', () => {
+    const specs = buildVegasMatchupSpecs({
+      enableTeamGame: false,
+      teamGameFormat: 'press',
+      teamGames: [{ holes: 6, startHole: 1, teams: { team1: ['a', 'b'], team2: ['c', 'd'] } }],
+    });
+    expect(specs).toEqual([]);
+  });
+
+  test('non-press 2v2 matchup actually settles correctly end to end', () => {
+    const specs = buildVegasMatchupSpecs({
+      enableTeamGame: true,
+      teamGameFormat: 'stroke',
+      teamGames: [],
+      nonPressTeamSelection: { team1: ['a', 'b'], team2: ['c', 'd'] },
+    });
+    const scores = {
+      1: { a: 4, b: 6, c: 3, d: 7 }, // A=46, B=37 - B is lower, so team2 (c/d) wins this hole
+    };
+    const result = computeVegasWheelShadow({
+      matchupSpecs: specs, players, course, scores, handicapMode: 'relative',
+      dollarsPerPoint: 1, flipTheBirdEnabled: false,
+    });
+    expect(result.balancesByPlayerId.a).toBeCloseTo(-9);
+    expect(result.balancesByPlayerId.b).toBeCloseTo(-9);
+    expect(result.balancesByPlayerId.c).toBeCloseTo(9);
+    expect(result.balancesByPlayerId.d).toBeCloseTo(9);
   });
 });

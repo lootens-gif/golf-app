@@ -1313,57 +1313,88 @@ export function playVegasMatchup({ teamA, teamB, start, end, context, flipTheBir
   return { totalDiff, holes };
 }
 
-// Full-round aggregator — walks the REAL teamGames configuration (whatever
-// segments/pairings were actually set for the day's Press Wheel) and
-// produces per-player dollar totals under Vegas Wheel rules instead.
-// Handles both shapes that already exist in the app: 5-player (Team 1
-// pair vs. 3 overlapping pairs from the other 3) and 4-player (straight
-// Team 1 vs Team 2, no overlapping pairs - there aren't enough remaining
-// players to form them). Reuses getTeamGameRange so segment boundaries
-// always match the real round exactly, never re-derived independently.
-export function computeVegasWheelShadow({ teamGames, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame, flipTheBirdEnabled, dollarsPerPoint }) {
+// Figures out WHICH real matchups exist for this round and are genuinely
+// 2v2 - format-aware, since Press and every other team format store team
+// assignments differently. Deliberately separate from the settlement
+// function below: "what matchups exist" and "how do we score a matchup"
+// are two different jobs, and keeping them apart is what let this expand
+// from Press-only to any team format without rewriting the actual Vegas
+// math at all.
+//
+// Press: segmented, walks teamGames, keeps the 5-player overlapping-pair
+// shape (Team 1 vs 2/3/4) and the 4-player straight 2v2 shape, exactly as
+// before.
+//
+// Every other team format: always a single Team 1 vs Team 2 for the whole
+// round (that's how non-press formats already work — see the
+// teamGameResults dispatch). Only included if it's genuinely 2v2 — a
+// 3-player round's Team 1 (2) vs Team 2 (1) has no second player to
+// combine into a Vegas number, so it's correctly excluded, not guessed at.
+export function buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection }) {
+  if (!enableTeamGame) return [];
+
+  if (teamGameFormat === "press") {
+    const specs = [];
+    (teamGames || []).forEach((game, gameIndex) => {
+      const start = Number(game.startHole) || (gameIndex * (game.holes || 6)) + 1;
+      const end = start + (Number(game.holes) || 6) - 1;
+      const teams = game.teams || {};
+      const team1 = (teams.team1 || []).filter(Boolean);
+      const team2 = (teams.team2 || []).filter(Boolean);
+      const team3 = (teams.team3 || []).filter(Boolean);
+      const team4 = (teams.team4 || []).filter(Boolean);
+
+      if (team1.length !== 2) return; // no valid Wheel pair this segment
+
+      const opponents = [
+        { label: "Team 1 vs Team 2", team: team2 },
+        { label: "Team 1 vs Team 3", team: team3 },
+        { label: "Team 1 vs Team 4", team: team4 },
+      ].filter((o) => o.team.length === 2);
+
+      opponents.forEach(({ label, team }) => {
+        specs.push({ segment: gameIndex, label, start, end, team1, team2: team });
+      });
+    });
+    return specs;
+  }
+
+  // Any other team format: single whole-round matchup, only if 2v2
+  const team1 = (nonPressTeamSelection?.team1 || []).filter(Boolean);
+  const team2 = (nonPressTeamSelection?.team2 || []).filter(Boolean);
+  if (team1.length === 2 && team2.length === 2) {
+    return [{ segment: 0, label: "Team 1 vs Team 2", start: 1, end: 18, team1, team2 }];
+  }
+  return [];
+}
+
+// Settlement — takes whatever matchup specs buildVegasMatchupSpecs found
+// and runs the real Vegas math against each. Format-agnostic on purpose:
+// once it knows who's on which side and what hole range, it doesn't care
+// whether the real round was scored as Press, Match Play, or anything
+// else — the shadow calc's own math is entirely independent either way.
+export function computeVegasWheelShadow({ matchupSpecs, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame, flipTheBirdEnabled, dollarsPerPoint }) {
   const context = { players, course, scores, handicapMode, getHandicapStrokesFn, noPar3TeamGame };
   const balancesByPlayerId = {};
   players.forEach((p) => { balancesByPlayerId[p.id] = 0; });
 
   const matchupDetails = [];
 
-  (teamGames || []).forEach((game, gameIndex) => {
-    const start = Number(game.startHole) || (gameIndex * (game.holes || 6)) + 1;
-    const end = start + (Number(game.holes) || 6) - 1;
-    const teams = game.teams || {};
-    const team1 = (teams.team1 || []).filter(Boolean);
-    const team2 = (teams.team2 || []).filter(Boolean);
-    const team3 = (teams.team3 || []).filter(Boolean);
-    const team4 = (teams.team4 || []).filter(Boolean);
-
-    if (team1.length !== 2) return; // no valid Wheel pair this segment
-
-    // Every opponent grouping present this segment - 5-player mode gives
-    // 3 overlapping pairs (team2/3/4), 4-player mode gives just one
-    // (team2 only, straight 2v2).
-    const opponents = [
-      { label: "Team 1 vs Team 2", team: team2 },
-      { label: "Team 1 vs Team 3", team: team3 },
-      { label: "Team 1 vs Team 4", team: team4 },
-    ].filter((o) => o.team.length === 2);
-
-    opponents.forEach(({ label, team }) => {
-      const { totalDiff, holes } = playVegasMatchup({
-        teamA: team1,
-        teamB: team,
-        start,
-        end,
-        context,
-        flipTheBirdEnabled,
-      });
-      const dollars = totalDiff * (Number(dollarsPerPoint) || 0);
-
-      team1.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) + dollars; });
-      team.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) - dollars; });
-
-      matchupDetails.push({ segment: gameIndex, label, start, end, totalDiff, dollars, team1, team, holes });
+  (matchupSpecs || []).forEach((spec) => {
+    const { totalDiff, holes } = playVegasMatchup({
+      teamA: spec.team1,
+      teamB: spec.team2,
+      start: spec.start,
+      end: spec.end,
+      context,
+      flipTheBirdEnabled,
     });
+    const dollars = totalDiff * (Number(dollarsPerPoint) || 0);
+
+    spec.team1.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) + dollars; });
+    spec.team2.forEach((id) => { balancesByPlayerId[id] = (balancesByPlayerId[id] || 0) - dollars; });
+
+    matchupDetails.push({ segment: spec.segment, label: spec.label, start: spec.start, end: spec.end, totalDiff, dollars, team1: spec.team1, team: spec.team2, holes });
   });
 
   return { balancesByPlayerId, matchupDetails };
