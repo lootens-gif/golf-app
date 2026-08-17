@@ -829,6 +829,7 @@ function notifyRound(event, code) {
     teamBirdiesEnabled: false,
     teamBirdieBetAmount: 5,
     teamToyRule: false,
+    wolfSettlementStyle: "pooled", // default is "Split the Pot" - Harrison can't reverse-engineer Pay Each Winner math live at the tee box
   });
   const [noPar3TeamGame, setNoPar3TeamGame] = useState(false);
   const [autoRestoreComplete, setAutoRestoreComplete] = useState(false);
@@ -1976,7 +1977,7 @@ if (teamGameFormat === "wolf") {
     noPar3Strokes: noPar3TeamGame,
     betAmount: teamGameUnitAmount,
     wolfStyle: teamMatchConfig.wolfStyle || "harrison",
-    settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
+    settlementStyle: teamMatchConfig.wolfSettlementStyle || "pooled",
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
@@ -2790,6 +2791,7 @@ async function resetSetup() {
     teamBirdiesEnabled: false,
     teamBirdieBetAmount: 5,
     teamToyRule: false,
+    wolfSettlementStyle: "pooled",
   });
   setTeamGames([
     createDefaultTeamGame(1),
@@ -3641,7 +3643,7 @@ if (teamGameFormat === "wolf") {
     noPar3Strokes: noPar3TeamGame,
     betAmount: teamGameUnitAmount,
     wolfStyle: teamMatchConfig.wolfStyle || "harrison",
-    settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
+    settlementStyle: teamMatchConfig.wolfSettlementStyle || "pooled",
     birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
     addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
     addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
@@ -4357,7 +4359,7 @@ return (
       noPar3Strokes: noPar3TeamGame,
       betAmount: teamGameUnitAmount,
       wolfStyle: teamMatchConfig.wolfStyle || "harrison",
-      settlementStyle: teamMatchConfig.wolfSettlementStyle || "pairwise",
+      settlementStyle: teamMatchConfig.wolfSettlementStyle || "pooled",
       birdieEnabled: !!teamMatchConfig.wolfBirdieMultiplierEnabled,
       addAHammerEnabled: !!teamMatchConfig.wolfAddAHammer,
       addAHammerHammerHolesOnly: !!teamMatchConfig.wolfAddAHammerHammerHolesOnly,
@@ -4378,7 +4380,7 @@ return (
         onChangeSuperWolfBetAmount={(hole, amount) => updateWolfHole(hole, { superWolfBetAmount: amount })}
         teamGameUnitAmount={teamGameUnitAmount}
         hittingOrderMode={teamMatchConfig.wolfSuperWolfOrderMode || "standard"}
-        settlementStyle={teamMatchConfig.wolfSettlementStyle || "pairwise"}
+        settlementStyle={teamMatchConfig.wolfSettlementStyle || "pooled"}
         wolfStyle={teamMatchConfig.wolfStyle || "harrison"}
       />
     );

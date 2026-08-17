@@ -1706,7 +1706,7 @@ export default function SetupScreen({
                 <div style={{ fontSize: 14, fontWeight: 500, color: sc.ink, marginBottom: 6 }}>Payout Style</div>
                 <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Only matters on a Pack Wolf hole (partner picked) — no difference when going alone</div>
                 <select
-                  value={teamMatchConfig.wolfSettlementStyle || "pairwise"}
+                  value={teamMatchConfig.wolfSettlementStyle || "pooled"}
                   onChange={(e) => setTeamMatchConfig(prev => ({ ...prev, wolfSettlementStyle: e.target.value }))}
                   style={{ padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 13, fontFamily: "inherit", width: "100%" }}
                 >
