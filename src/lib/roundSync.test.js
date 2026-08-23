@@ -25,7 +25,7 @@ jest.mock("./supabase", () => ({
 }));
 
 import { supabase } from "./supabase";
-import { generateUniqueRoundCode } from "./roundSync";
+import { generateUniqueRoundCode, shareRoundWithDevice } from "./roundSync";
 
 // Builds a mock matching the exact chain used in roundSync.js:
 // supabase.from("rounds").insert({...})
@@ -34,6 +34,87 @@ function mockInsertResult(result) {
     insert: () => Promise.resolve(result),
   });
 }
+
+// Builds a mock supporting both the select-to-check-staleness chain AND
+// the upsert-to-write chain shareRoundWithDevice actually uses, so tests
+// can inspect whether a write was actually attempted or correctly
+// blocked.
+function mockRoundWriteChain({ existingData }) {
+  const upsertSpy = jest.fn(() => Promise.resolve({ error: null }));
+  const insertSpy = jest.fn(() => Promise.resolve({ error: null })); // succeeds immediately - claims whatever fresh code generateUniqueRoundCode tries first
+  supabase.from.mockReturnValue({
+    select: () => ({
+      eq: () => ({
+        single: () => Promise.resolve({ data: existingData ? { data: existingData } : null }),
+      }),
+    }),
+    upsert: upsertSpy,
+    insert: insertSpy,
+  });
+  return upsertSpy;
+}
+
+describe("shareRoundWithDevice — content comparison guard (Aug 2026, round 8466)", () => {
+  test("CONFIRMED REAL BUG: a stale snapshot with fewer players but the SAME lastHoleSaved used to silently overwrite a live round — now correctly blocked", async () => {
+    // Remote (the real, current state): 5 real players, hole 16 saved.
+    const remoteData = {
+      lastHoleSaved: 16,
+      allPlayers: [
+        { name: "Tim" }, { name: "Biro" }, { name: "Moose" }, { name: "Bish" }, { name: "Stan" },
+      ],
+      scores: { 1: { p1: 4 } },
+    };
+    // Local (Tim's Admin-join snapshot, fetched BEFORE the 5th player was
+    // added): same lastHoleSaved, only 4 players. This is exactly the
+    // round 8466 shape - hole count never differed, only player count did.
+    const staleLocalData = {
+      lastHoleSaved: 16,
+      allPlayers: [
+        { name: "Tim" }, { name: "Biro" }, { name: "Moose" }, { name: "Bish" },
+      ],
+      scores: { 1: { p1: 4 } },
+    };
+
+    const upsertSpy = mockRoundWriteChain({ existingData: remoteData });
+    const resultCode = await shareRoundWithDevice("8466", staleLocalData, "device-tim");
+
+    expect(upsertSpy).not.toHaveBeenCalled(); // the write must be blocked, not silently applied
+    expect(resultCode).toBe("8466"); // blocked writes return the same code, no collision resolution needed
+  });
+
+  test("a genuine content match at the same hole count writes through normally (no false positive)", async () => {
+    const matchingData = {
+      lastHoleSaved: 16,
+      allPlayers: [{ name: "Tim" }, { name: "Biro" }],
+      scores: { 1: { p1: 4 } },
+    };
+    const upsertSpy = mockRoundWriteChain({ existingData: matchingData });
+    await shareRoundWithDevice("1234", matchingData, "device-tim");
+
+    expect(upsertSpy).toHaveBeenCalledTimes(1); // identical content at the same hole - should proceed
+  });
+
+  test("a real round-code collision (different players entirely) is still detected separately, not conflated with the stale-device case", async () => {
+    const someoneElsesRound = {
+      lastHoleSaved: 16,
+      allPlayers: [{ name: "Gregg" }, { name: "Russell" }],
+      scores: {},
+    };
+    const myData = {
+      lastHoleSaved: 16,
+      allPlayers: [{ name: "Tim" }, { name: "Biro" }],
+      scores: {},
+    };
+    const upsertSpy = mockRoundWriteChain({ existingData: someoneElsesRound });
+    await shareRoundWithDevice("9999", myData, "device-tim");
+
+    // A genuine collision (no name overlap at all) should NOT block the
+    // write - it should proceed under a freshly generated code instead,
+    // per the existing collision-resolution behavior. Confirms the new
+    // content check doesn't accidentally swallow this separate case.
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("generateUniqueRoundCode", () => {
   test("returns the first generated code immediately when the insert succeeds (genuinely free, atomically claimed)", async () => {

@@ -4978,19 +4978,28 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           setRoundCode(code);
           setIsJoiner(false); // admin gets full access
           setScreen("results");
-          // CONFIRMED REAL BUG (Aug 2026): a directly-fixed field
-          // (teamGames[0].holes) was reliably reverting the instant an
-          // admin joined a round — reproduced deliberately, isolated to
-          // this exact action, confirmed via direct Supabase checks with
-          // nothing else touched in between. Root race condition not
-          // fully isolated. Defensive fix: explicitly re-save the exact
-          // data just fetched, immediately, using the known-correct
-          // fetched object directly rather than relying on React state
-          // having propagated through the normal autosave path — this
-          // wins as the last write regardless of whatever else is racing
-          // it.
-          shareRoundWithDevice(code, result.data, deviceId).catch(() => {});
-          console.log("[DIAG] admin-join explicit write, teamGames:", JSON.stringify(result.data.teamGames));
+          // CONFIRMED REAL BUG, FIXED PROPERLY (Aug 2026): this used to
+          // force an explicit write-back of whatever was just fetched,
+          // immediately, on every single Admin join — added as a
+          // defensive patch for an earlier, never-fully-isolated bug
+          // (teamGames[0].holes reverting on join). That write is exactly
+          // what caused round 8466's real corruption: Admin joined a
+          // LIVE round mid-play, the write raced against the actual
+          // player's own newer save, and — because the staleness guard
+          // only compared content at matching hole counts for completed
+          // rounds — the stale Admin snapshot silently overwrote the
+          // real, newer one with zero protection.
+          // Joining as Admin to VIEW a round has no legitimate reason to
+          // write anything to Supabase at all. Removed entirely rather
+          // than making the write "safer" — a write that never happens
+          // can't race against anything, which is a stronger guarantee
+          // than a smarter guard checking it after the fact. (The
+          // roundSync.js staleness guard was also hardened separately,
+          // as real defense-in-depth for every other write path — but
+          // that's a backstop, not a reason to keep writing here too.)
+          // If the original teamGames-reverting symptom this was built
+          // for ever reappears, it needs its own fresh, properly-isolated
+          // investigation — not another guessed defensive write.
         }
       } catch {
         alert("Could not load round " + code);

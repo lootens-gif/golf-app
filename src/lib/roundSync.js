@@ -218,17 +218,36 @@ async function shouldBlockRoundWrite(code, roundData) {
         return { block: true, reason: "stale-device" };
       }
 
-      // Same hole count — compare scores. If remote has scores and they differ,
-      // don't overwrite. The remote is the source of truth for completed rounds.
-      if (localHole === remoteHole && remoteHole >= 18) {
+      // Same hole count — compare content. If remote has different players
+      // or scores, don't blindly overwrite.
+      //
+      // CONFIRMED REAL BUG (Aug 2026, round 8466): this check used to only
+      // fire for completed rounds (remoteHole >= 18). An in-progress round
+      // has no such protection at all when hole counts happen to match —
+      // exactly what let Admin's defensive re-save-on-join write (added
+      // for an unrelated bug, see onJoinAsAdmin in App.jsx) silently
+      // overwrite a live round mid-play. Sequence: Admin joins while the
+      // round is at 16 holes/4 players, captures that snapshot, and
+      // queues a write-back of it. If that write's own round-trip lands
+      // AFTER the real device has since progressed to 18 holes/5 players
+      // (same lastHoleSaved was never the differentiator — a 5th player
+      // being added didn't require advancing past hole 16 to trigger it),
+      // localHole === remoteHole holds true, and the old remoteHole >= 18
+      // gate skipped content checking entirely — the stale 4-player
+      // snapshot overwrote the real 5-player one with zero protection.
+      // Removing the >= 18 restriction closes this for every stage of a
+      // round, not just its ending.
+      if (localHole === remoteHole) {
         const remoteScores = JSON.stringify(existing.data.scores || {});
         const localScores = JSON.stringify(roundData.scores || {});
-        if (remoteScores !== localScores) {
+        const remotePlayers = JSON.stringify(existing.data.allPlayers || []);
+        const localPlayers = JSON.stringify(roundData.allPlayers || []);
+        if (remoteScores !== localScores || remotePlayers !== localPlayers) {
           if (!sameRoundIdentity(roundData, existing.data)) {
-            console.warn(`[sync] code ${code} collision detected at completion — remote round has different players, not blocking`);
+            console.warn(`[sync] code ${code} collision detected — remote round has different players, not blocking`);
             return { block: false, reason: "different-round" };
           }
-          console.warn(`[sync] Skipping save: completed round scores differ — keeping remote`);
+          console.warn(`[sync] Skipping save: same hole (${localHole}) but remote has different players/scores — keeping remote as source of truth`);
           return { block: true, reason: "stale-device" };
         }
       }
