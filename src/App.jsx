@@ -755,7 +755,7 @@ function notifyRound(event, code) {
 }
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
-  const [currentHole, setCurrentHole] = useState(5);
+  const [currentHole, setCurrentHole] = useState(1);
   const [showScorecardEdit, setShowScorecardEdit] = useState(false);
   const [lastHoleSaved, setLastHoleSaved] = useState(null);
   // CONFIRMED REAL BUG (Aug 2026): completedAt was only ever written
@@ -2121,13 +2121,12 @@ const roundSummaryRows = activePlayers.map((player) => {
         ]);
       }
 
-      setScores({});
-      setWolfHoles({});
       setMatches([]);
-      // Same real bug as handleLoadTemplate (Aug 2026) - see that
-      // comment for the full explanation. Never cleared here either.
-      setLastHoleSaved(null);
-      setCurrentHole(1);
+      // Consolidated (Aug 2026) - same gap class as handleLoadTemplate and
+      // the round 1902/8466 bug: this only cleared scores/wolfHoles/
+      // lastHoleSaved/currentHole, never roundCode, AUTO_ROUND_KEY, or
+      // teamGames[].teams.
+      clearRoundIdentityState({ clearTeamAssignments: false });
       setSetupMessage("Setup loaded. Round data reset.");
     } catch (error) {
       setSetupMessage("Could not load setup.");
@@ -2635,19 +2634,11 @@ async function handleLoadTemplate(template) {
     if (typeof cfg.potBaseUnit === "number") setPotBaseUnit(cfg.potBaseUnit);
     if (Array.isArray(cfg.teamGames)) setTeamGames(cfg.teamGames.map((g, i) => ({ id: g.id || `team-game-${Date.now()}-${i}`, holes: Number(g.holes) || 6, pressTrigger: Number(g.pressTrigger) || 1, teams: g.teams || {} })));
     if (Array.isArray(cfg.matches)) setMatches(cfg.matches);
-    setScores({});
-    setWolfHoles({});
-    // CONFIRMED REAL BUG (Aug 2026): this cleared scores/wolfHoles but
-    // never touched lastHoleSaved or currentHole. If the previously
-    // active round had already reached hole 18, that stale value
-    // survived a template load untouched — Start Round's own "already
-    // complete" guard (CRITICAL_GUARDS.md Guard #42) then saw
-    // lastHoleSaved >= 18 with a matching format and routed straight to
-    // viewing/editing hole 18 of a round whose scores had just been
-    // cleared out from under it. Same discipline resetSetup() already
-    // correctly follows.
-    setLastHoleSaved(null);
-    setCurrentHole(1);
+    // Consolidated (Aug 2026) - was previously only clearing scores/
+    // wolfHoles/lastHoleSaved/currentHole here, missing roundCode, the
+    // AUTO_ROUND_KEY localStorage snapshot, and teamGames[].teams. Same
+    // gap class as the round 1902/8466 bug, just via a different door.
+    clearRoundIdentityState({ clearTeamAssignments: false });
     setLoadedTemplate(template);
     setSetupMessage(`Template "${template.name}" loaded — scores cleared.`);
     incrementTemplateUse(template.id).catch(() => {});
@@ -2779,8 +2770,6 @@ async function resetSetup() {
   setTeamGameUnitAmount(5);
   setBirdiesEnabled(false);
   setBirdieBetAmount(5);
-  setScores({});
-  setWolfHoles({});
   setMatches([]);
   setTeamGameFormat("press");
   setLoadedTemplate(null);
@@ -2798,25 +2787,18 @@ async function resetSetup() {
     createDefaultTeamGame(2),
     createDefaultTeamGame(3),
   ]);
-  setCurrentHole(1);
-  setLastHoleSaved(null);
   setFocusGameTarget(null);
   setScreen("setup");
-  setRoundCode(await generateUniqueRoundCode());
   setRoundName("");
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
-  localStorage.removeItem(ROUND_CODE_KEY);
-  // CRITICAL: also clear the autosaved round snapshot itself. Without this,
-  // the OLD round's scores/matches/players stay sitting in AUTO_ROUND_KEY —
-  // the general autosave effect deliberately excludes scores/matches/
-  // wolfHoles/currentHole/lastHoleSaved from what it rewrites (those are
-  // only ever touched by the score-entry functions directly), so nothing
-  // ever overwrites them back to empty until the very first new score is
-  // entered. Any page reload in that window (iOS Safari backgrounding a
-  // tab is routine) resurrects the entire "reset" round on mount, silently
-  // undoing the reset from the user's perspective. Found July 2026.
-  localStorage.removeItem(AUTO_ROUND_KEY);
+  // Consolidated (Aug 2026) - this used to hand-roll the exact same
+  // clearing logic now shared with every other "start fresh" entry
+  // point. Must run BEFORE the fresh code below, since this sets
+  // roundCode back to null - doing it after would wipe out the new code
+  // that was just generated.
+  clearRoundIdentityState();
+  setRoundCode(await generateUniqueRoundCode());
   setSetupMessage("Setup reset.");
 }
 
@@ -3259,6 +3241,33 @@ useEffect(() => {
 
 // Helpers to get the current team selection for a game, ensuring it always has the correct shape
 
+// Single source of truth for clearing round-identity state before a
+// genuinely new round begins (Aug 2026). Previously reimplemented
+// separately by 4 different entry points - 2 of them (resetSetup, and
+// startRound's own "format changed" branch) already did this correctly,
+// 2 of them (handleLoadTemplate, loadSetup) only cleared React state and
+// silently forgot the matching localStorage snapshot, and one path
+// (startRound's "already complete, same format" shortcut) cleared
+// NOTHING at all - confirmed as the direct cause of round 8466 inheriting
+// round 1902's untouched scores, since nothing distinguished "review the
+// round I just finished" from "start a genuinely new one with the same
+// format." Consolidating into one function doesn't change behavior for
+// the two paths that were already correct - it upgrades the ones that
+// weren't to match, using the exact logic already proven correct tonight
+// rather than inventing anything new.
+function clearRoundIdentityState({ clearTeamAssignments = true } = {}) {
+  setScores({});
+  setWolfHoles({});
+  setLastHoleSaved(null);
+  setCurrentHole(1);
+  setRoundCode(null);
+  if (clearTeamAssignments) {
+    setTeamGames((prev) => prev.map((g) => ({ ...g, teams: {} })));
+  }
+  localStorage.removeItem(AUTO_ROUND_KEY);
+  localStorage.removeItem(ROUND_CODE_KEY);
+}
+
 async function startRound() {
   // CONFIRMED REAL BUG (Aug 2026): startRound() never touched isJoiner at
   // all — only one specific, separate button ever cleared it. If a
@@ -3308,31 +3317,35 @@ if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && tota
     const savedSnapshot = safeReadJsonStorage(AUTO_ROUND_KEY, null);
 
     if (isSameRoundFormat(savedSnapshot, teamGameFormat, enableTeamGame)) {
-      setPendingNextGameIndex(null);
-      setScreen("live");
-      return;
-    }
+      // CONFIRMED REAL BUG, FIXED (Aug 2026): this used to silently assume
+      // "same format after a completed round" always meant "let me go
+      // back and review/fix a score" - jumping straight to Live with
+      // nothing cleared. It had no way to tell that apart from "I'm
+      // starting a genuinely new round that happens to use the same
+      // format as last time" - which is the ordinary, common case for
+      // this group, not a rare one. That gap is what let round 8466
+      // silently inherit round 1902's untouched scores. Now asks
+      // explicitly instead of guessing.
+      const wantsToReview = window.confirm(
+        "The last round is already complete. Tap OK to go back and review/edit it, or Cancel to start a brand new round."
+      );
+      if (wantsToReview) {
+        setPendingNextGameIndex(null);
+        setScreen("live");
+        return;
+      }
+      clearRoundIdentityState();
+      // falls through to the normal round-start logic below, same as the
+      // format-changed branch already did
+    } else {
 
     // Format changed since the round completed — this is a new round, not
     // a revisit of the old one. The finished round's real data is already
     // safely saved (Supabase + saved-rounds history); clear the local
     // in-progress fields so they can't leak into what's being started now.
-    setScores({});
-    setWolfHoles({});
-    setLastHoleSaved(null);
-    setRoundCode(null);
-    // currentHole gets stamped to 19 as a "round is done" sentinel when a
-    // round completes (see the onSaveHole handler) — reset it back to 1
-    // so the new round doesn't open on a stale, out-of-range hole number.
-    setCurrentHole(1);
-    // Team assignments are tied to the OLD round's player count/mode —
-    // stale team1/team2/etc selections can reference slots or players
-    // that don't apply under the new format (e.g. switching from 5-player
-    // to 3-player), so they're cleared the same way scores/wolfHoles are.
-    setTeamGames((prev) => prev.map((g) => ({ ...g, teams: {} })));
-    localStorage.removeItem(AUTO_ROUND_KEY);
-    localStorage.removeItem(ROUND_CODE_KEY);
+    clearRoundIdentityState();
     // fall through to the normal round-start logic below
+    }
   }
 
   const requiredHole = lastHoleSaved != null ? lastHoleSaved + 1 : 1;
