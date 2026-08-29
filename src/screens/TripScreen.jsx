@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { settleSkinsRound } from "../engine/scoringEngine";
+import { settleSkinsRound, namesMatch } from "../engine/scoringEngine";
 import {
   createTrip, fetchMyTrips, fetchTrip,
   saveTripPlayers, fetchTripPlayers,
@@ -477,8 +477,8 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
         const rd = roundData.find(r => r.code === round.round_code);
         if (!rd?.data) return;
         const allPlayers = rd.data.allPlayers || [];
-        // Match by name
-        const rPlayer = allPlayers.find(p => p.name?.toLowerCase() === player.name?.toLowerCase());
+        // Match by name (normalized: case/whitespace only — see namesMatch)
+        const rPlayer = allPlayers.find(p => namesMatch(p.name, player.name));
         if (!rPlayer) return;
         const scores = rd.data.scores || {};
         const course = rd.data.course || {};
@@ -498,6 +498,28 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
       });
       return { ...player, totalNet, holesPlayed };
     }).filter(p => p.holesPlayed > 0).sort((a, b) => a.totalNet - b.totalNet);
+  })();
+
+  // Round players who never matched any trip player by name, across every
+  // linked round. Surfaced visibly rather than silently dropped — see
+  // normalizeNameForMatching/namesMatch in scoringEngine.js: a genuine
+  // nickname/full-name mismatch (e.g. "Josh" vs "Fryback, Joshua") can't
+  // be safely auto-guessed in a betting app, so the fix here is making the
+  // gap visible instead of trying to close it with a risky heuristic.
+  const unmatchedRoundPlayerNames = (() => {
+    if (!players.length || !roundData.length) return [];
+    const unmatched = new Set();
+    rounds.forEach(round => {
+      const rd = roundData.find(r => r.code === round.round_code);
+      if (!rd?.data) return;
+      const allPlayers = rd.data.allPlayers || [];
+      allPlayers.forEach(rp => {
+        if (!rp.name) return;
+        const matched = players.some(tp => namesMatch(tp.name, rp.name));
+        if (!matched) unmatched.add(rp.name);
+      });
+    });
+    return Array.from(unmatched);
   })();
 
   // Build Skins leaderboard — merge scores from all round codes
@@ -536,7 +558,7 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
           const rdPlayer = rdPlayers.find(p => p.id === rdPlayerId);
           if (!rdPlayer) return;
           const tripPlayer = tripPlayers.find(tp =>
-            tp.name.toLowerCase() === rdPlayer.name?.toLowerCase()
+            namesMatch(tp.name, rdPlayer.name)
           );
           if (!tripPlayer) return;
           mergedScores[h][tripPlayer.id] = score;
@@ -621,6 +643,18 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
           })
         )}
       </Card>
+
+      {/* Unmatched player names — surfaced rather than silently dropped from leaderboards */}
+      {unmatchedRoundPlayerNames.length > 0 && (
+        <Card style={{ marginBottom: 12, background: "#fff8e1", border: "1px solid #f0d878" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#7a5c00", marginBottom: 4 }}>
+            ⚠️ Name{unmatchedRoundPlayerNames.length > 1 ? "s" : ""} not matched to a trip player
+          </div>
+          <div style={{ fontSize: 12, color: "#7a5c00" }}>
+            {unmatchedRoundPlayerNames.join(", ")} — {unmatchedRoundPlayerNames.length > 1 ? "these appear" : "this appears"} in a linked round but {unmatchedRoundPlayerNames.length > 1 ? "don't" : "doesn't"} match any trip player's name exactly. Their scores from that round are not included in the leaderboards below. Edit the trip player name (or the round's player name) so they match exactly.
+          </div>
+        </Card>
+      )}
 
       {/* Game tabs */}
       {enabledGames.length > 0 && (

@@ -3193,3 +3193,24 @@ export function getMissingScoreHoles(activePlayers, scores, totalHoles = 18) {
   }
   return missing;
 }
+
+// Name-matching helper for Trip Setup (linking a trip player to the
+// matching player inside a separate round's own saved data, since trip
+// players and round players are stored independently — see
+// StoppedCounting_Decisions_and_Rules.md open item #8). Deliberately
+// narrow: normalizes trivial variance only (case, leading/trailing
+// whitespace, collapsed internal whitespace). Does NOT attempt to guess
+// nickname equivalence ("Josh" vs "Fryback, Joshua") — for a betting app,
+// a wrong confident guess (silently crediting the wrong person's scores)
+// is worse than a visible miss the scorekeeper can catch and fix by
+// renaming a player in the round. Callers are expected to surface names
+// that fail to match rather than silently dropping their data.
+export function normalizeNameForMatching(name) {
+  return (name || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function namesMatch(a, b) {
+  const na = normalizeNameForMatching(a);
+  const nb = normalizeNameForMatching(b);
+  return na.length > 0 && na === nb;
+}
