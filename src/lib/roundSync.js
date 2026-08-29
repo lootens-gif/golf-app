@@ -616,3 +616,29 @@ export async function fetchRoundsByCode(codes) {
   if (error) throw error;
   return data || [];
 }
+
+// Data-integrity safety net for round completion. Fires only when a round
+// is about to be marked "completed" (hole 18 saved, completion email sent)
+// but real score data is missing for one or more holes/players — the
+// documented signature of rounds 1902/8466 (lastHoleSaved: 18 with holes
+// 17-18 entirely null). That specific incident's root cause (Admin-join
+// force-write) was found and removed entirely — see App.jsx onJoinAsAdmin.
+// This is a separate, permanent safety net: it doesn't matter which future
+// bug might produce a similarly corrupted state, this catches the symptom
+// at the one place it always surfaces (the completion trigger) rather than
+// re-diagnosing a new root cause every time. Never throws — logging a
+// warning must never block the scorekeeper from finishing their round.
+export async function logIncompleteRoundCompletion({ roundCode, missingHoles, playerNames }) {
+  try {
+    await supabase.from("bug_reports").insert({
+      tester_name: "System",
+      screen: "Round Complete",
+      severity: "broken",
+      description: `Round ${roundCode || "unknown"} was marked complete but is missing real scores for hole(s): ${missingHoles.join(", ")}. Players: ${playerNames.join(", ")}. Completion email was suppressed for this round — verify data before trusting the leaderboard.`,
+      round_code: roundCode || null,
+      app_version: "v1",
+    });
+  } catch {
+    // never throw — this is a diagnostic safety net, not critical path
+  }
+}

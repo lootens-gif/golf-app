@@ -3175,3 +3175,21 @@ export function getBestBallDisplay(teamIds, hole, players, course, scores, handi
   const firstName = best.name.trim().split(" ")[0];
   return `${firstName} ${formatScoreWithStrokeDots(best.playerId, hole, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes)}`;
 }
+
+// Data-integrity safety net for round completion (confirmed gap behind
+// rounds 1902/8466: a round reached lastHoleSaved:18 with holes 17-18
+// entirely null, and the completion email fired anyway with no check).
+// Pulled out as a pure, exported function specifically so it can be unit
+// tested directly — App.jsx's own logic is never covered by real tests
+// (see StoppedCounting_Decisions_and_Rules.md), so any check left inline
+// in App.jsx's onSaveHole closure would be unverifiable except by playing
+// a full round by hand. Returns the sorted list of hole numbers (1..totalHoles)
+// where at least one active player has no real score recorded.
+export function getMissingScoreHoles(activePlayers, scores, totalHoles = 18) {
+  const missing = [];
+  for (let h = 1; h <= totalHoles; h++) {
+    const holeIsMissing = (activePlayers || []).some((p) => scores?.[h]?.[p.id] == null);
+    if (holeIsMissing) missing.push(h);
+  }
+  return missing;
+}

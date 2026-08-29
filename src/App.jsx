@@ -21,6 +21,7 @@ import {
   formatMatchPlayRunning,
   computeWolfRoundResult,
   getWolfHoleNarrative,
+  getMissingScoreHoles,
 } from "./engine/scoringEngine";
 import ScoresGrid from "./components/ScoresGrid";
 import { formatPressDetail } from "./components/AuditTrail";
@@ -38,7 +39,7 @@ import RoundPreview from "./components/RoundPreview";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
-import {generateRoundCode, generateUniqueRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse } from "./lib/roundSync";
+import {generateRoundCode, generateUniqueRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, logIncompleteRoundCompletion } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -4501,8 +4502,30 @@ setSaveMessage(`Hole ${currentHole} saved`);
   const autoName = course?.name ? `${monthDay} - ${course.name}` : `${monthDay} Round`;
   setRoundSaveName(roundName || autoName);
   setShowRoundCompleteModal(true);
-  // Notify on round complete (fire and forget)
-  notifyRound("completed", roundCode);
+
+  // Data-integrity safety net (confirmed gap from rounds 1902/8466: a round
+  // reached lastHoleSaved:18 with holes 17-18 entirely null, and the
+  // completion email fired anyway with no check). The original cause
+  // (Admin-join force-write) was found and removed — see onJoinAsAdmin —
+  // but this check stays as a permanent backstop against any other future
+  // path that could produce the same corrupted shape. Never blocks the
+  // scorekeeper from finishing; only suppresses the "completed" email and
+  // flags it, since it's better to notify no one than to notify everyone
+  // with numbers built on missing holes.
+  const missingHoles = getMissingScoreHoles(activePlayers, scores, 18);
+
+  if (missingHoles.length > 0) {
+    const playerNames = activePlayers.map(p => p.name).filter(Boolean);
+    logIncompleteRoundCompletion({ roundCode, missingHoles, playerNames });
+    alert(
+      `Heads up: this round is missing scores for hole${missingHoles.length > 1 ? "s" : ""} ${missingHoles.join(", ")}. ` +
+      `The round will still save, but the "round complete" email was NOT sent, since the leaderboard may be wrong until this is fixed. ` +
+      `Check the Scorecard Details on the Results screen for hole${missingHoles.length > 1 ? "s" : ""} ${missingHoles.join(", ")}.`
+    );
+  } else {
+    // Notify on round complete (fire and forget) — only when the data is real
+    notifyRound("completed", roundCode);
+  }
   return;
 }
 
