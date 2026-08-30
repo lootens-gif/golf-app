@@ -1201,11 +1201,10 @@ export default function SetupScreen({
       {/* ── TEAM GAME SELECTOR ── */}
       {enableTeamGame && (
         <Card>
-          <SectionLabel>Team Assignments</SectionLabel>
+          <SectionLabel>Team Game Format</SectionLabel>
 
           {/* Format selector */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Team Game Format</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
               {[
                 { value: "press", label: "Press" },
@@ -1550,70 +1549,11 @@ export default function SetupScreen({
               </div>
             );
           })()}
-
-          {teamGames.map((game, index) => {
-            const { start, end } = getTeamGameRange(teamGames, index);
-            const duplicateError = hasDuplicateSelections(getTeamGameSelection(index), mode);
-            return (
-              <div key={game.id} ref={(el) => { teamGameRefs.current[index] = el; }}
-                style={{ border: `1px solid ${sc.border}`, borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
-                <div style={{ background: sc.green, color: "#fff", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>Game {index + 1} · Holes {start}–{end}</span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {index !== 0 && (
-                      <button onClick={() => setExpandedGame(expandedGame === index ? null : index)}
-                        style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>
-                        {expandedGame === index ? "▲ Hide" : "▼ Edit"}
-                      </button>
-                    )}
-                    {teamGames.length > 1 && (
-                      <button onClick={() => setTeamGames(prev => prev.filter((_, i) => i !== index))}
-                        style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {((!focusGameTarget && index === 0) || expandedGame === index) && (
-                  <div style={{ padding: 14 }}>
-                    <label style={{ fontSize: 13, color: sc.muted, display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      Holes:
-                      <input type="number" min={1} max={18} value={game.holes ?? ""} placeholder="#"
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const value = raw === "" ? "" : Math.min(18, Math.max(1, Number(raw)));
-                          setTeamGames(prev => prev.map((g, i) => i === index ? { ...g, holes: value } : g));
-                        }}
-                        style={{ width: 55, padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 14 }}
-                      />
-                    </label>
-                    <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
-                      {mode === "5p" && "Team 1 plays 3 matches against Teams 2, 3, and 4"}
-                      {mode === "4p" && "Team 1 vs Team 2 — one 2v2 match"}
-                      {mode === "3p" && "Team 1 (2 players) vs Team 2 (1 player)"}
-                    </div>
-                    {renderTeamSelectors(index)}
-                    {duplicateError && (
-                      <div style={{ color: "#b3261e", fontSize: 13, marginTop: 8 }}>
-                        ⚠️ Duplicate players — each player can only be in one team
-                      </div>
-                    )}
-                    {!duplicateError && <PrimarySetupAction />}
-                  </div>
-                )}
-              </div>
-            );
-          })}
           </>)}
 
           {/* Non-press formats: single team pairing + format options */}
           {teamGameFormat && teamGameFormat !== "press" && teamGameFormat !== "wolf" && (
             <div>
-              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
-                Whole round · 18 holes · one team matchup
-              </div>
-              {renderTeamSelectors(0)}
-
               {/* Match Play options */}
               {teamGameFormat === "match_fbt" && (
                 <div style={{ marginTop: 12 }}>
@@ -1669,7 +1609,6 @@ export default function SetupScreen({
                   ))}
                 </div>
               )}
-              <PrimarySetupAction />
             </div>
           )}
 
@@ -1843,6 +1782,80 @@ export default function SetupScreen({
                 />
               </div>
 
+              <PrimarySetupAction />
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ── TEAM ASSIGNMENTS ── */}
+      {/* Wolf has no assignment step here — teams are picked live per-hole
+          during scoring, not at Setup. See the Wolf branch in Team Game
+          Format above. */}
+      {enableTeamGame && teamGameFormat !== "wolf" && (
+        <Card>
+          <SectionLabel>Team Assignments</SectionLabel>
+
+          {(teamGameFormat === "press" || !teamGameFormat) && teamGames.map((game, index) => {
+            const { start, end } = getTeamGameRange(teamGames, index);
+            const duplicateError = hasDuplicateSelections(getTeamGameSelection(index), mode);
+            return (
+              <div key={game.id} ref={(el) => { teamGameRefs.current[index] = el; }}
+                style={{ border: `1px solid ${sc.border}`, borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
+                <div style={{ background: sc.green, color: "#fff", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>Game {index + 1} · Holes {start}–{end}</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {index !== 0 && (
+                      <button onClick={() => setExpandedGame(expandedGame === index ? null : index)}
+                        style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>
+                        {expandedGame === index ? "▲ Hide" : "▼ Edit"}
+                      </button>
+                    )}
+                    {teamGames.length > 1 && (
+                      <button onClick={() => setTeamGames(prev => prev.filter((_, i) => i !== index))}
+                        style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer" }}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {((!focusGameTarget && index === 0) || expandedGame === index) && (
+                  <div style={{ padding: 14 }}>
+                    <label style={{ fontSize: 13, color: sc.muted, display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      Holes:
+                      <input type="number" min={1} max={18} value={game.holes ?? ""} placeholder="#"
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const value = raw === "" ? "" : Math.min(18, Math.max(1, Number(raw)));
+                          setTeamGames(prev => prev.map((g, i) => i === index ? { ...g, holes: value } : g));
+                        }}
+                        style={{ width: 55, padding: "6px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 14 }}
+                      />
+                    </label>
+                    <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
+                      {mode === "5p" && "Team 1 plays 3 matches against Teams 2, 3, and 4"}
+                      {mode === "4p" && "Team 1 vs Team 2 — one 2v2 match"}
+                      {mode === "3p" && "Team 1 (2 players) vs Team 2 (1 player)"}
+                    </div>
+                    {renderTeamSelectors(index)}
+                    {duplicateError && (
+                      <div style={{ color: "#b3261e", fontSize: 13, marginTop: 8 }}>
+                        ⚠️ Duplicate players — each player can only be in one team
+                      </div>
+                    )}
+                    {!duplicateError && <PrimarySetupAction />}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {teamGameFormat && teamGameFormat !== "press" && (
+            <div>
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
+                Whole round · 18 holes · one team matchup
+              </div>
+              {renderTeamSelectors(0)}
               <PrimarySetupAction />
             </div>
           )}

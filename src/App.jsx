@@ -3927,7 +3927,7 @@ return (
       onClick={() => setScreen("trip")}
       disabled={screen === "trip"}
     >
-      Trip
+      Multi-Group
     </button>
 
     <button
