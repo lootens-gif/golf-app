@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { settleSkinsRound, namesMatch } from "../engine/scoringEngine";
+import { settleSkinsRound, namesMatch, mergeRoundsIntoCombinedView, playIndividualMatch } from "../engine/scoringEngine";
 import {
   createTrip, fetchMyTrips, fetchTrip,
   saveTripPlayers, fetchTripPlayers,
@@ -51,7 +51,7 @@ function SectionLabel({ children }) {
 }
 
 // ── TRIP LIST VIEW ────────────────────────────────────────────────────────────
-function TripListView({ deviceId, onSelect, onCreate }) {
+function TripListView({ deviceId, onSelect, onCreate, onScorecardGame }) {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,13 +61,26 @@ function TripListView({ deviceId, onSelect, onCreate }) {
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <h2 style={{ margin: 0, color: sc.green, fontFamily: "Georgia, serif" }}>🏌️ Trips</h2>
         <button onClick={onCreate} style={{
           padding: "8px 16px", fontSize: 13, fontWeight: 700,
           background: sc.green, color: "#fff", border: "none", borderRadius: 8,
           cursor: "pointer", fontFamily: "inherit",
         }}>+ New Trip</button>
+      </div>
+
+      {/* Scorecard Game — deliberately NOT a Trip. It's a one-time computed
+          match between 2+ separately-scored round codes on the same day,
+          not a persistent roster. Confirmed design (Tim, Aug 2026): does
+          not get saved into this list. Secondary/lighter-weight styling
+          on purpose — this is a rare action compared to creating a Trip. */}
+      <div style={{ textAlign: "right", marginBottom: 16 }}>
+        <button onClick={onScorecardGame} style={{
+          padding: "6px 12px", fontSize: 12, fontWeight: 600,
+          background: "transparent", color: sc.muted, border: `1px solid ${sc.border}`,
+          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+        }}>⚡ Scorecard game (today)</button>
       </div>
 
       {loading ? (
@@ -87,6 +100,237 @@ function TripListView({ deviceId, onSelect, onCreate }) {
             </div>
           </Card>
         ))
+      )}
+    </div>
+  );
+}
+
+// ── SCORECARD GAME VIEW ─────────────────────────────────────────────────────
+// Combined Round View: a same-day match between players in 2+ separately-
+// scored round codes, not a persistent Trip. Deliberately not saved
+// anywhere once computed — see TripListView. Confirmed design (Tim, Aug
+// 2026): 1v1 only for the first build; Team and Press are honest
+// "coming soon" placeholders, matching how the app already handles
+// partially-built Trip games rather than shipping three half-tested
+// match types at once.
+function ScorecardGameView({ onBack }) {
+  const [codeInputs, setCodeInputs] = useState(["", ""]);
+  const [loading, setLoading] = useState(false);
+  const [combineError, setCombineError] = useState(null);
+  const [combined, setCombined] = useState(null); // { players, scores, course }
+  const [matchType, setMatchType] = useState("1v1");
+  const [handicapMode, setHandicapMode] = useState("relative");
+  const [bet, setBet] = useState(10);
+  const [p1Id, setP1Id] = useState("");
+  const [p2Id, setP2Id] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function handleCombine() {
+    const codes = codeInputs.map(c => c.trim()).filter(Boolean);
+    if (codes.length < 2) {
+      setCombineError("Enter at least 2 round codes to combine.");
+      return;
+    }
+    setLoading(true);
+    setCombineError(null);
+    setCombined(null);
+    setResult(null);
+    try {
+      const roundsData = await fetchRoundsByCode(codes);
+      // fetchRoundsByCode returns only rows that exist — if a typed code
+      // doesn't match any saved round, it's silently absent rather than
+      // erroring, so check the count against what was actually found.
+      const foundCodes = new Set(roundsData.map(r => r.code));
+      const missing = codes.filter(c => !foundCodes.has(c));
+      if (missing.length > 0) {
+        setCombineError(`Round code${missing.length > 1 ? "s" : ""} not found: ${missing.join(", ")}. Double-check the code${missing.length > 1 ? "s" : ""} with whoever's scoring that group.`);
+        setLoading(false);
+        return;
+      }
+      const merged = mergeRoundsIntoCombinedView(roundsData);
+      if (!merged.ok) {
+        setCombineError(merged.error);
+        setLoading(false);
+        return;
+      }
+      setCombined(merged);
+      if (merged.players.length >= 2) {
+        setP1Id(merged.players[0].id);
+        setP2Id(merged.players[1].id);
+      }
+    } catch (e) {
+      setCombineError("Couldn't load those rounds — check your connection and try again.");
+    }
+    setLoading(false);
+  }
+
+  function computeResult() {
+    if (!combined || !p1Id || !p2Id || p1Id === p2Id) return;
+    const match = {
+      id: "scorecard-game",
+      p1Id, p2Id,
+      type: "standard",
+      bet: Number(bet) || 0,
+      birdieEnabled: false,
+      toyRule: false,
+      noPar3Strokes: false,
+    };
+    const context = {
+      players: combined.players,
+      course: combined.course,
+      scores: combined.scores,
+      handicapMode,
+    };
+    const r = playIndividualMatch(match, context);
+    setResult(r);
+  }
+
+  const p1 = combined?.players.find(p => p.id === p1Id);
+  const p2 = combined?.players.find(p => p.id === p2Id);
+
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px" }}>
+      <button onClick={onBack} style={{
+        background: "none", border: "none", color: sc.green, fontSize: 14,
+        fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "inherit",
+      }}>← Back to Trips</button>
+
+      <h2 style={{ margin: "0 0 4px", color: sc.green, fontFamily: "Georgia, serif" }}>⚡ Scorecard Game</h2>
+      <div style={{ fontSize: 13, color: sc.muted, marginBottom: 16 }}>
+        Combine 2+ round codes from the same course into a real match. Nothing here gets saved once you're done.
+      </div>
+
+      <Card>
+        <SectionLabel>Round Codes</SectionLabel>
+        {codeInputs.map((val, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              value={val}
+              placeholder={`Round code ${i + 1}`}
+              onChange={(e) => {
+                const next = [...codeInputs];
+                next[i] = e.target.value;
+                setCodeInputs(next);
+              }}
+              style={{ flex: 1, padding: "8px 10px", border: `1px solid ${sc.border}`, borderRadius: 6, fontFamily: "monospace", letterSpacing: 1, fontSize: 14 }}
+            />
+            {codeInputs.length > 2 && (
+              <button onClick={() => setCodeInputs(codeInputs.filter((_, idx) => idx !== i))}
+                style={{ background: "none", border: "none", color: sc.muted, fontSize: 16, cursor: "pointer" }}>✕</button>
+            )}
+          </div>
+        ))}
+        <button onClick={() => setCodeInputs([...codeInputs, ""])} style={{
+          background: "none", border: "none", color: sc.green, fontSize: 13, fontWeight: 600,
+          cursor: "pointer", padding: "4px 0", fontFamily: "inherit", marginBottom: 12,
+        }}>+ Add another round</button>
+
+        <button onClick={handleCombine} disabled={loading} style={{
+          width: "100%", padding: "10px", background: sc.green, color: "#fff", border: "none",
+          borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer",
+          fontFamily: "inherit", opacity: loading ? 0.6 : 1,
+        }}>{loading ? "Combining…" : "Combine rounds"}</button>
+
+        {combineError && (
+          <div style={{ marginTop: 12, padding: "10px 12px", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
+            ⚠️ {combineError}
+          </div>
+        )}
+      </Card>
+
+      {combined && (
+        <Card style={{ marginTop: 12 }}>
+          <SectionLabel>Match Type</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+            {[
+              { key: "1v1", label: "1v1" },
+              { key: "team", label: "Team" },
+              { key: "press", label: "Press" },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => key === "1v1" && setMatchType(key)} style={{
+                padding: "10px 4px", borderRadius: 8, fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                cursor: key === "1v1" ? "pointer" : "default",
+                border: matchType === key ? `2px solid ${sc.green}` : `1px solid ${sc.border}`,
+                background: matchType === key ? "#eaf4ee" : "#fff",
+                color: matchType === key ? sc.green : (key === "1v1" ? sc.ink : sc.muted),
+              }}>{label}{key !== "1v1" && <div style={{ fontSize: 10, fontWeight: 400 }}>(soon)</div>}</button>
+            ))}
+          </div>
+
+          {matchType === "1v1" && (
+            <>
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Player 1</div>
+              <select value={p1Id} onChange={(e) => setP1Id(e.target.value)}
+                style={{ width: "100%", padding: "8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 14, marginBottom: 12 }}>
+                {combined.players.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (Round {p.sourceRoundCode})</option>
+                ))}
+              </select>
+
+              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Player 2</div>
+              <select value={p2Id} onChange={(e) => setP2Id(e.target.value)}
+                style={{ width: "100%", padding: "8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 14, marginBottom: 12 }}>
+                {combined.players.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (Round {p.sourceRoundCode})</option>
+                ))}
+              </select>
+
+              {p1Id === p2Id && (
+                <div style={{ fontSize: 12, color: "#b3261e", marginBottom: 12 }}>Player 1 and Player 2 must be different people.</div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Strokes</div>
+                  <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
+                    {[{ value: "relative", label: "Net" }, { value: "full", label: "Full" }].map(({ value, label }, i) => (
+                      <button key={value} onClick={() => setHandicapMode(value)} style={{
+                        flex: 1, padding: "7px 4px", border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                        background: handicapMode === value ? sc.green : "#fff",
+                        color: handicapMode === value ? "#fff" : sc.ink,
+                        borderRight: i === 0 ? `1px solid ${sc.border}` : "none",
+                      }}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: sc.muted, marginBottom: 6 }}>Bet per hole ($)</div>
+                  <input type="number" min={0} value={bet} onChange={(e) => setBet(e.target.value)}
+                    style={{ width: "100%", padding: "7px 8px", border: `1px solid ${sc.border}`, borderRadius: 6, fontSize: 14 }} />
+                </div>
+              </div>
+
+              <button onClick={computeResult} disabled={p1Id === p2Id || !p1Id || !p2Id} style={{
+                width: "100%", padding: "10px", background: sc.green, color: "#fff", border: "none",
+                borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                opacity: (p1Id === p2Id || !p1Id || !p2Id) ? 0.5 : 1,
+              }}>See results</button>
+            </>
+          )}
+
+          {matchType !== "1v1" && (
+            <div style={{ textAlign: "center", color: sc.muted, fontSize: 13, padding: 20 }}>
+              {matchType === "team" ? "Team" : "Press"} matches across separate rounds are coming soon.
+            </div>
+          )}
+        </Card>
+      )}
+
+      {result && p1 && p2 && (
+        <Card style={{ marginTop: 12 }}>
+          <SectionLabel>Result</SectionLabel>
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <div style={{ fontSize: 15, color: sc.ink, marginBottom: 6 }}>{p1.name} vs {p2.name}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: result.total > 0 ? sc.green : result.total < 0 ? "#b3261e" : sc.muted }}>
+              {result.total === 0
+                ? "Push"
+                : result.total > 0
+                  ? `${p1.name} wins $${Math.abs(result.total).toFixed(2)}`
+                  : `${p2.name} wins $${Math.abs(result.total).toFixed(2)}`}
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );
@@ -805,8 +1049,12 @@ function TripLeaderboardView({ trip, onBack, onEdit }) {
 
 // ── MAIN TRIP SCREEN ──────────────────────────────────────────────────────────
 export default function TripScreen({ deviceId, onBack }) {
-  const [view, setView] = useState("list"); // list | setup | leaderboard
+  const [view, setView] = useState("list"); // list | setup | leaderboard | scorecard
   const [selectedTrip, setSelectedTrip] = useState(null);
+
+  if (view === "scorecard") {
+    return <ScorecardGameView onBack={() => setView("list")} />;
+  }
 
   if (view === "setup") {
     return (
@@ -838,6 +1086,7 @@ export default function TripScreen({ deviceId, onBack }) {
       deviceId={deviceId}
       onSelect={t => { setSelectedTrip(t); setView("leaderboard"); }}
       onCreate={() => { setSelectedTrip(null); setView("setup"); }}
+      onScorecardGame={() => setView("scorecard")}
     />
   );
 }

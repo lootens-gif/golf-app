@@ -3214,3 +3214,81 @@ export function namesMatch(a, b) {
   const nb = normalizeNameForMatching(b);
   return na.length > 0 && na === nb;
 }
+
+// Combined Round View (Scorecard Game): merges 2+ separately-scored round
+// codes into one {players, scores, course} object shaped exactly like a
+// single round, so the existing match engine (playIndividualMatch,
+// playTeamMatch, playPressMatch) can run against it untouched. This is
+// deliberately NOT the same mechanism as Trip's multi-day aggregation —
+// there is no name-matching here, since these are genuinely different
+// people in different groups on the same day, not the same person's
+// scores summed across many rounds. Confirmed design (Tim, Aug 2026):
+// same-day, same-course only; set up before or during play, never
+// blocked by existing scores.
+//
+// Player IDs are namespaced by round code (`${code}:${originalId}`)
+// because each round generates its own locally-scoped ids (p1, p2...)
+// independently — two separate round codes will commonly both have a
+// literal "p1", and combining them naively would silently merge two
+// different people's scores under one id.
+//
+// Course data (pars + handicap/stroke-index arrays) must match exactly
+// across every round being combined, since handicap-stroke math depends
+// on it. A mismatch is blocked with a clear error rather than guessed —
+// same philosophy as the Trip name-matching fix: a wrong silent guess in
+// a betting app is worse than a visible block the scorekeeper can act on.
+//
+// roundsData: array of { code, data } as returned by fetchRoundsByCode().
+// Returns { ok: true, players, scores, course } or { ok: false, error }.
+export function mergeRoundsIntoCombinedView(roundsData) {
+  const valid = (roundsData || []).filter((r) => r && r.data && r.code);
+
+  if (valid.length < 2) {
+    return { ok: false, error: "Need at least 2 valid round codes to combine." };
+  }
+
+  const referenceCourse = valid[0].data.course || {};
+  const referenceName = normalizeNameForMatching(referenceCourse.name);
+
+  for (let i = 1; i < valid.length; i++) {
+    const c = valid[i].data.course || {};
+    const name = normalizeNameForMatching(c.name);
+    if (name !== referenceName) {
+      return {
+        ok: false,
+        error: `Round ${valid[0].code} is at "${referenceCourse.name || "an unnamed course"}" but round ${valid[i].code} is at "${c.name || "an unnamed course"}" — combined matches only work for rounds at the same course.`,
+      };
+    }
+    const parsMatch = JSON.stringify(c.pars || []) === JSON.stringify(referenceCourse.pars || []);
+    const hcpMatch = JSON.stringify(c.hcp || []) === JSON.stringify(referenceCourse.hcp || []);
+    if (!parsMatch || !hcpMatch) {
+      return {
+        ok: false,
+        error: `Round ${valid[0].code} and round ${valid[i].code} are both at "${referenceCourse.name}" but their saved hole data (par or handicap/stroke index) doesn't match exactly. Fix the course data in one of the rounds before combining, since handicap strokes depend on it.`,
+      };
+    }
+  }
+
+  const players = [];
+  const scores = {};
+
+  valid.forEach(({ code, data }) => {
+    (data.allPlayers || []).forEach((p) => {
+      players.push({
+        ...p,
+        id: `${code}:${p.id}`,
+        sourceRoundCode: code,
+        originalId: p.id,
+      });
+    });
+
+    Object.entries(data.scores || {}).forEach(([hole, holeScores]) => {
+      if (!scores[hole]) scores[hole] = {};
+      Object.entries(holeScores || {}).forEach(([playerId, score]) => {
+        scores[hole][`${code}:${playerId}`] = score;
+      });
+    });
+  });
+
+  return { ok: true, players, scores, course: referenceCourse };
+}
