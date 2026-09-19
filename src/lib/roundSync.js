@@ -448,15 +448,25 @@ export async function fetchMyTemplates(deviceId) {
   return data || [];
 }
 
-// Search public templates by name
-export async function searchTemplates(query) {
+// Search public templates by name. sortBy controls ordering — see
+// SORTABLE_TEMPLATE_FIELDS below. Confirmed fix (Tim, Sep 2026): the old
+// hardcoded "most used, top 10" behavior meant any brand-new public
+// template (use_count starts at 0) was invisible when browsing with an
+// empty search, since it always lost the ranking against every
+// already-established template and got cut off by the 10-item cap. The
+// cap itself wasn't the bug — hiding new content by default was. Raised
+// to 100 (a real safeguard against an unbounded query as templates
+// accumulate over years) and sorting is now explicit, not fixed.
+export async function searchTemplates(query, sortBy = "use_count") {
+  const sortColumn = { newest: "created_at", oldest: "created_at", use_count: "use_count", name: "name" }[sortBy] || "use_count";
+  const ascending = sortBy === "oldest" || sortBy === "name";
   const { data, error } = await supabase
     .from("group_templates")
     .select("*")
     .eq("is_public", true)
     .ilike("name", `%${query}%`)
-    .order("use_count", { ascending: false })
-    .limit(10);
+    .order(sortColumn, { ascending })
+    .limit(100);
 
   if (error) throw error;
   return data || [];
