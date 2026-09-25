@@ -796,9 +796,13 @@ function settleStrokeSegment(aTotal, bTotal, payoutMode, bet) {
 
 
 // Builds the per-match handicap override function for Play Even / Custom
-// Strokes — shared by playIndividualMatch and playIndividualPressMatch so
-// there's exactly one implementation of "how do these two 1v1 toggles
-// work," not two that can quietly drift apart from each other.
+// Strokes / Full Handicap — shared by playIndividualMatch and
+// playIndividualPressMatch so there's exactly one implementation of "how
+// do these 1v1 toggles work," not several that can quietly drift apart.
+// Confirmed mutually exclusive at the UI layer (Tim, Sep 2026) — exactly
+// one of these three can be set on a match at a time — but this resolver
+// still checks them in a fixed order as a defensive fallback in case any
+// already-saved round data predates that guarantee.
 function buildMatchHandicapOverrideFn(match, players, course) {
   // Play Even — override handicap function to return 0 strokes for all holes
   if (match.playEven) return () => 0;
@@ -821,6 +825,14 @@ function buildMatchHandicapOverrideFn(match, players, course) {
     const hcpRanking = course?.hcp ? [...course.hcp].map((h, i) => ({ hole: i + 1, hcp: h })).sort((a, b) => a.hcp - b.hcp) : [];
     const strokeHoles = new Set(hcpRanking.slice(0, absN).map(h => h.hole));
     return (playerId, hole) => (playerId === receiverId && strokeHoles.has(hole)) ? 1 : 0;
+  }
+
+  // Full Handicap — forces "full" mode for this match regardless of the
+  // global Team-game handicapMode (usually "relative"/Net). Reuses the
+  // real getHandicapStrokes computation, just fixes its mode argument
+  // instead of deferring to context — no separate copy of the math.
+  if (match.fullHandicap) {
+    return (playerId, hole) => getHandicapStrokes(playerId, hole, players, course, "full", !!match.noPar3Strokes);
   }
 
   return null;

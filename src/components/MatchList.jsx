@@ -667,53 +667,87 @@ export default function MatchList({
               No Par 3 Strokes
             </label>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="checkbox"
-                checked={!!match.playEven}
-                onChange={(e) =>
-                  onUpdateMatch(match.id, { playEven: e.target.checked })
-                }
-              />
-              Play Even (no strokes)
-            </label>
+            {/* Stroke mode — confirmed mutually exclusive (Tim, Sep 2026):
+                exactly one of Net / Play Even / Custom / Full is active at
+                a time. Selecting one actively clears the other two
+                underlying fields rather than just visually greying them
+                out — the old Play Even checkbox never cleared
+                customStrokes, so a match could silently hold both at
+                once, with the resolver's check order deciding the winner
+                invisibly. That's the same class of bug already called
+                out below for customStrokes === 0 vs cleared — fixed here
+                by making the contradiction structurally impossible
+                instead of just hidden in the UI. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={{ fontSize: 13, color: "#555" }}>Strokes:</span>
+              <div style={{ display: "flex", border: "1px solid green", borderRadius: 8, overflow: "hidden", flexWrap: "wrap" }}>
+                {[
+                  { key: "net", l: "Net" },
+                  { key: "even", l: "Play Even" },
+                  { key: "custom", l: "Custom" },
+                  { key: "full", l: "Full" },
+                ].map(({ key, l }, i, arr) => {
+                  const strokeMode = match.playEven ? "even" : match.customStrokes != null ? "custom" : match.fullHandicap ? "full" : "net";
+                  const isSelected = strokeMode === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        if (key === "net") onUpdateMatch(match.id, { playEven: false, customStrokes: null, fullHandicap: false });
+                        else if (key === "even") onUpdateMatch(match.id, { playEven: true, customStrokes: null, fullHandicap: false });
+                        else if (key === "custom") onUpdateMatch(match.id, { playEven: false, fullHandicap: false, customStrokes: match.customStrokes ?? 0 });
+                        else if (key === "full") onUpdateMatch(match.id, { playEven: false, customStrokes: null, fullHandicap: true });
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        border: "none",
+                        background: isSelected ? "green" : "#fff",
+                        color: isSelected ? "#fff" : "#000",
+                        fontWeight: 600,
+                        fontSize: 12,
+                        cursor: "pointer",
+                        borderRight: i < arr.length - 1 ? "1px solid #ddd" : "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {l}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Custom strokes — greyed out when Play Even is on.
-                customStrokes === 0 is a real, explicit "apply zero
-                strokes" state — easy to land on by accident via +/-
-                and forget to Clear, since 0 and cleared otherwise look
-                nearly identical. Made visually distinct here (Aug
-                2026) after exactly that mistake silently zeroed out an
-                entire live match's strokes. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: match.playEven ? 0.4 : 1, pointerEvents: match.playEven ? "none" : "auto" }}>
-              <span style={{ fontSize: 13, color: "#555" }}>Custom strokes:</span>
-              <button
-                type="button"
-                onClick={() => onUpdateMatch(match.id, { customStrokes: Math.max(-18, (match.customStrokes ?? null) - 1) })}
-                style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
-              >−</button>
-              <span style={{
-                fontSize: 16, fontWeight: 700, minWidth: 28, textAlign: "center",
-                color: match.customStrokes === 0 ? "#b3261e" : "#222",
-              }}>
-                {match.customStrokes != null ? match.customStrokes : "—"}
-              </span>
-              <button
-                type="button"
-                onClick={() => onUpdateMatch(match.id, { customStrokes: Math.min(18, (match.customStrokes ?? 0) + 1) })}
-                style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
-              >+</button>
+              {/* Custom strokes stepper — only shown/relevant when Custom
+                  is the active mode. customStrokes === 0 is a real,
+                  explicit "apply zero strokes" state — easy to land on by
+                  accident via +/- and forget, since 0 and cleared
+                  otherwise look nearly identical. Made visually distinct
+                  here (Aug 2026) after exactly that mistake silently
+                  zeroed out an entire live match's strokes. */}
               {match.customStrokes != null && (
-                <button
-                  type="button"
-                  onClick={() => onUpdateMatch(match.id, { customStrokes: null })}
-                  style={{ fontSize: 11, color: "#999", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-                >clear</button>
-              )}
-              {match.customStrokes === 0 && (
-                <span style={{ fontSize: 11, color: "#b3261e", fontWeight: 600 }}>
-                  ⚠️ removes all strokes — hit clear for normal handicap
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMatch(match.id, { customStrokes: Math.max(-18, match.customStrokes - 1) })}
+                    style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
+                  >−</button>
+                  <span style={{
+                    fontSize: 16, fontWeight: 700, minWidth: 28, textAlign: "center",
+                    color: match.customStrokes === 0 ? "#b3261e" : "#222",
+                  }}>
+                    {match.customStrokes}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateMatch(match.id, { customStrokes: Math.min(18, match.customStrokes + 1) })}
+                    style={{ width: 30, height: 30, fontSize: 18, border: "1px solid #ccc", borderRadius: 6, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}
+                  >+</button>
+                  {match.customStrokes === 0 && (
+                    <span style={{ fontSize: 11, color: "#b3261e", fontWeight: 600 }}>
+                      ⚠️ removes all strokes — pick Net to go back to normal handicap
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
