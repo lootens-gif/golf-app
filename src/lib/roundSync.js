@@ -203,6 +203,21 @@ async function shouldBlockRoundWrite(code, roundData) {
       .single();
 
     if (existing?.data) {
+      // A finalized record (see finalizeRound/saveRoundRevision) is never
+      // overwritten through the normal write path, full stop — no
+      // exceptions, regardless of hole counts or content. This is
+      // deliberately unconditional and checked first: the whole point of
+      // Final Final is that once a version exists, it's permanent, and
+      // that guarantee shouldn't depend on every future UI code path
+      // remembering to check a flag before calling shareRoundWithDevice.
+      // The only way to create a new version is saveRoundRevision, which
+      // always inserts a brand-new id and never reaches this function
+      // with an existing final record's own id.
+      if (existing.data.isFinalRecord) {
+        console.warn(`[sync] blocked write to finalized record ${code} — final records are permanent`);
+        return { block: true, reason: "finalized" };
+      }
+
       const remoteHole = existing.data.lastHoleSaved ?? -1;
       const localHole = roundData.lastHoleSaved ?? -1;
 
@@ -648,4 +663,88 @@ export async function logIncompleteRoundCompletion({ roundCode, missingHoles, pl
   } catch {
     // never throw — this is a diagnostic safety net, not critical path
   }
+}
+
+// ── FINAL FINAL ──────────────────────────────────────────────────────────
+// A genuinely separate, permanent record of a round's agreed-final result,
+// fully decoupled from the live round's ongoing autosave. Confirmed design
+// (Tim, Sep 2026), built directly in response to the incident where a
+// post-round correction was silently discarded by the sync guard: rather
+// than a lock (rejected — no reversibility), finalizing a round creates a
+// new row under its own id (`${roundCode}F`), which nothing in the live
+// round's sync path ever reads or writes again. Admin-only for now.
+//
+// Versioning: the first finalize creates `${roundCode}F`. If a mistake is
+// later found in that final record, editing it never overwrites it in
+// place — an explicit "Save Edits to New Version" action creates
+// `${roundCode}F2`, then `F3`, and so on. Every version that ever existed
+// stays permanently retrievable; only the caller's own choice to make a
+// new version, never an automatic edit or autosave, creates one.
+
+// Returns the next version's id for a round code, given its existing
+// F-suffixed rows (as returned by fetchFinalVersions). The first
+// finalization has no numeric suffix at all (`4471F`, not `4471F1`).
+function nextFinalVersionId(roundCode, existingVersions) {
+  if (!existingVersions.length) return `${roundCode}F`;
+  const numbers = existingVersions.map(v => {
+    const suffix = v.code.slice((`${roundCode}F`).length);
+    return suffix === "" ? 1 : Number(suffix);
+  });
+  const nextNumber = Math.max(...numbers) + 1;
+  return `${roundCode}F${nextNumber}`;
+}
+
+// Fetches every final-record version for a round code, oldest first.
+// Returns [] if the round has never been finalized.
+export async function fetchFinalVersions(roundCode) {
+  const { data, error } = await supabase
+    .from("rounds")
+    .select("code, data, updated_at")
+    .like("code", `${roundCode}F%`)
+    .order("updated_at", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// Creates the FIRST final record for a round (`${roundCode}F`). Insert-only
+// — if `${roundCode}F` already exists, this fails loudly (a real Postgres
+// unique-violation error) rather than silently overwriting an
+// already-finalized result. Callers should check fetchFinalVersions first
+// and route to saveRoundRevision instead if a final record already exists.
+export async function finalizeRound(roundCode, roundData, deviceId) {
+  const finalId = `${roundCode}F`;
+  const { error } = await supabase
+    .from("rounds")
+    .insert({
+      id: finalId,
+      code: finalId,
+      data: { ...roundData, originalRoundCode: roundCode, isFinalRecord: true, finalizedAt: new Date().toISOString() },
+      device_id: deviceId,
+      save_to_stats: true,
+      updated_at: new Date().toISOString(),
+    });
+  if (error) throw error;
+  return finalId;
+}
+
+// Creates a NEW version of an already-finalized round (`${roundCode}F2`,
+// `F3`, ...) from an edit made to a previous version. Always an insert of
+// a brand-new row — the version being edited is never touched, permanent
+// and unaffected regardless of what happens afterward. Only ever called
+// from an explicit "Save Edits to New Version" action, never automatically.
+export async function saveRoundRevision(roundCode, roundData, deviceId) {
+  const existingVersions = await fetchFinalVersions(roundCode);
+  const newId = nextFinalVersionId(roundCode, existingVersions);
+  const { error } = await supabase
+    .from("rounds")
+    .insert({
+      id: newId,
+      code: newId,
+      data: { ...roundData, originalRoundCode: roundCode, isFinalRecord: true, finalizedAt: new Date().toISOString() },
+      device_id: deviceId,
+      save_to_stats: true,
+      updated_at: new Date().toISOString(),
+    });
+  if (error) throw error;
+  return newId;
 }

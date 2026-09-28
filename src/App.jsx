@@ -39,7 +39,7 @@ import RoundPreview from "./components/RoundPreview";
 import HistoryScreen from "./screens/HistoryScreen";
 import AdminScreen from "./screens/AdminScreen";
 import TripScreen from "./screens/TripScreen";
-import {generateRoundCode, generateUniqueRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, logIncompleteRoundCompletion } from "./lib/roundSync";
+import {generateRoundCode, generateUniqueRoundCode, unsubscribeFromRound, fetchRound, getDeviceId, fetchRecentRounds, shareRoundWithDevice, saveRoundToStats, fetchStatsRounds, saveCourseToLibrary, searchCourses, saveTemplate, fetchMyTemplates, searchTemplates, incrementTemplateUse, deleteTemplate, checkCourseExists, updateCourseInLibrary, deleteCourseFromLibrary, incrementCourseUse, logIncompleteRoundCompletion, saveRoundRevision } from "./lib/roundSync";
 const STORAGE_KEY = "golf-betting-round-setup-v6";
 const LAST_ROUND_KEY = "golf-betting-last-round-v1";
 const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
@@ -771,6 +771,19 @@ function notifyRound(event, code) {
   const [pendingNextGameIndex, setPendingNextGameIndex] = useState(null);
   const [showProjectedSettlement, setShowProjectedSettlement] = useState(false);
   const [isJoiner, setIsJoiner] = useState(false);
+  // Final Final (Sep 2026): true when the currently loaded round is a
+  // finalized record (id ending in F, F2, F3...) rather than a live
+  // round. Gates the autosave effect off entirely — see its useEffect —
+  // and swaps the normal sync UI for an explicit "Save Edits to New
+  // Version" action. See roundSync.js finalizeRound/saveRoundRevision.
+  const [isFinalRecord, setIsFinalRecord] = useState(false);
+  // Stored separately from isFinalRecord because buildCurrentRoundSnapshot
+  // rebuilds its snapshot from individual named state pieces, not a raw
+  // passthrough of whatever was loaded — originalRoundCode (set on the
+  // data blob at finalize time) would silently not survive a load-edit-
+  // resave cycle otherwise, and "Save Edits to New Version" needs it to
+  // know which round's version history to append to.
+  const [finalRecordOriginalCode, setFinalRecordOriginalCode] = useState(null);
   // Wolf: per-hole config (partner, shuck, hammer). Keyed by hole number.
   // Freely editable anytime per Section 14 — no locking, just plain state.
   const [wolfHoles, setWolfHoles] = useState({});
@@ -2806,6 +2819,10 @@ async function resetSetup() {
   setRoundName("");
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
+  setIsFinalRecord(false);
+  setFinalRecordOriginalCode(null);
+  localStorage.removeItem("golf-betting-is-final-record-v1");
+  localStorage.removeItem("golf-betting-final-record-original-v1");
   // Consolidated (Aug 2026) - this used to hand-roll the exact same
   // clearing logic now shared with every other "start fresh" entry
   // point. Must run BEFORE the fresh code below, since this sets
@@ -2964,6 +2981,14 @@ useEffect(() => {
   // Restore isJoiner state from localStorage (survives iOS Safari page reload)
   if (localStorage.getItem("golf-betting-is-joiner-v1") === "true") {
     setIsJoiner(true);
+  }
+  // Same reasoning for isFinalRecord (Sep 2026): without this, refreshing
+  // the page while reviewing a final record would silently drop back to
+  // normal autosave-enabled behavior — reintroducing exactly the kind of
+  // silent-write risk Final Final exists to eliminate.
+  if (localStorage.getItem("golf-betting-is-final-record-v1") === "true") {
+    setIsFinalRecord(true);
+    setFinalRecordOriginalCode(localStorage.getItem("golf-betting-final-record-original-v1") || null);
   }
 
   const round = safeReadJsonStorage(AUTO_ROUND_KEY, null);
@@ -3166,7 +3191,14 @@ const syncTimerRef = useRef(null);
 // second-guessed against the server on every single save.
 const hasReconciledTeamGamesRef = useRef({});
 useEffect(() => {
-  if (!roundCode || !autoRestoreComplete) return;
+  // Final Final (Sep 2026): a final record's autosave is disabled
+  // entirely, not just guarded — the whole point is that nothing writes
+  // to it except an explicit "Save Edits to New Version" action. This is
+  // also enforced server-side (shouldBlockRoundWrite unconditionally
+  // rejects any write to a record tagged isFinalRecord), so this is a UX
+  // improvement (no pointless sync attempts/spinners) on top of a
+  // guarantee that already holds even if this check were ever missed.
+  if (!roundCode || !autoRestoreComplete || isFinalRecord) return;
 
   clearTimeout(syncTimerRef.current);
   syncTimerRef.current = setTimeout(async () => {
@@ -3204,7 +3236,7 @@ useEffect(() => {
   }, 800);
 
   return () => clearTimeout(syncTimerRef.current);
-}, [scores, matches, teamGames, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId]);
+}, [scores, matches, teamGames, roundCode, autoRestoreComplete, buildCurrentRoundSnapshot, deviceId, isFinalRecord]);
 
 // Cleanup sync channel on unmount
 useEffect(() => {
@@ -3302,6 +3334,10 @@ async function startRound() {
   // you're the host, regardless of whatever stale state exists.
   setIsJoiner(false);
   localStorage.removeItem("golf-betting-is-joiner-v1");
+  setIsFinalRecord(false);
+  setFinalRecordOriginalCode(null);
+  localStorage.removeItem("golf-betting-is-final-record-v1");
+  localStorage.removeItem("golf-betting-final-record-original-v1");
 
 if (enableTeamGame && teamGameFormat === "press" && teamGames.length > 0 && totalHoles > 18) {
     setSetupMessage(`Team game holes cannot exceed 18. Currently ${totalHoles}.`);
@@ -3878,6 +3914,36 @@ if (enabled && Number.isFinite(par)) {
  // ===== FINAL APP RETURN (DO NOT TOUCH INNER RETURNS ABOVE) =====
 return (
   <div className="app-shell">
+    {isFinalRecord && (
+      <div style={{
+        background: "#f0fdf4", border: "1px solid #1b7a3d", borderRadius: 8,
+        padding: "10px 14px", marginBottom: 12, display: "flex",
+        alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
+      }}>
+        <div style={{ fontSize: 13, color: "#1b7a3d" }}>
+          <strong>📌 Viewing final record {roundCode}</strong> — edits here are never auto-saved.
+        </div>
+        <button
+          onClick={async () => {
+            if (!window.confirm(`Save these edits as a new version of round ${finalRecordOriginalCode}? ${roundCode} itself will not be changed.`)) return;
+            try {
+              const newId = await saveRoundRevision(finalRecordOriginalCode, buildCurrentRoundSnapshot(), deviceId);
+              alert(`Saved as new version: ${newId}`);
+              setRoundCode(newId);
+              localStorage.setItem(ROUND_CODE_KEY, newId);
+            } catch {
+              alert("Could not save a new version — check your connection and try again.");
+            }
+          }}
+          style={{
+            padding: "6px 14px", fontSize: 13, fontWeight: 700, background: "#1b7a3d",
+            color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Save Edits to New Version
+        </button>
+      </div>
+    )}
     <div
   style={{
     display: "flex",
@@ -4065,7 +4131,7 @@ return (
           }}>
             👁 You joined this round — Setup is view only.{" "}
             <button
-              onClick={async () => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setRoundCode(await generateUniqueRoundCode()); setRoundName(""); }}
+              onClick={async () => { setIsJoiner(false); localStorage.removeItem("golf-betting-is-joiner-v1"); setIsFinalRecord(false); setFinalRecordOriginalCode(null); localStorage.removeItem("golf-betting-is-final-record-v1"); localStorage.removeItem("golf-betting-final-record-original-v1"); setRoundCode(await generateUniqueRoundCode()); setRoundName(""); }}
               style={{ background: "transparent", border: "none", color: "#92400e", fontWeight: 700, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", fontSize: 13, padding: 0 }}
             >
               Start my own round →
@@ -4487,8 +4553,12 @@ setSaveMessage(`Hole ${currentHole} saved`);
         }, buildCurrentRoundSnapshot);
       }
 
-      // Force immediate Supabase sync on every hole save — don't wait for debounce
-      if (roundCode) {
+      // Force immediate Supabase sync on every hole save — don't wait for
+      // debounce. Skipped entirely for a final record (isFinalRecord) —
+      // this path shouldn't normally be reachable while viewing one, but
+      // gated here too for the same defense-in-depth reasoning as the
+      // main autosave effect above.
+      if (roundCode && !isFinalRecord) {
         setTimeout(() => {
           shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId)
             .then(({ code: usedCode, blocked }) => {
@@ -5007,6 +5077,19 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
         setRoundCode(code);
         setIsJoiner(true);
         localStorage.setItem("golf-betting-is-joiner-v1", "true");
+        // Final Final (Sep 2026): nothing stops someone from typing an F
+        // record's code into a normal Join, so detect it here the same
+        // way Admin's join does — the write-level guard blocks it
+        // regardless, but this keeps the UI honest too.
+        setIsFinalRecord(!!data.isFinalRecord);
+        setFinalRecordOriginalCode(data.isFinalRecord ? data.originalRoundCode : null);
+        if (data.isFinalRecord) {
+          localStorage.setItem("golf-betting-is-final-record-v1", "true");
+          localStorage.setItem("golf-betting-final-record-original-v1", data.originalRoundCode || "");
+        } else {
+          localStorage.removeItem("golf-betting-is-final-record-v1");
+          localStorage.removeItem("golf-betting-final-record-original-v1");
+        }
         setScreen("results");
       }
     }}
@@ -5035,6 +5118,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
   <AdminScreen
     onBack={() => setScreen("setup")}
     onReportBug={() => setShowBugReport(true)}
+    deviceId={deviceId}
     onJoinAsAdmin={async (code) => {
       try {
         const result = await fetchRound(code);
@@ -5042,6 +5126,15 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
           applyRoundSnapshot(result.data);
           setRoundCode(code);
           setIsJoiner(false); // admin gets full access
+          setIsFinalRecord(!!result.data.isFinalRecord);
+          setFinalRecordOriginalCode(result.data.isFinalRecord ? result.data.originalRoundCode : null);
+          if (result.data.isFinalRecord) {
+            localStorage.setItem("golf-betting-is-final-record-v1", "true");
+            localStorage.setItem("golf-betting-final-record-original-v1", result.data.originalRoundCode || "");
+          } else {
+            localStorage.removeItem("golf-betting-is-final-record-v1");
+            localStorage.removeItem("golf-betting-final-record-original-v1");
+          }
           setScreen("results");
           // CONFIRMED REAL BUG, FIXED PROPERLY (Aug 2026): this used to
           // force an explicit write-back of whatever was just fetched,
