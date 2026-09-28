@@ -218,39 +218,28 @@ async function shouldBlockRoundWrite(code, roundData) {
         return { block: true, reason: "stale-device" };
       }
 
-      // Same hole count — compare content. If remote has different players
-      // or scores, don't blindly overwrite.
+      // CONFIRMED REAL BUG (Sep 2026): this used to also block when hole
+      // counts matched but scores/players differed — treating "someone
+      // corrected a value after the fact" identically to "a stale device
+      // is overwriting something newer," since the two are structurally
+      // indistinguishable from content alone. That silently discarded a
+      // real post-round correction with zero feedback: Tim edited scores
+      // after a paper-vs-app reconciliation, the group settled up on the
+      // corrected numbers, and the app quietly kept serving the old,
+      // wrong scores because this exact check rejected the fix.
       //
-      // CONFIRMED REAL BUG (Aug 2026, round 8466): this check used to only
-      // fire for completed rounds (remoteHole >= 18). An in-progress round
-      // has no such protection at all when hole counts happen to match —
-      // exactly what let Admin's defensive re-save-on-join write (added
-      // for an unrelated bug, see onJoinAsAdmin in App.jsx) silently
-      // overwrite a live round mid-play. Sequence: Admin joins while the
-      // round is at 16 holes/4 players, captures that snapshot, and
-      // queues a write-back of it. If that write's own round-trip lands
-      // AFTER the real device has since progressed to 18 holes/5 players
-      // (same lastHoleSaved was never the differentiator — a 5th player
-      // being added didn't require advancing past hole 16 to trigger it),
-      // localHole === remoteHole holds true, and the old remoteHole >= 18
-      // gate skipped content checking entirely — the stale 4-player
-      // snapshot overwrote the real 5-player one with zero protection.
-      // Removing the >= 18 restriction closes this for every stage of a
-      // round, not just its ending.
-      if (localHole === remoteHole) {
-        const remoteScores = JSON.stringify(existing.data.scores || {});
-        const localScores = JSON.stringify(roundData.scores || {});
-        const remotePlayers = JSON.stringify(existing.data.allPlayers || []);
-        const localPlayers = JSON.stringify(roundData.allPlayers || []);
-        if (remoteScores !== localScores || remotePlayers !== localPlayers) {
-          if (!sameRoundIdentity(roundData, existing.data)) {
-            console.warn(`[sync] code ${code} collision detected — remote round has different players, not blocking`);
-            return { block: false, reason: "different-round" };
-          }
-          console.warn(`[sync] Skipping save: same hole (${localHole}) but remote has different players/scores — keeping remote as source of truth`);
-          return { block: true, reason: "stale-device" };
-        }
-      }
+      // Root cause of the ORIGINAL incident this check was guarding
+      // against (Admin-join capturing and later replaying a stale
+      // snapshot) was already fixed separately by removing that
+      // unconditional write entirely — see onJoinAsAdmin in App.jsx. This
+      // check was a second-layer symptom patch on top of that fix, and it
+      // was actively causing more harm than the residual risk it covered.
+      //
+      // Confirmed decision (Tim, Sep 2026): a device holding the round
+      // code should always be able to save a correction, at any point,
+      // for any reason — paper is the real record, and the app should
+      // never silently override the person actually reconciling it.
+      // Same-hole-count writes are no longer blocked on content alone.
     }
   } catch {
     // If we can't fetch, proceed with save (don't block on network error)
@@ -259,14 +248,20 @@ async function shouldBlockRoundWrite(code, roundData) {
   return { block: false, reason: null };
 }
 
-// Returns the code the write actually succeeded under — normally the
-// same `code` passed in, but a different one if a genuine round-code
-// collision was detected and auto-resolved (see shouldBlockRoundWrite).
-// Callers that care whether their round's identity just changed
-// mid-flight should check the return value against what they passed in.
+// Returns { code, blocked, reason } — code is the round code the write
+// actually succeeded (or was attempted) under, normally the same code
+// passed in, but a different one if a genuine round-code collision was
+// detected and auto-resolved (see shouldBlockRoundWrite).
+//
+// CONFIRMED REAL BUG (Sep 2026): this used to return a bare code string
+// whether the write succeeded OR was silently blocked — callers had no
+// way to tell the difference, so the UI showed "Synced ✓" even when
+// nothing was actually written. That's part of what made the Sep 2026
+// reverted-scores incident invisible until the next morning. Every
+// caller now must check `.blocked` before showing a success message.
 export async function shareRoundWithDevice(code, roundData, deviceId) {
   const { block, reason } = await shouldBlockRoundWrite(code, roundData);
-  if (block) return code; // genuinely stale device — no write, same code
+  if (block) return { code, blocked: true, reason };
 
   let finalCode = code;
   if (reason === "different-round") {
@@ -288,13 +283,15 @@ export async function shareRoundWithDevice(code, roundData, deviceId) {
     }, { onConflict: "id" });
 
   if (error) throw error;
-  return finalCode;
+  return { code: finalCode, blocked: false, reason: null };
 }
 
-// Save a round to Supabase stats (called when "Save to History & Stats" is checked)
+// Save a round to Supabase stats (called when "Save to History & Stats" is
+// checked). Returns { code, blocked, reason } — see shareRoundWithDevice
+// for why callers must check `.blocked` before assuming success.
 export async function saveRoundToStats(code, roundData, deviceId) {
   const { block, reason } = await shouldBlockRoundWrite(code, roundData);
-  if (block) return code;
+  if (block) return { code, blocked: true, reason };
 
   let finalCode = code;
   if (reason === "different-round") {
@@ -314,7 +311,7 @@ export async function saveRoundToStats(code, roundData, deviceId) {
     }, { onConflict: "id" });
 
   if (error) throw error;
-  return finalCode;
+  return { code: finalCode, blocked: false, reason: null };
 }
 
 // Fetch all rounds marked save_to_stats for Stats screen

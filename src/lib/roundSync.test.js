@@ -54,9 +54,21 @@ function mockRoundWriteChain({ existingData }) {
   return upsertSpy;
 }
 
-describe("shareRoundWithDevice — content comparison guard (Aug 2026, round 8466)", () => {
-  test("CONFIRMED REAL BUG: a stale snapshot with fewer players but the SAME lastHoleSaved used to silently overwrite a live round — now correctly blocked", async () => {
-    // Remote (the real, current state): 5 real players, hole 16 saved.
+describe("shareRoundWithDevice — content comparison guard (Aug 2026, round 8466; reversed Sep 2026)", () => {
+  test("a same-hole-count write with different player data now writes through — reversed Sep 2026 (was: silently blocked)", async () => {
+    // CONFIRMED REAL BUG (Sep 2026): the block this test used to require
+    // is the same mechanism that later silently discarded a real
+    // post-round score correction (Tim, Sep 2026) — any write at the same
+    // hole count with different content was treated as a stale device,
+    // indistinguishable from a legitimate edit made from the same or a
+    // different device. The original round-8466 incident's actual root
+    // cause (an unconditional defensive write on Admin join, firing
+    // regardless of context) was fixed separately by removing that write
+    // entirely — see onJoinAsAdmin in App.jsx. This content-diff check was
+    // a second-layer guess on top of that fix, and it was blocking far
+    // more legitimate saves than the residual risk it covered. Confirmed
+    // decision (Tim, Sep 2026): a device holding the round code can
+    // always save, at any point, for any reason.
     const remoteData = {
       lastHoleSaved: 16,
       allPlayers: [
@@ -64,10 +76,7 @@ describe("shareRoundWithDevice — content comparison guard (Aug 2026, round 846
       ],
       scores: { 1: { p1: 4 } },
     };
-    // Local (Tim's Admin-join snapshot, fetched BEFORE the 5th player was
-    // added): same lastHoleSaved, only 4 players. This is exactly the
-    // round 8466 shape - hole count never differed, only player count did.
-    const staleLocalData = {
+    const localData = {
       lastHoleSaved: 16,
       allPlayers: [
         { name: "Tim" }, { name: "Biro" }, { name: "Moose" }, { name: "Bish" },
@@ -76,10 +85,11 @@ describe("shareRoundWithDevice — content comparison guard (Aug 2026, round 846
     };
 
     const upsertSpy = mockRoundWriteChain({ existingData: remoteData });
-    const resultCode = await shareRoundWithDevice("8466", staleLocalData, "device-tim");
+    const result = await shareRoundWithDevice("8466", localData, "device-tim");
 
-    expect(upsertSpy).not.toHaveBeenCalled(); // the write must be blocked, not silently applied
-    expect(resultCode).toBe("8466"); // blocked writes return the same code, no collision resolution needed
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    expect(result.blocked).toBe(false);
+    expect(result.code).toBe("8466");
   });
 
   test("a genuine content match at the same hole count writes through normally (no false positive)", async () => {

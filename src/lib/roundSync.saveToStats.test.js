@@ -68,18 +68,34 @@ describe("saveRoundToStats", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
-  test("refuses to overwrite a completed remote round whose scores differ from local — the exact round-9194 scenario", async () => {
+  test("allows a correction to an already-completed round's scores — reversed Sep 2026 (was: refuses to overwrite, the round-9194 scenario)", async () => {
+    // CONFIRMED REAL BUG (Sep 2026), the actual incident this test now
+    // documents: Tim corrected scores after a paper-vs-app reconciliation
+    // once the round was already complete. The block this test used to
+    // require is exactly what silently discarded that correction — the
+    // app kept serving the old, wrong scores with zero indication the
+    // save had failed, and the group settled up money on numbers the
+    // app then quietly reverted overnight.
+    //
+    // The root cause the original 9194 test was guarding against (a
+    // reopened bookmark auto-restoring an old completed round, then an
+    // ordinary Save silently clobbering the real data) was fixed at its
+    // actual source separately (the AUTO_ROUND_KEY reset gap). This
+    // content-diff check was a second-layer guess on top of that fix,
+    // and it couldn't distinguish "a stale device" from "the real
+    // scorekeeper fixing a mistake" — both look identical from content
+    // alone. Confirmed decision (Tim, Sep 2026): a device holding the
+    // round code can always save a correction, at any point, for any
+    // reason — paper is the real record.
     const remoteScores = { 1: { A: 4, B: 5 }, 2: { A: 4, B: 4 } };
-    const staleLocalScores = { 1: { A: 9, B: 9 }, 2: { A: 4, B: 4 } }; // hole 1 overwritten by a stray test edit
+    const correctedScores = { 1: { A: 9, B: 9 }, 2: { A: 4, B: 4 } }; // a real post-round correction, not a stale write
 
     const upsertMock = mockExistingRound({ lastHoleSaved: 18, scores: remoteScores });
 
-    await saveRoundToStats("9194", { lastHoleSaved: 18, scores: staleLocalScores }, "device-1");
+    const result = await saveRoundToStats("9194", { lastHoleSaved: 18, scores: correctedScores }, "device-1");
 
-    // This is the assertion that fails without the fix: saveRoundToStats
-    // used to upsert unconditionally here, silently clobbering the real
-    // completed round's data.
-    expect(upsertMock).not.toHaveBeenCalled();
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    expect(result.blocked).toBe(false);
   });
 
   test("allows the write when there is no existing round yet (a genuinely new code)", async () => {

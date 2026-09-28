@@ -2409,9 +2409,22 @@ function applyRoundSnapshot(round, successMessage = "Round loaded.", skipScreen 
       setSelectedSavedRoundId(round.id);
       setRoundName(name);
 
-      // Push to Supabase stats if checked
+      // Push to Supabase stats if checked. CONFIRMED REAL BUG (Sep 2026):
+      // this used to be .catch(() => {}) — a blocked write OR a genuine
+      // network error both vanished with zero feedback, which is part of
+      // what made a real post-round correction silently fail to persist
+      // while the on-screen "Save Round" flow looked completely normal.
+      // Reuses the same setSyncMessage line already used everywhere else
+      // in the app for save feedback, rather than adding a new UI element.
       if (toStats && roundCode) {
-        saveRoundToStats(roundCode, { ...snapshot, roundName: name }, deviceId).catch(() => {});
+        setSyncMessage("Saving final results...");
+        saveRoundToStats(roundCode, { ...snapshot, roundName: name }, deviceId)
+          .then((result) => {
+            setSyncMessage(result.blocked
+              ? "⚠️ Final save did not go through — this device may be behind. Refresh and try again before trusting these results."
+              : "✓ Final results saved");
+          })
+          .catch(() => setSyncMessage("⚠️ Final save failed — check connection and try again"));
       }
 
       return true;
@@ -3172,10 +3185,17 @@ useEffect(() => {
           // couldn't verify — proceed with local state rather than block saving
         }
       }
-      await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+      const saveResult = await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
       console.log("[DIAG] autosave write firing, teamGames:", JSON.stringify(teamGames), "roundCode:", roundCode);
-      setSyncMessage(`Synced ✓`);
-      setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
+      if (saveResult.blocked) {
+        // CONFIRMED REAL BUG (Sep 2026): this used to show "Synced ✓" here
+        // unconditionally, whether the write actually happened or was
+        // silently rejected — see shareRoundWithDevice. Now it's visible.
+        setSyncMessage("⚠️ Edit not saved — this device may be behind. Refresh before continuing.");
+      } else {
+        setSyncMessage(`Synced ✓`);
+        setTimeout(() => setSyncMessage(`Code: ${roundCode}`), 2000);
+      }
     } catch {
       setSyncMessage("Sync failed");
     } finally {
@@ -3517,7 +3537,7 @@ if (!enableTeamGame && !skinsEnabled) {
   setIsSyncing(true);
   setSyncMessage("Saving...");
   shareRoundWithDevice(code, snapshot, deviceId)
-    .then(() => setSyncMessage(`Code: ${code}`))
+    .then((result) => setSyncMessage(result.blocked ? "⚠️ Not saved — this device may be behind" : `Code: ${code}`))
     .catch(() => setSyncMessage("Save failed — check connection"))
     .finally(() => setIsSyncing(false));
 
@@ -3563,8 +3583,8 @@ async function shareCurrentRound() {
     const code = roundCode || (await generateUniqueRoundCode());
     if (!roundCode) setRoundCode(code);
     const snapshot = buildCurrentRoundSnapshot();
-    await shareRoundWithDevice(code, snapshot, deviceId);
-    setSyncMessage(`Code: ${code}`);
+    const result = await shareRoundWithDevice(code, snapshot, deviceId);
+    setSyncMessage(result.blocked ? "⚠️ Not saved — this device may be behind" : `Code: ${code}`);
   } catch (err) {
     setSyncMessage("Share failed — check connection");
     console.error("Share error:", err);
@@ -4316,8 +4336,10 @@ return (
               if (!roundCode) return;
               setIsSyncing(true);
               try {
-                await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
-                setSyncMessage("✓ Synced " + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+                const result = await shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId);
+                setSyncMessage(result.blocked
+                  ? "⚠️ Not saved — this device may be behind"
+                  : "✓ Synced " + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
               } catch {
                 setSyncMessage("⚠️ Sync failed — retry");
               } finally {
@@ -4469,7 +4491,7 @@ setSaveMessage(`Hole ${currentHole} saved`);
       if (roundCode) {
         setTimeout(() => {
           shareRoundWithDevice(roundCode, buildCurrentRoundSnapshot(), deviceId)
-            .then((usedCode) => {
+            .then(({ code: usedCode, blocked }) => {
               // CONFIRMED REAL BUG (Aug 2026): a genuine round-code
               // collision with a different round used to silently
               // block every autosave for the rest of the round, no
@@ -4483,6 +4505,13 @@ setSaveMessage(`Hole ${currentHole} saved`);
                 setRoundCode(usedCode);
                 localStorage.setItem(ROUND_CODE_KEY, usedCode);
                 setSyncMessage(`Round code changed to ${usedCode} (${roundCode} was already in use by another round)`);
+              } else if (blocked) {
+                // CONFIRMED REAL BUG (Sep 2026): this used to be
+                // indistinguishable from a real save — see
+                // shareRoundWithDevice. Surfaced here since this is the
+                // hole-save path, the moment a scorekeeper most needs to
+                // know their edit didn't actually persist.
+                setSyncMessage("⚠️ This edit wasn't saved — this device may be behind. Refresh before continuing.");
               }
             })
             .catch(() => {
