@@ -612,6 +612,29 @@ export default function MatchList({
                           (gross eagle wins hole → points tripled)
                         </span>
                       )}
+                      {/* Confirmed design (Tim, Sep 2026): off by default —
+                          today's exact behavior (a net tie erases the
+                          bonus entirely) stays the default unless this is
+                          turned on. The trigger is still a real GROSS
+                          birdie/eagle, never a net one — this only changes
+                          what happens when that player gets net-tied. */}
+                      <div style={{ marginTop: 6 }}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={!!match.birdieTieSharePoints}
+                            onChange={(e) =>
+                              onUpdateMatch(match.id, { birdieTieSharePoints: e.target.checked })
+                            }
+                          />
+                          Net tie still shares the bonus
+                        </label>
+                        {match.birdieTieSharePoints && (
+                          <span style={{ fontSize: 11, color: "#166534", marginLeft: 4 }}>
+                            (if a gross birdie/eagle gets net-tied, the doubled/tripled points split between everyone tied — instead of the bonus disappearing)
+                          </span>
+                        )}
+                      </div>
                     </>
                   )}
                 </>

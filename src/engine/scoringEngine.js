@@ -340,7 +340,8 @@ export function scoreNinePointHole(
   blitzEnabled = false,
   noPar3Strokes = false,
   birdieDoublePoints = false,
-  eagleTriplePoints = false
+  eagleTriplePoints = false,
+  birdieTieSharePoints = false
 ) {
   const scale = Array.isArray(playerIds) ? NINE_POINT_SCALES[playerIds.length] : null;
 
@@ -385,16 +386,61 @@ export function scoreNinePointHole(
   const par = course?.pars?.[hole - 1];
   const uniqueWinner = sorted[1].netScore > first.netScore;
 
-  // Birdie double only applies if:
-  // 1. birdieDoublePoints toggle is on
-  // 2. There is a unique winner (not a tie for first)
-  // 3. The unique winner made a gross birdie (gross < par)
-  const winnerGross = par != null ? scores?.[hole]?.[first.playerId] : null;
-  const winnerMadeGrossBirdie = birdieDoublePoints && uniqueWinner && par != null &&
-    Number.isFinite(winnerGross) && winnerGross < par;
+  // Confirmed design (Tim, Sep 2026): a genuine gross birdie/eagle used to
+  // lose its 2x/3x multiplier entirely the moment someone else's
+  // handicap strokes brought them to the same net score — a tie erased
+  // the bonus completely, even though a real birdie/eagle happened. The
+  // birdieTieSharePoints toggle (off by default — today's exact behavior
+  // stays the default) keeps the multiplier alive in that case, but
+  // splits the doubled/tripled pool across everyone tied for the net
+  // lead, not just the player who actually made the birdie/eagle. The
+  // trigger is unchanged either way: a real GROSS birdie/eagle, never a
+  // "net birdie" concept — only what happens to the multiplier when that
+  // player gets net-tied is different.
+  const tieGroupIds = [];
+  {
+    let j = 0;
+    while (j < sorted.length && sorted[j].netScore === first.netScore) {
+      tieGroupIds.push(sorted[j].playerId);
+      j++;
+    }
+  }
 
-  // Eagle = 2 under par
-  const winnerMadeEagle = winnerMadeGrossBirdie && Number.isFinite(winnerGross) && winnerGross <= par - 2;
+  function grossBirdieOrEagleFor(playerId) {
+    if (par == null) return null;
+    const gross = scores?.[hole]?.[playerId];
+    if (!Number.isFinite(gross)) return null;
+    if (gross <= par - 2) return "eagle";
+    if (gross < par) return "birdie";
+    return null;
+  }
+
+  let winnerMadeGrossBirdie = false;
+  let winnerMadeEagle = false;
+
+  if (birdieDoublePoints) {
+    if (uniqueWinner) {
+      // Unchanged from before: only the outright winner's own gross score matters.
+      const kind = grossBirdieOrEagleFor(first.playerId);
+      winnerMadeGrossBirdie = kind === "birdie" || kind === "eagle";
+      winnerMadeEagle = kind === "eagle";
+    } else if (birdieTieSharePoints) {
+      // New: check every player tied for the net lead, not just one —
+      // if any of them made a real gross birdie or eagle, the bonus
+      // still applies, shared across the whole tied group. Only one
+      // multiplier is ever used — the best one found (eagle beats
+      // birdie) — never both.
+      let anyBirdie = false;
+      let anyEagle = false;
+      tieGroupIds.forEach((playerId) => {
+        const kind = grossBirdieOrEagleFor(playerId);
+        if (kind === "eagle") anyEagle = true;
+        else if (kind === "birdie") anyBirdie = true;
+      });
+      winnerMadeGrossBirdie = anyBirdie || anyEagle;
+      winnerMadeEagle = anyEagle;
+    }
+  }
 
   // multiplier: eagle 3x if eagleTriplePoints on, else 2x (falls back to birdie 2x); birdie 2x
   const multiplier = winnerMadeEagle
@@ -531,7 +577,8 @@ export function getNinePointMatchSummary(
   holeCount = 18,
   noPar3Strokes = false,
   birdieDoublePoints = false,
-  eagleTriplePoints = false
+  eagleTriplePoints = false,
+  birdieTieSharePoints = false
 ) {
   if (!Array.isArray(playerIds) || !NINE_POINT_SCALES[playerIds.length]) {
     return {
@@ -564,7 +611,8 @@ export function getNinePointMatchSummary(
       blitzEnabled,
       noPar3Strokes,
       birdieDoublePoints,
-      eagleTriplePoints
+      eagleTriplePoints,
+      birdieTieSharePoints
     );
 
     if (holeResult.status === "complete") {
@@ -796,14 +844,21 @@ function settleStrokeSegment(aTotal, bTotal, payoutMode, bet) {
 
 
 // Builds the per-match handicap override function for Play Even / Custom
-// Strokes / Full Handicap — shared by playIndividualMatch and
-// playIndividualPressMatch so there's exactly one implementation of "how
-// do these 1v1 toggles work," not several that can quietly drift apart.
-// Confirmed mutually exclusive at the UI layer (Tim, Sep 2026) — exactly
-// one of these three can be set on a match at a time — but this resolver
-// still checks them in a fixed order as a defensive fallback in case any
-// already-saved round data predates that guarantee.
-function buildMatchHandicapOverrideFn(match, players, course) {
+// Strokes / Full Handicap — the ONE canonical implementation, used by
+// playIndividualMatch, playIndividualPressMatch, and (as of Sep 2026)
+// every display component that needs to show a match's actual stroke
+// dots. Exported specifically because AuditTrail.jsx was found to have
+// three separate, inconsistent partial reimplementations of this exact
+// logic — one with no override awareness at all, one handling only Play
+// Even, and one duplicating the Custom Strokes math outright (labeled
+// "same logic as engine" in its own comment, which is exactly the
+// problem: a labeled duplicate is still a duplicate, and it never
+// learned about Full Handicap when that was added). Confirmed mutually
+// exclusive at the UI layer (Tim, Sep 2026) — exactly one of these three
+// can be set on a match at a time — but this resolver still checks them
+// in a fixed order as a defensive fallback in case any already-saved
+// round data predates that guarantee.
+export function buildMatchHandicapOverrideFn(match, players, course) {
   // Play Even — override handicap function to return 0 strokes for all holes
   if (match.playEven) return () => 0;
 
@@ -867,7 +922,8 @@ if (match.gameType === "ninePoint") {
     18,
     noPar3Strokes,
     Boolean(match.birdieDoublePoints),
-    Boolean(match.eagleTriplePoints)
+    Boolean(match.eagleTriplePoints),
+    Boolean(match.birdieTieSharePoints)
   );
 
 
