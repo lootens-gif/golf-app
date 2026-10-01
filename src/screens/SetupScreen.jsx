@@ -1,5 +1,6 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import MatchList from "../components/MatchList";
+import RoundPreview from "../components/RoundPreview";
 import { WOLF_CENTS_SAFE_DIVISOR } from "../components/live/WolfHoleCard";
 import { useEffect, useRef, useState } from "react";
 
@@ -756,6 +757,7 @@ export default function SetupScreen({
   lastHoleSaved = null,
 }) {
   const teamGameRefs = useRef({});
+  const [showDotsPreview, setShowDotsPreview] = useState(false);
   const hasNinePoint = matches.some(m => m.gameType === "ninePoint");
   const primarySetupActionLabel = focusGameTarget ? "Continue Round ›" : "Start Round ›";
 
@@ -981,6 +983,46 @@ export default function SetupScreen({
           />
         </div>
       </Card>
+
+      {/* Confirmed request (Tim, Sep 2026): see handicap dots BEFORE
+          selecting teams, not only in the full Round Preview that comes
+          after team assignment. No other logic changes — this reuses the
+          exact same stroke-computation path as the real pre-round
+          preview, just shown earlier and without the Games/Start Round
+          parts, since teams aren't picked yet at this point. */}
+      <div style={{ textAlign: "center", marginBottom: 12 }}>
+        <button onClick={() => setShowDotsPreview(true)} style={{
+          padding: "8px 16px", fontSize: 13, fontWeight: 600,
+          background: "#fff", color: sc.green, border: `1px solid ${sc.green}`,
+          borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+        }}>👀 Preview Handicap Dots</button>
+      </div>
+
+      {showDotsPreview && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "20px 12px",
+        }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 16, maxWidth: 480, width: "100%" }}>
+            <RoundPreview
+              dotsOnly
+              players={players}
+              course={course}
+              matches={matches}
+              teamGames={teamGames}
+              teamGameFormat={teamGameFormat}
+              teamGameUnitAmount={teamGameUnitAmount}
+              handicapMode={handicapMode}
+              handicapDistribution={handicapDistribution}
+              customSegmentStrokes={customSegmentStrokes}
+              enableTeamGame={enableTeamGame}
+              noPar3TeamGame={noPar3TeamGame}
+              skinsEnabled={skinsEnabled}
+              onBack={() => setShowDotsPreview(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {setupMessage && (
         <div style={{ marginBottom: 12, color: sc.green, fontWeight: 500, fontSize: 14, padding: "10px 14px", background: sc.greenLight, borderRadius: 8 }}>
@@ -1896,7 +1938,14 @@ export default function SetupScreen({
         )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <OutlineButton onClick={addMatch}>+ Add Match</OutlineButton>
-          {mode === "3p" && (
+          {/* Confirmed design (Tim, Sep 2026): each point-game button shows
+              whenever the round has enough active players for it — not
+              just when the round's overall mode is an exact match. A
+              4-player round can now add a 9-Point (picking 3 of the 4) as
+              well as a 12-Point (all 4); which players actually play is a
+              choice made via the existing player selectors below, not an
+              assumption baked into round size. */}
+          {players.length >= 3 && (
             <OutlineButton
               onClick={hasNinePoint ? undefined : addNinePointMatch}
               disabled={hasNinePoint}
@@ -1904,7 +1953,7 @@ export default function SetupScreen({
               {hasNinePoint ? "9-Point Added ✓" : "+ 9 Point Match"}
             </OutlineButton>
           )}
-          {mode === "4p" && (
+          {players.length >= 4 && (
             <OutlineButton
               onClick={hasNinePoint ? undefined : addTwelvePointMatch}
               disabled={hasNinePoint}
@@ -1912,7 +1961,7 @@ export default function SetupScreen({
               {hasNinePoint ? "12-Point Added ✓" : "+ 12 Point Match"}
             </OutlineButton>
           )}
-          {mode === "5p" && (
+          {players.length >= 5 && (
             <OutlineButton
               onClick={hasNinePoint ? undefined : addTwentyPointMatch}
               disabled={hasNinePoint}

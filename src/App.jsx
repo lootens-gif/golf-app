@@ -46,6 +46,11 @@ const AUTO_ROUND_KEY = "golf-betting-auto-round-v1";
 const ROUND_CODE_KEY = "golf-betting-round-code-v1";
 const SAVED_ROUNDS_KEY = "golf-betting-saved-rounds-v1";
 const LAST_NINE_POINT_PLAYERS_KEY = "golf-betting-last-nine-point-players-v1";
+// Sep 2026: generalized so 12/20-Point also remember their last pick when
+// chosen from an excess pool, not just the original 3-player 9-Point case.
+function lastPointsPlayersKey(requiredCount) {
+  return requiredCount === 3 ? LAST_NINE_POINT_PLAYERS_KEY : `golf-betting-last-points-players-${requiredCount}-v1`;
+}
 // CRITICAL_GUARDS.md Guard #41: a completed round (lastHoleSaved >= 18)
 // that hasn't been touched in this many hours is treated as "stale" on
 // mount — gated behind an explicit acknowledgment instead of silently
@@ -1632,33 +1637,40 @@ function autoCreateMatches() {
   setMatches(newMatches);
 }
 
-// Shared "add a points-game match" function (Aug 2026) — 9/12/20-Point are
-// one game, not three, so this is one function parameterized by player
-// count rather than three independent copies. Mirrors the exact structure
-// addNinePointMatch always had: gated to the round already being locked to
-// the right player count, auto-includes every active player (no manual
-// picker needed, since at 4p mode there ARE only 4 players and all of them
-// belong in a 12-Point match by definition).
+// Shared "add a points-game match" function (Aug 2026, player-flexibility
+// fix Sep 2026) — 9/12/20-Point are one game, not three, so this is one
+// function parameterized by player count rather than three independent
+// copies. Auto-includes the first N active players as a sensible default
+// (overridable via the player-picker shown in Setup whenever the round has
+// more active players than this format needs); when the count matches
+// exactly, there's nothing to pick and this is the final answer.
 function addPointsGameMatch(requiredCount) {
-  const requiredMode = requiredCount === 3 ? "3p" : requiredCount === 4 ? "4p" : "5p";
-  if (mode !== requiredMode) return;
+  // CONFIRMED REAL BUG (Sep 2026): this used to hard-require the round's
+  // overall mode to exactly match the point-game's player count — a
+  // 9-Point match (needs 3) was structurally impossible to add in a
+  // 4-player round, even though nothing about 9-Point actually requires
+  // the WHOLE round to be exactly 3 players, only that 3 of them are
+  // chosen for it. Confirmed design (Tim, Sep 2026): the only real
+  // requirement is having enough active players; which players go in the
+  // format is now a selection (see the player-picker below), not an
+  // assumption baked into round size.
   if (players.length < requiredCount) return;
 
   let defaultIds = players.slice(0, requiredCount).map((p) => p.id).filter(Boolean);
 
-  // The "remember last players" convenience only makes sense for 9-Point,
-  // where 3 of a larger group get picked — at 4p/5p mode every active
-  // player is already included by definition, so there's nothing to
-  // remember or restore.
-  if (requiredCount === 3) {
+  // Remember the last players picked for this format whenever it's being
+  // chosen from a genuine excess (more active players than the format
+  // needs) — only meaningful then, since an exact-count round has nothing
+  // to remember (every active player is the only possible answer).
+  if (players.length > requiredCount) {
     try {
       const saved = JSON.parse(
-        localStorage.getItem(LAST_NINE_POINT_PLAYERS_KEY) || "null"
+        localStorage.getItem(lastPointsPlayersKey(requiredCount)) || "null"
       );
 
       if (
         Array.isArray(saved) &&
-        saved.length === 3 &&
+        saved.length === requiredCount &&
         saved.every((id) => players.some((p) => p.id === id))
       ) {
         defaultIds = saved;
@@ -1711,12 +1723,12 @@ function addTwentyPointMatch() {
     if (updated?.gameType === "ninePoint") {
       const ids = getNinePointPlayerIds(updated);
 
-      // Only 3-player 9-Point has a real "which players" choice to
-      // remember — 12/20-Point always include every active player, so
-      // there's nothing meaningful to persist for those.
-      if (ids.length === 3 && new Set(ids).size === 3) {
+      // Remember whichever players were actually picked, for any of the
+      // three formats — meaningful whenever this round has more active
+      // players than the format needs (see addPointsGameMatch).
+      if (ids.length >= 3 && new Set(ids).size === ids.length) {
         localStorage.setItem(
-          LAST_NINE_POINT_PLAYERS_KEY,
+          lastPointsPlayersKey(ids.length),
           JSON.stringify(ids)
         );
       }
