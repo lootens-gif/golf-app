@@ -1398,8 +1398,23 @@ export function playVegasMatchup({ teamA, teamB, start, end, context, flipTheBir
 // teamGameResults dispatch). Only included if it's genuinely 2v2 — a
 // 3-player round's Team 1 (2) vs Team 2 (1) has no second player to
 // combine into a Vegas number, so it's correctly excluded, not guessed at.
-export function buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection }) {
+export function buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection, splitByHalf }) {
   if (!enableTeamGame) return [];
+
+  // Split front/back teams (non-press): two independent 2v2 matchups.
+  if (splitByHalf && teamGameFormat !== "press" && (teamGames || []).length >= 2) {
+    const halves = [{ start: 1, end: 9 }, { start: 10, end: 18 }];
+    const specs = [];
+    halves.forEach((h, i) => {
+      const t = teamGames[i]?.teams || {};
+      const team1 = (t.team1 || []).filter(Boolean);
+      const team2 = (t.team2 || []).filter(Boolean);
+      if (team1.length === 2 && team2.length === 2) {
+        specs.push({ segment: i, label: "Team 1 vs Team 2", start: h.start, end: h.end, team1, team2 });
+      }
+    });
+    return specs;
+  }
 
   if (teamGameFormat === "press") {
     const specs = [];
@@ -1474,10 +1489,21 @@ export function playTeamMatch(match, context) {
   const teamB = match.teamB || [];
 
   // Build per-hole result array (1 = teamA wins, -1 = teamB wins, 0 = tie)
+  // Optional hole range (split front/back teams). Default is the whole
+  // round, so every existing caller behaves exactly as before. holeResults
+  // stays indexed by absolute hole (index 0 = hole 1) so display code that
+  // reads result.holes keeps working for a back-nine segment.
+  const rangeGiven = match.start != null || match.end != null;
+  const segStart = Math.max(1, Number(match.start) || 1);
+  const segEnd = Math.min(18, Number(match.end) || 18);
+  const segLabel = match.segmentLabel || (segStart === 1 && segEnd === 9 ? "Front 9" : segStart === 10 && segEnd === 18 ? "Back 9" : `Holes ${segStart}-${segEnd}`);
   const holeResults = [];
-  for (let hole = 1; hole <= 18; hole++) {
+  for (let hole = 1; hole <= segEnd; hole++) {
     const r = computeHoleResult({ hole, teamA, teamB, players, course, scores, handicapMode, getHandicapStrokesFn, noPar3Strokes: !!noPar3TeamGame });
-    if (r === null) break;
+    if (r === null) {
+      if (hole < segStart) { holeResults.push(null); continue; }
+      break;
+    }
     holeResults.push(r);
   }
 
@@ -1485,7 +1511,7 @@ export function playTeamMatch(match, context) {
 
   // ── Standard (Net Holes) ──
   if (match.type === "standard") {
-    const segment = decideMatchPlaySegment(holeResults, 1, 18);
+    const segment = decideMatchPlaySegment(holeResults, segStart, segEnd);
     // CONFIRMED REAL BUG (Aug 2026): this used signUnit(segment.score),
     // discarding the actual margin and paying a flat amount regardless
     // of how many holes were won by — directly contradicting the
@@ -1505,17 +1531,17 @@ export function playTeamMatch(match, context) {
 
   // ── Long / Short ──
   if (match.type === "longshort") {
-    const longSegment = decideMatchPlaySegment(holeResults, 1, 18);
+    const longSegment = decideMatchPlaySegment(holeResults, segStart, segEnd);
     const longUnits = signUnit(longSegment.score);
     const longResult = longUnits * bet;
     // Same fix as the other longshort implementation above — see that
     // comment for the full explanation. Duplicate logic here is very
     // likely why this exact bug has resurfaced more than once: a past
     // fix probably only touched one of these two copies.
-    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : 19;
-    if (shortStart > 18) shortStart = 19;
+    let shortStart = longSegment.decidedOn ? longSegment.decidedOn + 1 : segEnd + 1;
+    if (shortStart > segEnd) shortStart = segEnd + 1;
     let shortSegment = { score: 0, units: 0, label: "N/A", decidedOn: null };
-    if (shortStart <= 18) shortSegment = decideMatchPlaySegment(holeResults, shortStart, 18);
+    if (shortStart <= segEnd) shortSegment = decideMatchPlaySegment(holeResults, shortStart, segEnd);
     const shortResult = shortSegment.units * (bet / 2);
     return {
       type: "longshort",
@@ -1537,7 +1563,10 @@ export function playTeamMatch(match, context) {
       { key: "back", label: "Back 9", start: 10, end: 18, enabled: match.matchPlayBack !== false },
       { key: "total", label: "Total 18", start: 1, end: 18, enabled: match.matchPlayTotal !== false },
     ].filter(s => s.enabled);
-    const safeDefs = segmentDefs.length ? segmentDefs : [{ key: "total", label: "Total 18", start: 1, end: 18 }];
+    // Split mode: the half itself is the one match; front/back/total toggles don't apply.
+    const safeDefs = rangeGiven
+      ? [{ key: "range", label: segLabel, start: segStart, end: segEnd }]
+      : (segmentDefs.length ? segmentDefs : [{ key: "total", label: "Total 18", start: 1, end: 18 }]);
     const segments = safeDefs.map(seg => {
       const segment = decideMatchPlaySegment(holeResults, seg.start, seg.end);
       return { key: seg.key, label: seg.label, units: segment.units, dollars: segment.units * bet, resultLabel: segment.label, decidedOn: segment.decidedOn };
@@ -1551,7 +1580,9 @@ export function playTeamMatch(match, context) {
     const strokePayoutMode = match.strokePayoutMode || "winloss";
     const combined = !!match.strokeCombined;
 
-    const segmentDefs = [
+    const segmentDefs = rangeGiven
+      ? [{ key: "range", label: segLabel, start: segStart, end: segEnd, enabled: true }]
+      : [
       { key: "front", label: "Front 9", start: 1, end: 9, enabled: !!match.strokeFront },
       { key: "back", label: "Back 9", start: 10, end: 18, enabled: !!match.strokeBack },
       { key: "total", label: "Total 18", start: 1, end: 18, enabled: !!match.strokeTotal },

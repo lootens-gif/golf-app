@@ -107,13 +107,13 @@ function MatchupDetail({ matchup, players }) {
   );
 }
 
-export default function VegasWheelShadow({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection, players, teamContext }) {
+export default function VegasWheelShadow({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection, splitByHalf, players, teamContext }) {
   const [flipTheBirdEnabled, setFlipTheBirdEnabled] = useState(false);
   const [betInput, setBetInput] = useState("0.25");
 
   const dollarsPerPoint = Number(betInput) || 0;
 
-  const matchupSpecs = buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection });
+  const matchupSpecs = buildVegasMatchupSpecs({ enableTeamGame, teamGameFormat, teamGames, nonPressTeamSelection, splitByHalf });
 
   // Nothing to show at all — either team games are off, or whatever
   // format/configuration this round is using isn't a genuine 2v2 (a

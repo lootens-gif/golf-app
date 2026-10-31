@@ -1301,6 +1301,9 @@ export default function SetupScreen({
                     key={opt.value}
                     onClick={() => {
                       setTeamGameFormat(opt.value);
+                      // Split front/back is a non-Press option; any format switch rebuilds
+                      // teamGames below, so it always starts back at "Whole round".
+                      if (teamMatchConfig?.splitByHalf) setTeamMatchConfig(prev => ({ ...prev, splitByHalf: false }));
                       // CONFIRMED REAL BUG (Aug 2026): Setup's own
                       // "Handicap Distribution" selector only renders
                       // for Press, matching Spread's actual documented
@@ -1911,15 +1914,58 @@ export default function SetupScreen({
             );
           })}
 
-          {teamGameFormat && teamGameFormat !== "press" && (
-            <div>
-              <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
-                Whole round · 18 holes · one team matchup
+          {teamGameFormat && teamGameFormat !== "press" && teamGameFormat !== "wolf" && (() => {
+            const split = !!teamMatchConfig?.splitByHalf;
+            const setSplit = (on) => {
+              setTeamMatchConfig(prev => ({ ...prev, splitByHalf: on }));
+              setTeamGames(prev => on
+                ? [
+                    { ...createDefaultTeamGame(1), holes: 9, teams: prev[0]?.teams || {} },
+                    { ...createDefaultTeamGame(2), holes: 9, teams: prev[1]?.teams || {} },
+                  ]
+                : [{ ...createDefaultTeamGame(1), holes: 18, teams: prev[0]?.teams || {} }]
+              );
+            };
+            const segBtn = (active) => ({
+              padding: "9px 6px", fontSize: 13, fontWeight: active ? 700 : 400,
+              border: active ? `1px solid ${sc.green}` : `1px solid ${sc.border}`,
+              background: active ? "#f0fdf4" : "#fff",
+              color: active ? sc.green : sc.muted,
+              borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+            });
+            return (
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Teams</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
+                  <button onClick={() => setSplit(false)} style={segBtn(!split)}>Whole round</button>
+                  <button onClick={() => setSplit(true)} style={segBtn(split)}>Split front / back</button>
+                </div>
+                {!split && (
+                  <div>
+                    <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10 }}>
+                      Whole round · 18 holes · one team matchup
+                    </div>
+                    {renderTeamSelectors(0)}
+                    <PrimarySetupAction />
+                  </div>
+                )}
+                {split && (
+                  <div>
+                    <div style={{ fontSize: 12, color: sc.muted, marginBottom: 10, lineHeight: 1.5 }}>
+                      Each half is its own full match with its own teams. Same bet values for both halves; the back 9 starts fresh.
+                    </div>
+                    {[{ i: 0, title: "Front 9 · holes 1-9" }, { i: 1, title: "Back 9 · holes 10-18" }].map(({ i, title }) => (
+                      <div key={i} style={{ border: `1px solid ${sc.border}`, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{title}</div>
+                        {renderTeamSelectors(i)}
+                      </div>
+                    ))}
+                    <PrimarySetupAction />
+                  </div>
+                )}
               </div>
-              {renderTeamSelectors(0)}
-              <PrimarySetupAction />
-            </div>
-          )}
+            );
+          })()}
         </Card>
       )}
 

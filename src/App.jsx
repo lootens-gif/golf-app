@@ -378,7 +378,7 @@ function buildHoleResultSubset(matchup, teamA, teamB, lastHoleSaved, players, co
       return { halfLabel: "Short", rows: buildRunningRows(holes, true) };
     }
     const holes = [];
-    for (let h = 1; h <= lastHoleSaved; h++) holes.push(h);
+    for (let h = (segmentStart ?? 1); h <= lastHoleSaved; h++) holes.push(h);
     return { halfLabel: "Long", rows: buildRunningRows(holes, true) };
   }
 
@@ -1766,30 +1766,40 @@ function addTwentyPointMatch() {
 
 
   const teamGameResults = useMemo(() => {
-  // Non-press formats: single whole-round team match
+  // Non-press formats: one whole-round team match, or (teamMatchConfig.splitByHalf)
+  // two independent matches — front 9 and back 9 — each with its own teams.
   if (enableTeamGame && teamGameFormat !== "press") {
-    const selected = getTeamGameSelection(0);
-    if (!selected) return [];
-    const team1 = (selected.team1 || []).filter(Boolean);
-    const team2 = (selected.team2 || []).filter(Boolean);
-    if (!team1.length || !team2.length) return [];
-    const matchDef = {
-      ...teamMatchConfig,
-      type: teamGameFormat,
-      teamA: team1,
-      teamB: team2,
-      bet: Number(teamGameUnitAmount) || 0,
-    };
-    const result = playTeamMatch(matchDef, teamContext);
-    return [{
-      index: 0,
-      start: 1,
-      end: 18,
-      format: teamGameFormat,
-      duplicateError: false,
-      birdieEnabled: teamMatchConfig.teamBirdiesEnabled,
-      matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
-    }];
+    const split = !!teamMatchConfig.splitByHalf && teamGames.length >= 2;
+    const segments = split
+      ? [{ index: 0, start: 1, end: 9, label: "Front 9" }, { index: 1, start: 10, end: 18, label: "Back 9" }]
+      : [{ index: 0, start: 1, end: 18, label: null }];
+    return segments.map((seg) => {
+      const selected = getTeamGameSelection(seg.index);
+      const team1 = (selected?.team1 || []).filter(Boolean);
+      const team2 = (selected?.team2 || []).filter(Boolean);
+      if (!team1.length || !team2.length) {
+        // Incomplete teams for this half: keep its slot (so the other half still scores)
+        return { index: seg.index, start: seg.start, end: seg.end, format: teamGameFormat, duplicateError: false, birdieEnabled: teamMatchConfig.teamBirdiesEnabled, matches: [] };
+      }
+      const matchDef = {
+        ...teamMatchConfig,
+        type: teamGameFormat,
+        teamA: team1,
+        teamB: team2,
+        bet: Number(teamGameUnitAmount) || 0,
+        ...(split ? { start: seg.start, end: seg.end, segmentLabel: seg.label } : {}),
+      };
+      const result = playTeamMatch(matchDef, teamContext);
+      return {
+        index: seg.index,
+        start: seg.start,
+        end: seg.end,
+        format: teamGameFormat,
+        duplicateError: false,
+        birdieEnabled: teamMatchConfig.teamBirdiesEnabled,
+        matches: [{ label: "Team 1 vs Team 2", result, teamA: team1, teamB: team2 }],
+      };
+    });
   }
 
   // Press format (existing logic) — only when team game is enabled
@@ -5074,6 +5084,7 @@ if (enableTeamGame && teamGameFormat !== "wolf" && nextGameIndex >= 0) {
     teamGameFormat={teamGameFormat}
     teamGames={teamGames}
     nonPressTeamSelection={teamGameFormat !== "press" ? getTeamGameSelection(0) : null}
+    splitByHalf={!!teamMatchConfig.splitByHalf}
     players={activePlayers}
     teamContext={teamContext}
   />
