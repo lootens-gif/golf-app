@@ -27,6 +27,7 @@ export default function TeamPressHoleCard({
   matchupLabels = [],       // e.g. ["Team 1 vs Team 2", "Team 1 vs Team 3"]
   manualPressHoles = {},    // { [label]: [holeNumbers] } for the active game
   onToggleCall,             // (label, hole) => void
+  canCall = true,           // false on a segment's last hole: nothing left to press
 }) {
   if (!matchupLabels.length) return null;
 
@@ -54,7 +55,9 @@ export default function TeamPressHoleCard({
       </div>
 
       <div style={{ fontSize: 12, color: sc.muted, marginBottom: 8 }}>
-        Call Press (tap to call, tap again to undo)
+        {canCall
+          ? "Call Press (tap to call, tap again to undo)"
+          : "Last hole of this segment. No holes left for a press."}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -63,7 +66,7 @@ export default function TeamPressHoleCard({
           return (
             <button
               key={label}
-              onClick={() => onToggleCall(label, currentHole)}
+              onClick={() => { if (canCall || called) onToggleCall(label, currentHole); }}
               style={{
                 padding: "10px 12px",
                 fontSize: 13,

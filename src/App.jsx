@@ -27,6 +27,7 @@ import ScoresGrid from "./components/ScoresGrid";
 import { formatPressDetail } from "./components/AuditTrail";
 import ScoreEntryCard from "./components/live/ScoreEntryCard";
 import WolfHoleCard, { getWolfFormat, isWolfHoleConfirmed } from "./components/live/WolfHoleCard";
+import TeamPressHoleCard from "./components/live/TeamPressHoleCard";
 import LiveMatchStatus from "./components/live/LiveMatchStatus";
 import VegasWheelShadow from "./components/VegasWheelShadow";
 import SetupScreen from "./screens/SetupScreen";
@@ -815,10 +816,15 @@ function notifyRound(event, code) {
   // already established for 1v1 Press matches.
   const toggleTeamManualPress = (gameIndex, label, hole) => {
     setTeamGames((prev) => {
+      // A press called on the segment's final hole has no holes left to play,
+      // so it's refused rather than creating a $0 stub.
+      const { end } = getTeamGameRange(prev, gameIndex);
       const next = prev.map((g, i) => {
         if (i !== gameIndex) return g;
         const existing = g.manualPressHoles || {};
         const forLabel = existing[label] || [];
+        const adding = !forLabel.includes(hole);
+        if (adding && hole >= end) return g;
         const nextForLabel = forLabel.includes(hole)
           ? forLabel.filter((h) => h !== hole)
           : [...forLabel, hole];
@@ -4510,6 +4516,25 @@ return (
     );
   })()}
   </div>
+
+  {enableTeamGame && teamGameFormat === "press" && (() => {
+    const idx = teamGames.findIndex((_, i) => {
+      const r = getTeamGameRange(teamGames, i);
+      return currentHole >= r.start && currentHole <= r.end;
+    });
+    if (idx < 0) return null;
+    const { end } = getTeamGameRange(teamGames, idx);
+    const labels = ((teamGameResults || []).find((g) => g.index === idx)?.matches || []).map((m) => m.label);
+    return (
+      <TeamPressHoleCard
+        currentHole={currentHole}
+        matchupLabels={labels}
+        manualPressHoles={teamGames[idx]?.manualPressHoles || {}}
+        onToggleCall={(label, hole) => toggleTeamManualPress(idx, label, hole)}
+        canCall={currentHole < end}
+      />
+    );
+  })()}
 
   <LiveMatchStatus
     currentHole={currentHole}
