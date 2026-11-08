@@ -1481,7 +1481,7 @@ export default function SetupScreen({
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, color: sc.ink, whiteSpace: "nowrap" }}>Press Rules</span>
             <div style={{ display: "flex", border: `1px solid ${sc.green}`, borderRadius: 8, overflow: "hidden" }}>
-              {[{ n: 1, l: "1 Down" }, { n: 2, l: "2 Down" }].map(({ n, l }, i) => (
+              {[{ n: 1, l: "1 Down" }, { n: 2, l: "2 Down" }, { n: 99, l: "Manual only" }].map(({ n, l }, i) => (
                 <button key={n} onClick={() => {
                   setPressTrigger(n);
                   setTeamGames(prev => prev.map(g => ({ ...g, pressTrigger: n })));

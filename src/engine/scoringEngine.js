@@ -1124,6 +1124,11 @@ const matchPlayers = [p1, p2].filter(Boolean);
   };
 }
 
+// Press trigger sentinel: "Manual only" = no automatic press ever fires.
+// Not 0, because pressTrigger is coerced with `|| 1` in several places,
+// which would silently turn 0 back into 1 Down. No real press reaches 99.
+export const PRESS_MANUAL_ONLY = 99;
+
 export function playPressMatch({
   teamA,
   teamB,
@@ -1139,6 +1144,7 @@ export function playPressMatch({
   // ("push a new $0 bet"), just gated by a different condition.
 }) {
   const numericTrigger = Math.max(1, Number(trigger) || 2);
+  const autoPressOn = numericTrigger !== PRESS_MANUAL_ONLY;
   const manualHoleSet = new Set((manualPressHoles || []).map(Number));
 
   const bets = [
@@ -1214,7 +1220,7 @@ export function playPressMatch({
     // gets shown, never what gets paid. Auto-trigger correctly still
     // starts the NEXT hole — see the manual-press comment above for
     // why these two intentionally differ.
-    if (Math.abs(latestBet.score) >= numericTrigger) {
+    if (autoPressOn && Math.abs(latestBet.score) >= numericTrigger) {
       pressCount += 1;
       bets.push({
         label: `Press ${pressCount}`,
