@@ -15,6 +15,7 @@ import {
   formatMatchPlayRunning,
   getNinePointPlayerIds,
   NINE_POINT_SCALES,
+  buildMatchHandicapOverrideFn,
 } from "../engine/scoringEngine";
 import { getWolfFormat } from "./live/WolfHoleCard";
 
@@ -116,8 +117,10 @@ export function getBetStatusesForHole(bets = [], hole) {
     .filter((bet) => {
       const startHole = Number(bet.startHole || 0);
 
-      // Include bets active on this hole, plus a newly-created press
-      // that starts on the next hole so the scorecard shows the trailing 0.
+      // Auto-triggered presses show a trailing 0 on the hole before they start.
+      // Manual presses are called during the hole they cover, so they show
+      // nothing before their start hole.
+      if (bet.manual) return startHole && hole >= startHole;
       return startHole && hole >= startHole - 1;
     })
     .map((bet) => {
@@ -279,12 +282,6 @@ function TeamGameScorecard({
     const pressResult = Array.isArray(matchup?.result) ? matchup.result : [];
     const statuses = getBetStatusesForHole(pressResult, hole);
     const runningValue = getNetActiveBetCountForHole(pressResult, hole);
-    // Manual press marker (Aug 2026) — was previously shown nowhere on
-    // this scorecard, even though 1v1's equivalent view already flags it.
-    // Flags this hole if a manually-called press (not auto-triggered)
-    // starts here, so the compact Press Detail row can mark it.
-    const manualPressStartsHere = pressResult.some((bet) => bet.manual && Number(bet.startHole) === hole);
-
     // Match Play — one cell per enabled segment (Front/Back/Total),
     // each independently stopping at its own decidedOn.
     const matchPlayCells = {};
@@ -380,7 +377,6 @@ function TeamGameScorecard({
       netHolesLabel,
       strokeCells,
       pressDetail: formatPressDetail(statuses),
-      manualPressStartsHere,
       resultValue: holeResult,
     };
   });
@@ -666,9 +662,6 @@ function TeamGameScorecard({
               {sectionRows.map((row) => (
                 <td key={`press-${gameIndex}-${matchupIndex}-${row.hole}`} style={{ ...scorecardCellStyle, color: "#444" }}>
                   {row.pressDetail}
-                  {row.manualPressStartsHere && (
-                    <span title="Press called by hand, not auto-triggered" style={{ marginLeft: 3, fontSize: 10 }}>📞</span>
-                  )}
                 </td>
               ))}
               <td style={{ ...scorecardCellStyle, borderLeft: "2px solid #e5e7eb" }}></td>
@@ -725,7 +718,7 @@ function TeamGameScorecard({
         if (!manualBets.length) return null;
         return (
           <div style={{ fontSize: 12, color: "#555", padding: "6px 8px", borderTop: "1px solid #eee" }}>
-            📞 Press called by hand on hole{manualBets.length > 1 ? "s" : ""} {manualBets.map((b) => b.startHole).join(", ")}
+            Press called by hand on hole{manualBets.length > 1 ? "s" : ""} {manualBets.map((b) => b.startHole).join(", ")}
           </div>
         );
       })()}
@@ -1017,6 +1010,12 @@ function NinePointScorecard({
   const toyRule = !!match?.toyRule;
   const betAmt = Number(match?.bet) || Number(teamGameUnitAmount) || 1;
   const allHoleNums = holes.map(h => h.hole);
+  // CONFIRMED REAL BUG (Sep 2026): this scorecard called getHandicapStrokes
+  // directly with the raw global handicapMode, with zero awareness of a
+  // match's own Play Even / Custom Strokes / Full Handicap override — so
+  // any of those three showed the wrong dots here, not just Full Handicap.
+  // Fixed by using the one canonical resolver instead of no resolver at all.
+  const strokesFn = match ? (buildMatchHandicapOverrideFn(match, players, course) || getHandicapStrokes) : getHandicapStrokes;
 
   // Count gross birdies per player for summary
   const birdieCounts = Object.fromEntries(
@@ -1191,7 +1190,7 @@ function NinePointScorecard({
                   <td style={{ ...scorecardLabelCellStyle, fontSize: 12, color: "#6b7280" }}>{player.name.trim().split(" ")[0]}</td>
                   {sectionHoles.map((h) => {
                     const gross = getRawScore(scores, h.hole, player.id);
-                    const strokes = getHandicapStrokes(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
+                    const strokes = strokesFn(player.id, h.hole, players, course, handicapMode, !!match?.noPar3Strokes);
                     const display = gross != null ? `${gross}${"•".repeat(strokes)}` : "–";
                     const grossBirdie = isGrossBirdie(scores, course, h.hole, player.id);
                     const didDouble = grossBirdie && h.birdieMode === "birdie" && h.winnerPlayerId === player.id;
@@ -1303,10 +1302,13 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   // built entirely around formats with a single running result, not a set
   // of independent parallel bets.
   if (Array.isArray(result)) {
-    const isPlayEvenPress = !!match.playEven;
-    const strokesFnPress = isPlayEvenPress
-      ? () => 0
-      : (playerId, hole) => getHandicapStrokes(playerId, hole, [playerA, playerB], course, handicapMode, !!match.noPar3Strokes);
+    // CONFIRMED REAL BUG (Sep 2026): this only ever checked match.playEven,
+    // completely ignoring Custom Strokes and (once added) Full Handicap —
+    // a partial, independent reimplementation of the same override logic
+    // that already lives in scoringEngine.js. Replaced with the one
+    // canonical resolver so this can't drift from the engine again.
+    const strokesFnPress = buildMatchHandicapOverrideFn(match, [playerA, playerB], course)
+      || ((playerId, hole) => getHandicapStrokes(playerId, hole, [playerA, playerB], course, handicapMode, !!match.noPar3Strokes));
 
     const holesPress = Array.from({ length: 18 }, (_, i) => i + 1);
     const frontPress = holesPress.slice(0, 9);
@@ -1395,24 +1397,14 @@ function OneVOneScorecard({ match, players, scores, course, handicapMode, result
   const isStroke = match.type === "stroke";
   const isNetHoles = match.type === "standard";
   const isGrossStroke = isStroke && (match.strokeScoring === "gross");
-  const isPlayEven = !!match.playEven;
-  const hasCustomStrokes = !isPlayEven && match.customStrokes != null;
 
-  // Build custom stroke function for rendering (same logic as engine)
-  const customStrokesFn = hasCustomStrokes ? (() => {
-    const p1Hcp = Number(playerA?.hcp || 0);
-    const p2Hcp = Number(playerB?.hcp || 0);
-    const n = Number(match.customStrokes);
-    const higherHcpId = p1Hcp >= p2Hcp ? playerA.id : playerB.id;
-    const lowerHcpId = p1Hcp >= p2Hcp ? playerB.id : playerA.id;
-    const receiverId = n >= 0 ? higherHcpId : lowerHcpId;
-    const absN = Math.abs(n);
-    const hcpRanking = course?.hcp ? [...course.hcp].map((h, i) => ({ hole: i + 1, hcp: h })).sort((a, b) => a.hcp - b.hcp) : [];
-    const strokeHoles = new Set(hcpRanking.slice(0, absN).map(h => h.hole));
-    return (playerId, hole) => (playerId === receiverId && strokeHoles.has(hole)) ? 1 : 0;
-  })() : null;
-
-  const overrideStrokesFn = isPlayEven ? () => 0 : customStrokesFn;
+  // CONFIRMED REAL BUG (Sep 2026): this block was a full duplicate of
+  // buildMatchHandicapOverrideFn's Custom Strokes math, labeled "same
+  // logic as engine" in its own comment — which was exactly the problem:
+  // a labeled duplicate is still a duplicate, and it never learned about
+  // Full Handicap when that option was added, since nothing kept the two
+  // copies in sync. Replaced with the one canonical resolver.
+  const overrideStrokesFn = buildMatchHandicapOverrideFn(match, matchPlayers, course);
 
   // For stroke play, use pre-computed running diffs from result
   // result.holes[i] = cumulative running diff at hole i+1 (positive = P1 ahead)
