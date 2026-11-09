@@ -1,3 +1,5 @@
+// Updated Nov 2026. Tim's rule: the press is tapped during score entry for the
+// hole being played, so the called hole counts (same as the August rule).
 const { playPressMatch } = require('./engine/scoringEngine');
 
 const players = [
@@ -11,87 +13,52 @@ const course = {
   hcp: Array.from({ length: 18 }, (_, i) => i + 1),
 };
 
-// CONFIRMED REAL BUG, caught by Tim (Aug 2026): a manual press call is a
-// real-time decision ("I'm calling a press right now") made during the
-// hole, not after it's already known — so the hole it's called on should
-// count toward it, unlike the auto-trigger (which can only fire after a
-// hole completes, since the down-2 condition isn't knowable until then).
-// Before this fix, a manual call on hole 6 of a 1-6 segment got
-// startHole: 7 — zero holes left in that segment, a permanent $0 stub no
-// matter what happened on hole 6.
-
-test('manual press called on hole 6 (last hole of a 1-6 segment) wins/loses based on hole 6 itself, not a $0 stub', () => {
-  // Team A wins hole 6 by a clear margin. A manual press is called ON
-  // hole 6 — it should include hole 6's own result.
+test('press tapped while entering hole 6 starts on hole 6 and counts it', () => {
+  // Team A is 2 down after hole 5 (A lost 4 and 5), so Team A presses.
   const scores = {};
-  for (let h = 1; h <= 5; h++) scores[h] = { p1: 4, p2: 4, p3: 4, p4: 4 }; // even holes 1-5
-  scores[6] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // Team A wins hole 6 clearly
+  for (let h = 1; h <= 3; h++) scores[h] = { p1: 4, p2: 4, p3: 4, p4: 4 };
+  scores[4] = { p1: 5, p2: 5, p3: 3, p4: 3 }; // B wins
+  scores[5] = { p1: 5, p2: 5, p3: 3, p4: 3 }; // B wins
+  scores[6] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // A wins hole 6
 
   const context = { players, course, scores, handicapMode: 'relative', noPar3Strokes: false };
   const result = playPressMatch({
-    teamA: ['p1', 'p2'],
-    teamB: ['p3', 'p4'],
-    start: 1,
-    end: 6,
-    trigger: 2, // high enough that the auto-trigger doesn't also fire here
-    manualPressHoles: [6],
-    context,
+    teamA: ['p1', 'p2'], teamB: ['p3', 'p4'], start: 1, end: 6,
+    trigger: 99, manualPressHoles: [6], context,
   });
-
-  const manualPress = result.find(bet => bet.manual === true);
-  expect(manualPress).toBeDefined();
-  // Must start AT hole 6, not hole 7 — this is the actual fix.
-  expect(manualPress.startHole).toBe(6);
-  // Team A won hole 6, so this press should be +1 for Team A, not $0.
-  expect(manualPress.score).toBe(1);
-  expect(manualPress.history).toEqual([1]);
+  const press = result.find((b) => b.manual === true);
+  expect(press.startHole).toBe(6);
+  expect(press.history).toEqual([1]); // hole 6 counts
+  expect(press.score).toBe(1);
+  const base = result.find((b) => b.label === 'Base Match');
+  expect(base.score).toBe(-2 + 1); // -2 after hole 5, then hole 6 won by A
 });
 
-test('manual press called on a hole in the middle of a segment plays out every remaining hole, not just the one it was called on', () => {
+test('a press called mid-segment covers the called hole and every hole after it', () => {
   const scores = {};
-  scores[1] = { p1: 4, p2: 4, p3: 4, p4: 4 }; // even
-  scores[2] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // Team A wins (press called here)
-  scores[3] = { p1: 5, p2: 5, p3: 3, p4: 3 }; // Team B wins
-  scores[4] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // Team A wins
+  scores[1] = { p1: 4, p2: 4, p3: 4, p4: 4 };
+  scores[2] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // A wins (press called after this)
+  scores[3] = { p1: 5, p2: 5, p3: 3, p4: 3 }; // B wins
+  scores[4] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // A wins
 
   const context = { players, course, scores, handicapMode: 'relative', noPar3Strokes: false };
   const result = playPressMatch({
-    teamA: ['p1', 'p2'],
-    teamB: ['p3', 'p4'],
-    start: 1,
-    end: 4,
-    trigger: 5, // won't auto-fire
-    manualPressHoles: [2],
-    context,
+    teamA: ['p1', 'p2'], teamB: ['p3', 'p4'], start: 1, end: 4,
+    trigger: 99, manualPressHoles: [2], context,
   });
-
-  const manualPress = result.find(bet => bet.manual === true);
-  expect(manualPress.startHole).toBe(2);
-  // Hole 2 (+1 A), hole 3 (-1 A), hole 4 (+1 A) = net +1 for Team A
-  expect(manualPress.history).toEqual([1, -1, 1]);
-  expect(manualPress.score).toBe(1);
+  const press = result.find((b) => b.manual === true);
+  expect(press.startHole).toBe(2);
+  expect(press.history).toEqual([1, -1, 1]); // holes 2-4
+  expect(press.score).toBe(1);
 });
 
-test('a hole with BOTH a manual call and an auto-trigger produces two independent new bets, not deduped (confirmed design)', () => {
+test('a press called on the final hole covers that hole', () => {
   const scores = {};
-  scores[1] = { p1: 3, p2: 3, p3: 5, p4: 5 }; // Team A wins hole 1 → Base Match hits trigger=1
-
+  for (let h = 1; h <= 6; h++) scores[h] = { p1: 4, p2: 4, p3: 4, p4: 4 };
   const context = { players, course, scores, handicapMode: 'relative', noPar3Strokes: false };
   const result = playPressMatch({
-    teamA: ['p1', 'p2'],
-    teamB: ['p3', 'p4'],
-    start: 1,
-    end: 1,
-    trigger: 1,
-    manualPressHoles: [1],
-    context,
+    teamA: ['p1', 'p2'], teamB: ['p3', 'p4'], start: 1, end: 6,
+    trigger: 99, manualPressHoles: [6], context,
   });
-
-  // Base Match + the manual press (both existing when hole 1 is scored,
-  // both get credited hole 1) + the auto-triggered press (starts hole 2,
-  // outside this 1-hole segment, so it's a $0 stub) = 3 bets total.
-  expect(result.length).toBe(3);
-  const manualPress = result.find(b => b.manual === true);
-  expect(manualPress.startHole).toBe(1);
-  expect(manualPress.score).toBe(1); // credited hole 1's result
+  expect(result.find((b) => b.manual === true).history).toEqual([0]);
 });

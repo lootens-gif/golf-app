@@ -1,18 +1,12 @@
-// TeamPressHoleCard.jsx — Aug 2026
+// TeamPressHoleCard.jsx — Nov 2026
 //
-// On-course "Call Press" control for Team Press, living on the Scoring
-// screen next to score entry — same placement pattern as WolfHoleCard,
-// per Tim's explicit ask ("similar to how we do things for Wolf on
-// course at the time of the hole"), rather than buried back in Setup.
+// One-tap "Call a press" row on the Scoring screen, next to score entry.
+// Tap it while entering the hole you're about to play (or just finished) and
+// the press starts on that hole. Tap again to undo.
 //
-// One toggle button per active team matchup for the CURRENT hole's
-// segment (Team 1 vs Team 2, Team 1 vs Team 3, Team 1 vs Team 4 — however
-// many are active in 6/6/6 etc.). Tap to call a press on this hole for
-// that matchup, tap again to undo — identical interaction pattern to
-// Wolf's Lone Wolf / Blind Wolf declare buttons. Confirmed design (Aug
-// 2026): a manual call is independent of the auto-trigger, not deduped
-// against it, and each matchup's manual presses are tracked completely
-// separately from every other matchup's.
+// Shown only when the game has exactly ONE matchup (4-player, 1v1, etc.).
+// Multi-matchup games (5-player 6/6/6) hide it: a single tap would have to
+// pick which matchup, and that case almost never happens.
 
 const sc = {
   green:      "#1a5c35",
@@ -24,73 +18,38 @@ const sc = {
 
 export default function TeamPressHoleCard({
   currentHole,
-  matchupLabels = [],       // e.g. ["Team 1 vs Team 2", "Team 1 vs Team 3"]
+  matchupLabels = [],       // e.g. ["Team 1 vs Team 2"]
   manualPressHoles = {},    // { [label]: [holeNumbers] } for the active game
   onToggleCall,             // (label, hole) => void
-  canCall = true,           // false on a segment's last hole: nothing left to press
 }) {
-  if (!matchupLabels.length) return null;
+  if (matchupLabels.length !== 1) return null;
+  const label = matchupLabels[0];
+  const called = (manualPressHoles[label] || []).includes(currentHole);
 
   return (
-    <div
+    <button
+      onClick={() => onToggleCall(label, currentHole)}
       style={{
-        background: "#fff",
-        border: `1px solid ${sc.border}`,
-        borderRadius: 12,
-        padding: 14,
+        width: "100%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "10px 12px",
         marginBottom: 12,
+        fontSize: 13,
+        fontWeight: called ? 700 : 500,
+        fontFamily: "inherit",
+        cursor: "pointer",
+        borderRadius: 8,
+        border: called ? `1.5px solid ${sc.green}` : `1px solid ${sc.border}`,
+        background: called ? sc.greenLight : "#fff",
+        color: called ? sc.green : sc.ink,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 700, color: sc.ink }}>
-          Hole {currentHole} — Press
-        </div>
-      </div>
-
-      <div style={{ fontSize: 12, color: sc.muted, marginBottom: 8 }}>
-        {canCall
-          ? "Call Press (tap to call, tap again to undo)"
-          : "Last hole of this segment. No holes left for a press."}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {matchupLabels.map((label) => {
-          const called = (manualPressHoles[label] || []).includes(currentHole);
-          return (
-            <button
-              key={label}
-              onClick={() => { if (canCall || called) onToggleCall(label, currentHole); }}
-              style={{
-                padding: "10px 12px",
-                fontSize: 13,
-                fontWeight: called ? 700 : 500,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                borderRadius: 8,
-                textAlign: "left",
-                border: called ? `1.5px solid ${sc.green}` : `1px solid ${sc.border}`,
-                background: called ? sc.greenLight : "#fff",
-                color: called ? sc.green : sc.ink,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span>{label}</span>
-              <span style={{ fontSize: 11, fontWeight: 600 }}>
-                {called ? "Press called ✓" : "Call Press"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+      <span>{called ? `Press called on hole ${currentHole}` : "Call a press"}</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: sc.muted }}>
+        {called ? "tap to undo" : `starts hole ${currentHole}`}
+      </span>
+    </button>
   );
 }

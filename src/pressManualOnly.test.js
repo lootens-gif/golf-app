@@ -21,11 +21,17 @@ test('Manual only: a 2-down swing never auto-presses', () => {
   expect(bets[0].label).toBe('Base Match');
 });
 
-test('Manual only: a called press runs from the called hole to the segment end', () => {
+test('Manual only: a press called on hole 3 starts on hole 3 and counts it', () => {
   const bets = playPressMatch({ teamA, teamB, start: 1, end: 6, trigger: PRESS_MANUAL_ONLY, context: ctx, manualPressHoles: [3] });
   expect(bets.length).toBe(2);
   expect(bets[1]).toMatchObject({ label: 'Press 1', startHole: 3, manual: true });
   expect(bets[1].history).toEqual([1, 0, 0, 0]); // holes 3-6 scored
+});
+
+test('Manual press called on the final hole still covers that hole', () => {
+  const bets = playPressMatch({ teamA, teamB, start: 1, end: 6, trigger: PRESS_MANUAL_ONLY, context: ctx, manualPressHoles: [6] });
+  expect(bets.length).toBe(2);
+  expect(bets[1].history).toEqual([0]);
 });
 
 test('2 Down still auto-presses when not manual only', () => {
@@ -33,7 +39,8 @@ test('2 Down still auto-presses when not manual only', () => {
   expect(bets.some((b) => b.label === 'Press 1' && b.startHole === 3)).toBe(true);
 });
 
-test('Manual call and auto press stack on the same hole when both are on', () => {
+test('Manual call and auto press stack when both fire after the same hole', () => {
+  // Team A is 2 up after hole 2, so the auto-press starts hole 3; calling a press on hole 3 does too.
   const bets = playPressMatch({ teamA, teamB, start: 1, end: 6, trigger: 2, context: ctx, manualPressHoles: [3] });
   expect(bets.filter((b) => b.startHole === 3 && b.label.startsWith('Press')).length).toBe(2);
 });

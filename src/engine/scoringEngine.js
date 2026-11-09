@@ -1159,19 +1159,8 @@ export function playPressMatch({
   let pressCount = 0;
 
   for (let hole = start; hole <= end; hole++) {
-    // Manual press (Aug 2026, fixed): added BEFORE this hole's result is
-    // computed, not after. A manual call represents a real-time decision
-    // ("I'm calling a press right now") made during the hole, not after
-    // it's already known — so the hole it's called on should count toward
-    // it. This is the opposite of the auto-trigger below, which can only
-    // fire AFTER a hole completes (the down-2 condition isn't knowable
-    // until the hole is scored) and correctly starts the next hole.
-    // CONFIRMED REAL BUG, caught by Tim (Aug 2026): before this fix, a
-    // press called on hole 6 of a 1-6 segment got startHole: 7 — meaning
-    // it had zero holes left to play in that segment and was a permanent
-    // $0 stub no matter what happened on hole 6, even though calling a
-    // press on the hole you're playing should let you win or lose that
-    // same hole with it.
+    // Manual press: tapped during score entry for the hole being played, so it
+    // counts that hole (Tim's rule, Nov 2026). Added before this hole's result.
     if (manualHoleSet.has(hole)) {
       pressCount += 1;
       bets.push({
@@ -1229,6 +1218,7 @@ export function playPressMatch({
         startHole: hole + 1,
       });
     }
+
   }
 
   return bets.map((bet) => ({
