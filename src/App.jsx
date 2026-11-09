@@ -477,6 +477,8 @@ function getBetStatusesForHole(bets = [], hole) {
   return bets
     .filter((bet) => {
       const startHole = Number(bet.startHole || 0);
+      // Manual presses are called during the hole they cover: no trailing 0.
+      if (bet.manual) return startHole && hole >= startHole;
       return startHole && hole >= startHole - 1;
     })
     .map((bet) => {
