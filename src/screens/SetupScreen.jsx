@@ -1,6 +1,7 @@
 import PlayerSetupPanel from "../components/PlayerSetupPanel";
 import MatchList from "../components/MatchList";
 import RoundPreview from "../components/RoundPreview";
+import CourseEditor from "../components/CourseEditor";
 import { WOLF_CENTS_SAFE_DIVISOR } from "../components/live/WolfHoleCard";
 import { useEffect, useRef, useState } from "react";
 
@@ -176,6 +177,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
   const [updatePin, setUpdatePin] = useState("");
   const [updateStatus, setUpdateStatus] = useState("");
   const [showList, setShowList] = useState(false);
+  const [creatingCourse, setCreatingCourse] = useState(false);
 
   const savedBy = players?.[0]?.name && players[0].name !== "P1" ? players[0].name : "Anonymous";
 
@@ -213,6 +215,7 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
     updateCourseName(c.name);
     c.pars.forEach((par, i) => updateCoursePar(i, par));
     c.hcp.forEach((hcp, i) => updateCourseHcp(i, hcp));
+    setCreatingCourse(false);
     setLoadedCourse(c);
     setDuplicateCourse(null);
     setShowList(false);
@@ -286,6 +289,32 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
             {course.city && <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.8 }}>{course.city}{course.state ? `, ${course.state}` : ""} · locked during round</div>}
           </div>
         </div>
+      ) : creatingCourse ? (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>New course</div>
+          <input
+            type="text"
+            value={course.name || ""}
+            onChange={e => updateCourseName(e.target.value)}
+            placeholder="Course name (e.g. Pine Forest CC - Green/White)"
+            style={{ width: "100%", fontSize: 16, padding: "10px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 }}
+          />
+          <CourseEditor
+            course={course}
+            onParChange={(i, v) => updateCoursePar(i, v)}
+            onHcpChange={(i, v) => updateCourseHcp(i, v)}
+          />
+          <button
+            onClick={() => {
+              setCreatingCourse(false);
+              setShowList(true);
+              updateCourseName("");
+              for (let i = 0; i < 18; i++) { updateCoursePar(i, ""); updateCourseHcp(i, ""); }
+            }}
+            style={{ marginTop: 8, width: "100%", padding: "9px 0", fontSize: 13, color: sc.muted, background: "transparent", border: `1px solid ${sc.border}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+            Cancel new course
+          </button>
+        </>
       ) : loadedCourse && !showList ? (
         <>
           {/* Course selected — show green banner */}
@@ -359,6 +388,17 @@ function CourseCard({ course, updateCourseName, updateCoursePar, updateCourseHcp
             placeholder="Search courses…"
             style={{ width: "100%", fontSize: 16, padding: "10px 12px", border: `1px solid ${sc.border}`, borderRadius: 8, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 8 }}
           />
+          <button
+            onClick={() => {
+              setLoadedCourse(null);
+              setShowList(false);
+              setCreatingCourse(true);
+              updateCourseName("");
+              for (let i = 0; i < 18; i++) { updateCoursePar(i, ""); updateCourseHcp(i, ""); }
+            }}
+            style={{ width: "100%", marginBottom: 8, padding: "9px 0", fontSize: 13, fontWeight: 600, color: sc.green, background: "#fff", border: `1px dashed ${sc.green}`, borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+            + New course
+          </button>
 
           {/* Sort toggle */}
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
